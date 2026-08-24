@@ -69,7 +69,7 @@ export function nextMastery(m, { correct, usedHint }) {
 export function applySession(mem, perConcept) {
   const today = new Date().toISOString().slice(0, 10)
   return mem.map((c) => {
-    const r = perConcept[c.id]
+    const r = perConcept[c.id] || perConcept[c.name]
     if (!r) return c
     return {
       ...c,
@@ -78,6 +78,7 @@ export function applySession(mem, perConcept) {
       correct: (c.correct || 0) + r.correct,
       wrong: (c.wrong || 0) + r.wrong,
       lastReviewed: today,
+      newToday: false,
     }
   })
 }
@@ -116,6 +117,29 @@ export function addConcepts(mem, concepts) {
         learnedOn: today, newToday: true, learnedInApp: true,
       }
       out.push(nc)
+      idx.set(key, out.length - 1)
+    }
+  }
+  return out
+}
+
+// Ghi nhận chỗ con làm sai (Error Memory): hạ mastery + đánh dấu cần ôn lại.
+export function recordErrors(mem, conceptNames) {
+  const today = new Date().toISOString().slice(0, 10)
+  const out = mem.map((c) => ({ ...c }))
+  const idx = new Map(out.map((c, i) => [c.name.toLowerCase(), i]))
+  for (const raw of conceptNames) {
+    const name = (raw || '').trim()
+    if (!name) continue
+    const key = name.toLowerCase()
+    if (idx.has(key)) {
+      const i = idx.get(key)
+      out[i] = { ...out[i], mastery: Math.max(0, out[i].mastery - 8), wrong: (out[i].wrong || 0) + 1, newToday: true, lastReviewed: today }
+    } else {
+      out.push({
+        id: slug(name), name, difficulty: 'Cơ bản', subject: 'Toán', topic: '',
+        mastery: 40, reviews: 0, correct: 0, wrong: 1, newToday: true, learnedInApp: true,
+      })
       idx.set(key, out.length - 1)
     }
   }

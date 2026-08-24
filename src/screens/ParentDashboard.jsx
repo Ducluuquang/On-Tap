@@ -1,7 +1,7 @@
 import { Brand, StatusPill, MasteryBar } from '../components.jsx'
 import { conceptStatusList, parentSummary } from '../lib/mockAI.js'
 
-export default function ParentDashboard({ mem, session, onCapture, toast }) {
+export default function ParentDashboard({ mem, session, onCapture, onGrade, toast }) {
   const concepts = conceptStatusList(mem)
   const needAttention = concepts.filter((c) => c.mastery < 60)
   const pct = session ? Math.round((session.correct / session.total) * 100) : null
@@ -60,6 +60,7 @@ export default function ParentDashboard({ mem, session, onCapture, toast }) {
       </section>
 
       <button className="cta" onClick={onCapture}>Chụp bài con học hôm nay</button>
+      <button className="ghost" onClick={onGrade}>Chấm bài con đã làm</button>
 
       <footer className="foot">
         Bản demo · Số liệu minh hoạ. Bản thật cập nhật theo kết quả ôn thực tế của con.

@@ -17,18 +17,36 @@ async function callApi(body) {
   return r.json()
 }
 
-export function fileToBase64(file) {
+// Thu nhỏ ảnh trước khi gửi lên: nhẹ hơn nhiều (tránh "Failed to fetch" do ảnh quá lớn),
+// và AI cũng đọc nhanh hơn. Ảnh điện thoại 3–5 MB được nén còn vài trăm KB.
+export function imageToBase64(file, maxDim = 1500, quality = 0.85) {
   return new Promise((resolve, reject) => {
-    const rd = new FileReader()
-    rd.onload = () => resolve(String(rd.result).split(',')[1])
-    rd.onerror = () => reject(new Error('Không đọc được ảnh'))
-    rd.readAsDataURL(file)
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height))
+      const w = Math.max(1, Math.round(img.width * scale))
+      const h = Math.max(1, Math.round(img.height * scale))
+      const canvas = document.createElement('canvas')
+      canvas.width = w
+      canvas.height = h
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+      try {
+        const dataUrl = canvas.toDataURL('image/jpeg', quality)
+        resolve({ b64: dataUrl.split(',')[1], media: 'image/jpeg' })
+      } catch {
+        reject(new Error('Không xử lý được ảnh'))
+      }
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Không đọc được ảnh')) }
+    img.src = url
   })
 }
 
 export async function extractFromImage(file) {
-  const image = await fileToBase64(file)
-  return callApi({ action: 'extract', image, media: file.type || 'image/jpeg' })
+  const { b64, media } = await imageToBase64(file)
+  return callApi({ action: 'extract', image: b64, media })
 }
 
 export async function extractFromSample(sampleId) {
@@ -38,4 +56,9 @@ export async function extractFromSample(sampleId) {
 export async function generateQuestions(payload) {
   const d = await callApi({ action: 'generate', payload })
   return d.questions
+}
+
+export async function gradeImage(file) {
+  const { b64, media } = await imageToBase64(file)
+  return callApi({ action: 'grade', image: b64, media })
 }
