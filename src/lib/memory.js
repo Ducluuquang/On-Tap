@@ -21,23 +21,28 @@ export const STATUS_LABEL = {
 }
 
 // Trạng thái khởi tạo: giả lập con đã học mấy khái niệm này rồi, mức độ khác nhau.
+function daysAgo(n) {
+  const t = new Date()
+  t.setDate(t.getDate() - n)
+  return t.toISOString().slice(0, 10)
+}
+
 function seed() {
   const base = {
-    'ps-bang-nhau': { mastery: 88, reviews: 6, correct: 16, wrong: 3 },
-    'rut-gon': { mastery: 72, reviews: 4, correct: 9, wrong: 4 },
-    'quy-dong': { mastery: 54, reviews: 3, correct: 5, wrong: 6 },
-    'so-sanh': { mastery: 91, reviews: 7, correct: 20, wrong: 2 },
-    'cong-cung-mau': { mastery: 66, reviews: 3, correct: 7, wrong: 3 },
+    'ps-bang-nhau': { mastery: 88, reviews: 6, correct: 16, wrong: 3, days: 80 },
+    'rut-gon': { mastery: 72, reviews: 4, correct: 9, wrong: 4, days: 25 },
+    'quy-dong': { mastery: 54, reviews: 3, correct: 5, wrong: 6, days: 3 },
+    'so-sanh': { mastery: 91, reviews: 7, correct: 20, wrong: 2, days: 50 },
+    'cong-cung-mau': { mastery: 66, reviews: 3, correct: 7, wrong: 3, days: 10 },
   }
-  return CONCEPTS.map((c) => ({
-    id: c.id,
-    name: c.name,
-    difficulty: c.difficulty,
-    subject: 'Toán',
-    topic: 'Phân số',
-    learnedInApp: true,
-    ...base[c.id],
-  }))
+  return CONCEPTS.map((c) => {
+    const b = base[c.id]
+    return {
+      id: c.id, name: c.name, difficulty: c.difficulty, subject: 'Toán', topic: 'Phân số',
+      learnedInApp: true, mastery: b.mastery, reviews: b.reviews, correct: b.correct, wrong: b.wrong,
+      learnedOn: daysAgo(b.days),
+    }
+  })
 }
 
 export function loadMemory() {

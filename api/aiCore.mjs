@@ -54,6 +54,23 @@ Với mỗi câu, tự kiểm tra kỹ để đáp án chắc chắn đúng.
 Trả DUY NHẤT JSON:
 {"questions":[{"concept":"","q":"","options":["","","",""],"answer":0,"explain":"","hint":""}]}
 "answer" là chỉ số 0-3 của đáp án đúng. Tiếng Việt, nội dung chính xác. Chỉ JSON.`
-  const out = await ask(key, [{ type: 'text', text: prompt }], 3000)
+  const max = Math.min(8000, 1600 + count * 320)
+  const out = await ask(key, [{ type: 'text', text: prompt }], max)
   return parseJSON(out).questions
+}
+
+// Chấm một trang bài con ĐÃ LÀM (đọc chữ viết tay, kết luận đúng/sai, gán khái niệm).
+export async function gradeHomework(key, imageB64, media = 'image/jpeg') {
+  const prompt =
+`Đây là ảnh một trang bài tập của học sinh tiểu học Việt Nam ĐÃ LÀM (có chữ viết tay), có thể bị xoay.
+Đọc các câu học sinh đã làm; tự tính đáp án đúng; kết luận đúng/sai. Nếu chữ không rõ ghi "không đọc rõ".
+Gán cho mỗi câu một "concept" (khái niệm) ngắn gọn để hệ thống biết con yếu phần nào.
+Trả về DUY NHẤT JSON:
+{"subject":"","topic":"","baiLam":[{"cau":"","concept":"","traLoiHocSinh":"","dapAnDung":"","ketQua":"đúng|sai|không đọc rõ","nhanXet":""}]}
+Tối đa 6 mục, chọn câu con có viết. nhanXet ngắn (≤ 12 từ). Tiếng Việt. Chỉ JSON.`
+  const out = await ask(key, [
+    { type: 'image', source: { type: 'base64', media_type: media, data: imageB64 } },
+    { type: 'text', text: prompt },
+  ], 5000)
+  return parseJSON(out)
 }

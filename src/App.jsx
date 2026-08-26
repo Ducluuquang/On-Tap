@@ -4,7 +4,9 @@ import { buildReview } from './lib/mockAI.js'
 import { generateQuestions } from './lib/aiClient.js'
 
 import ChildHome from './screens/ChildHome.jsx'
+import CustomReview from './screens/CustomReview.jsx'
 import Review from './screens/Review.jsx'
+import QuickFire from './screens/QuickFire.jsx'
 import Result from './screens/Result.jsx'
 import ParentCapture from './screens/ParentCapture.jsx'
 import ParentApprove from './screens/ParentApprove.jsx'
@@ -44,12 +46,13 @@ export default function App() {
   const [streak, setStreak] = useState(5)
   const [toast, setToast] = useState('')
   const [reviewTitle, setReviewTitle] = useState('Ôn tập hôm nay')
+  const [reviewMode, setReviewMode] = useState('quiz')
   const [reviewQuestions, setReviewQuestions] = useState(null)
   const [generating, setGenerating] = useState(false)
 
   useEffect(() => { saveMemory(mem) }, [mem])
   useEffect(() => {
-    if (!toast) return
+    if (!toast) return undefined
     const t = setTimeout(() => setToast(''), 2600)
     return () => clearTimeout(t)
   }, [toast])
@@ -59,19 +62,22 @@ export default function App() {
     setView(r === 'child' ? 'home' : 'dashboard')
   }
 
-  async function startReview(title) {
+  async function startReview({ title = 'Ôn tập', conceptNames, count = 10, mode = 'quiz' } = {}) {
     setReviewTitle(title)
+    setReviewMode(mode)
     setReviewQuestions(null)
     setGenerating(true)
-    setView('review')
-    const targets = [...mem].sort((a, b) => a.mastery - b.mastery)
-    const names = targets.slice(0, 4).map((c) => c.name)
-    const topic = targets[0]?.topic || 'Phân số'
+    setView(mode === 'quickfire' ? 'quickfire' : 'review')
+    let names = conceptNames
+    if (!names || !names.length) {
+      names = [...mem].sort((a, b) => a.mastery - b.mastery).slice(0, 4).map((c) => c.name)
+    }
+    const topic = mem.find((c) => c.name === names[0])?.topic || 'Phân số'
     let qs = []
     try {
-      qs = normalizeQs(await generateQuestions({ subject: 'Toán', grade: '4-5', topic, concepts: names, count: 6 }))
+      qs = normalizeQs(await generateQuestions({ subject: 'Toán', grade: '4-5', topic, concepts: names, count }))
     } catch { qs = [] }
-    if (!qs.length) qs = buildReview(mem, 6) // dự phòng: ngân hàng câu mẫu
+    if (!qs.length) qs = buildReview(mem, count)
     setReviewQuestions(qs)
     setGenerating(false)
   }
@@ -87,10 +93,7 @@ export default function App() {
     setView('result')
   }
 
-  function onExtracted(result) {
-    setPending(result)
-    setView('approve')
-  }
+  function onExtracted(result) { setPending(result); setView('approve') }
   function onSaveApprove(checked) {
     const chosen = (pending?.concepts || [])
       .filter((c) => checked[c.id])
@@ -106,16 +109,26 @@ export default function App() {
     setView('dashboard')
   }
 
+  const genOrScreen = (node) => (generating || !reviewQuestions) ? <GeneratingScreen /> : node
+
   let screen = null
   if (role === 'child') {
-    if (view === 'review') {
-      screen = (generating || !reviewQuestions)
-        ? <GeneratingScreen />
-        : <Review questions={reviewQuestions} mem={mem} title={reviewTitle} onFinish={handleFinish} onExit={() => setView('home')} />
+    if (view === 'custom') {
+      screen = <CustomReview mem={mem} onStart={startReview} onBack={() => setView('home')} />
+    } else if (view === 'review') {
+      screen = genOrScreen(
+        <Review questions={reviewQuestions} mem={mem} title={reviewTitle} mode={reviewMode}
+          onFinish={handleFinish} onExit={() => setView('home')} />)
+    } else if (view === 'quickfire') {
+      screen = genOrScreen(
+        <QuickFire questions={reviewQuestions} mem={mem} title={reviewTitle}
+          onFinish={handleFinish} onExit={() => setView('home')} />)
     } else if (view === 'result') {
       screen = <Result session={session} onHome={() => setView('home')} onReport={() => switchRole('parent')} />
     } else {
-      screen = <ChildHome mem={mem} streak={streak} onStart={() => startReview('Ôn tập hôm nay')} onPractice={() => startReview('Luyện thêm')} />
+      screen = <ChildHome mem={mem} streak={streak}
+        onStart={() => startReview({ title: 'Ôn tập hôm nay', count: 10, mode: 'quiz' })}
+        onPractice={() => setView('custom')} />
     }
   } else {
     if (view === 'capture') screen = <ParentCapture onExtracted={onExtracted} onBack={() => setView('dashboard')} />

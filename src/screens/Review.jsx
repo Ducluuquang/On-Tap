@@ -3,10 +3,10 @@ import { BackHeader } from '../components.jsx'
 import { nextMastery } from '../lib/memory.js'
 import { CONCEPT_NAME } from '../data/content.js'
 
-export default function Review({ questions, mem, title = 'Ôn tập hôm nay', onFinish, onExit }) {
+export default function Review({ questions, mem, title = 'Ôn tập hôm nay', mode = 'quiz', onFinish, onExit }) {
   const [index, setIndex] = useState(0)
   const [picked, setPicked] = useState(null)
-  const [status, setStatus] = useState('ask') // ask | wrong1 | resolved
+  const [status, setStatus] = useState('ask')
   const [triedWrong, setTriedWrong] = useState(false)
   const [usedHint, setUsedHint] = useState(false)
   const [outcome, setOutcome] = useState(null)
@@ -24,6 +24,8 @@ export default function Review({ questions, mem, title = 'Ôn tập hôm nay', o
 
   const q = questions[index]
   const label = CONCEPT_NAME[q.concept] || q.concept
+  const totalWrong = Object.values(results).reduce((s, r) => s + (r.wrong || 0), 0)
+  const hearts = Math.max(0, 3 - totalWrong)
   const startMastery = () =>
     results[q.concept]?.mastery ?? (mem.find((c) => c.id === q.concept || c.name === q.concept)?.mastery ?? 55)
 
@@ -49,13 +51,8 @@ export default function Review({ questions, mem, title = 'Ôn tập hôm nay', o
     }
     const newResults = { ...results, [key]: updated }
     const newSolved = solved + (isCorrect ? 1 : 0)
-    setResults(newResults)
-    setSolved(newSolved)
-
-    if (index + 1 >= questions.length) {
-      onFinish({ total: questions.length, correct: newSolved }, newResults)
-      return
-    }
+    setResults(newResults); setSolved(newSolved)
+    if (index + 1 >= questions.length) { onFinish({ total: questions.length, correct: newSolved }, newResults); return }
     setIndex(index + 1); setPicked(null); setStatus('ask')
     setTriedWrong(false); setUsedHint(false); setOutcome(null)
   }
@@ -72,10 +69,24 @@ export default function Review({ questions, mem, title = 'Ôn tập hôm nay', o
   return (
     <div className="screen">
       <BackHeader title={title} onBack={onExit} />
-      <div className="qprogress">
-        <div className="qbar"><span style={{ width: (index / questions.length) * 100 + '%' }} /></div>
-        <span className="qcount">{index + 1}/{questions.length}</span>
-      </div>
+
+      {mode === 'boss' ? (
+        <div className="boss">
+          <div className="boss-top">
+            <span className="boss-face">👾</span>
+            <div className="boss-hpwrap">
+              <div className="boss-hp"><span style={{ width: (1 - solved / questions.length) * 100 + '%' }} /></div>
+              <span className="boss-lbl">Boss còn {questions.length - solved}/{questions.length} máu</span>
+            </div>
+            <span className="boss-hearts">{'❤️'.repeat(hearts)}{'🤍'.repeat(3 - hearts)}</span>
+          </div>
+        </div>
+      ) : (
+        <div className="qprogress">
+          <div className="qbar"><span style={{ width: (index / questions.length) * 100 + '%' }} /></div>
+          <span className="qcount">{index + 1}/{questions.length}</span>
+        </div>
+      )}
 
       <div className="qtag">{label}</div>
       <h2 className="question">{q.q}</h2>
@@ -99,7 +110,9 @@ export default function Review({ questions, mem, title = 'Ôn tập hôm nay', o
 
       {status === 'resolved' && (
         <div className={'fb ' + (outcome === 'correct' ? 'fb-ok' : 'fb-no')}>
-          <b>{outcome === 'correct' ? (usedHint ? 'Đúng rồi! 👏' : 'Chính xác! 🎉') : 'Đáp án đúng đã hiện ở trên.'}</b>
+          <b>{outcome === 'correct'
+            ? (mode === 'boss' ? 'Trúng Boss! 💥' : (usedHint ? 'Đúng rồi! 👏' : 'Chính xác! 🎉'))
+            : 'Đáp án đúng đã hiện ở trên.'}</b>
           {q.explain && <p>{q.explain}</p>}
           <button className="cta" onClick={next}>
             {index + 1 >= questions.length ? 'Xem kết quả' : 'Câu tiếp theo'}

@@ -211,6 +211,35 @@ body{
 .krow-bar{display:flex;align-items:center;gap:10px}
 .kpct{font-size:.82rem;font-weight:700;color:var(--ink-soft);width:38px;text-align:right;font-variant-numeric:tabular-nums}
 
+/* Custom review builder */
+.cr-sec{margin-bottom:4px}
+.cr-sec h3{margin:0 0 9px;font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.cr-input{width:100%;border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;font-family:inherit;font-size:.98rem;color:var(--ink);background:#fff}
+.cr-input:focus{outline:none;border-color:var(--teal)}
+.cr-hint{margin:6px 0 0;font-size:.8rem;color:var(--muted)}
+.cr-preview{background:var(--teal-soft);border:1px solid #CDE5E0;border-radius:12px;padding:12px 15px;display:flex;flex-direction:column;gap:2px}
+.cr-preview b{color:var(--teal-dark);font-size:.95rem}
+.cr-preview span{font-size:.82rem;color:var(--ink-soft)}
+
+/* Quick Fire */
+.qf-top{display:flex;align-items:center;justify-content:space-between}
+.qf-timer{font-weight:800;font-size:1.15rem;color:var(--teal-dark)}
+.qf-timer.low{color:var(--weak-tx)}
+.qf-score{font-weight:700;color:var(--ink-soft)}
+.qf-bar{height:8px;background:var(--line);border-radius:999px;overflow:hidden}
+.qf-bar span{display:block;height:100%;background:linear-gradient(90deg,#18a597,var(--teal));border-radius:999px;transition:width 1s linear}
+.qf-note{margin:auto 0 0;text-align:center;font-size:.82rem;color:var(--muted)}
+
+/* Boss battle */
+.boss{background:#fff;border:1px solid var(--border);border-radius:14px;padding:12px 14px;box-shadow:var(--shadow)}
+.boss-top{display:flex;align-items:center;gap:12px}
+.boss-face{font-size:1.6rem}
+.boss-hpwrap{flex:1;display:flex;flex-direction:column;gap:4px}
+.boss-hp{height:12px;background:#F0DDDD;border-radius:999px;overflow:hidden}
+.boss-hp span{display:block;height:100%;background:linear-gradient(90deg,#E0703A,#d64b4b);border-radius:999px;transition:width .4s}
+.boss-lbl{font-size:.74rem;color:var(--muted);font-weight:600}
+.boss-hearts{font-size:.95rem;letter-spacing:1px;white-space:nowrap}
+
 /* Grade homework */
 .gsum{display:flex;align-items:center;gap:20px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow);flex-wrap:wrap}
 .gsum>div{display:flex;flex-direction:column}
