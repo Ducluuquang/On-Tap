@@ -20,6 +20,7 @@ export default function Result({ session, onHome, onReport }) {
         </div>
         <h1>Xong buổi ôn!</h1>
         <p className="result-msg">{msg}</p>
+        {typeof session.score === 'number' && <div className="score-badge">⭐ {session.score} điểm</div>}
         <div className="streak-up">🔥 Chuỗi ngày +1</div>
       </div>
 

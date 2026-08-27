@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { BackHeader } from '../components.jsx'
 import { SAMPLE_CAPTURES } from '../lib/mockAI.js'
-import { extractFromImage, extractFromSample } from '../lib/aiClient.js'
+import { extractFromImage, extractFromSample, extractFromText } from '../lib/aiClient.js'
 
 function withIds(result) {
   const concepts = (result.concepts || []).map((c, i) => ({
@@ -14,31 +14,17 @@ function withIds(result) {
 }
 
 export default function ParentCapture({ onExtracted, onBack }) {
+  const [tab, setTab] = useState('photo')
+  const [text, setText] = useState('')
   const [reading, setReading] = useState(false)
   const [error, setError] = useState('')
 
-  async function handleFile(e) {
-    const file = e.target.files && e.target.files[0]
-    if (!file) return
+  async function run(fn) {
     setError(''); setReading(true)
-    try {
-      const res = await extractFromImage(file)
-      onExtracted(withIds(res))
-    } catch (err) {
-      setError(err.message || 'Có lỗi khi đọc ảnh.')
-      setReading(false)
-    }
+    try { onExtracted(withIds(await fn())) }
+    catch (err) { setError(err.message || 'Có lỗi xảy ra.'); setReading(false) }
   }
-
-  async function handleSample(id) {
-    setError(''); setReading(true)
-    try {
-      const res = await extractFromSample(id)
-      onExtracted(withIds(res))
-    } catch {
-      setReading(false)
-    }
-  }
+  const onFile = (e) => { const f = e.target.files && e.target.files[0]; if (f) run(() => extractFromImage(f)) }
 
   if (reading) {
     return (
@@ -46,7 +32,7 @@ export default function ParentCapture({ onExtracted, onBack }) {
         <div className="reading">
           <div className="spinner" />
           <h2>AI đang đọc bài…</h2>
-          <p>Nhận diện chữ, hiểu nội dung và tách thành các khái niệm.</p>
+          <p>Hiểu nội dung và tách thành các khái niệm.</p>
         </div>
       </div>
     )
@@ -54,31 +40,49 @@ export default function ParentCapture({ onExtracted, onBack }) {
 
   return (
     <div className="screen">
-      <BackHeader title="Bài con học hôm nay" onBack={onBack} />
-      <p className="para">Chụp trang vở hoặc phiếu bài tập con vừa học. AI sẽ đọc và ghi nhớ giúp con.</p>
+      <BackHeader title="Thêm bài học hôm nay" onBack={onBack} />
+      <p className="para">Cho AI biết hôm nay con học gì — chụp ảnh bài, hoặc gõ nội dung.</p>
 
-      <label className="dropzone">
-        <div className="drop-ic">📷</div>
-        <b>Chụp ảnh hoặc tải bài lên</b>
-        <span>AI thật sẽ đọc ảnh (cần bản đã đưa lên mạng)</span>
-        <input type="file" accept="image/*" capture="environment" onChange={handleFile} hidden />
-      </label>
-
-      {error && <div className="err">{error}</div>}
-
-      <div className="or">— hoặc thử nhanh với bài mẫu —</div>
-      <div className="samples">
-        {SAMPLE_CAPTURES.map((s) => (
-          <button key={s.id} className="sample" onClick={() => handleSample(s.id)}>
-            <span className="sample-ic">🖼️</span>
-            <span className="sample-txt">
-              <b>{s.label}</b>
-              <em>{s.subject} · {s.topic} · bản mẫu</em>
-            </span>
-            <span className="sample-go">→</span>
-          </button>
-        ))}
+      <div className="tabs">
+        <button className={'tab' + (tab === 'photo' ? ' on' : '')} onClick={() => setTab('photo')}>📷 Chụp / tải ảnh</button>
+        <button className={'tab' + (tab === 'text' ? ' on' : '')} onClick={() => setTab('text')}>⌨️ Gõ nội dung</button>
       </div>
+
+      {tab === 'photo' ? (
+        <>
+          <label className="dropzone">
+            <div className="drop-ic">📷</div>
+            <b>Chụp ảnh hoặc tải bài lên</b>
+            <span>Vở ghi · worksheet · sách · bài tập (mỗi lần 1 ảnh)</span>
+            <input type="file" accept="image/*" capture="environment" onChange={onFile} hidden />
+          </label>
+          {error && <div className="err">{error}</div>}
+          <div className="or">— hoặc thử nhanh với bài mẫu —</div>
+          <div className="samples">
+            {SAMPLE_CAPTURES.map((s) => (
+              <button key={s.id} className="sample" onClick={() => run(() => extractFromSample(s.id))}>
+                <span className="sample-ic">🖼️</span>
+                <span className="sample-txt"><b>{s.label}</b><em>{s.subject} · {s.topic} · bản mẫu</em></span>
+                <span className="sample-go">→</span>
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          <textarea
+            className="ta"
+            rows={4}
+            placeholder={'Gõ những gì con vừa học, ví dụ:\n• Toán: quy đồng mẫu số và so sánh phân số\n• Tiếng Anh: thì quá khứ đơn, động từ bất quy tắc\n• Toán trang 45–52, chủ đề phân số'}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+          {error && <div className="err">{error}</div>}
+          <button className="cta" disabled={!text.trim()} onClick={() => run(() => extractFromText(text.trim()))}>
+            Cho AI đọc và ghi nhớ
+          </button>
+        </>
+      )}
     </div>
   )
 }

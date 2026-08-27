@@ -53,6 +53,10 @@ export async function extractFromSample(sampleId) {
   return extractFromCapture(sampleId)
 }
 
+export async function extractFromText(text) {
+  return callApi({ action: 'extract_text', text })
+}
+
 export async function generateQuestions(payload) {
   const d = await callApi({ action: 'generate', payload })
   return d.questions

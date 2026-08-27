@@ -7,6 +7,7 @@ import ChildHome from './screens/ChildHome.jsx'
 import CustomReview from './screens/CustomReview.jsx'
 import Review from './screens/Review.jsx'
 import QuickFire from './screens/QuickFire.jsx'
+import BossBattle from './screens/BossBattle.jsx'
 import Result from './screens/Result.jsx'
 import ParentCapture from './screens/ParentCapture.jsx'
 import ParentApprove from './screens/ParentApprove.jsx'
@@ -67,7 +68,7 @@ export default function App() {
     setReviewMode(mode)
     setReviewQuestions(null)
     setGenerating(true)
-    setView(mode === 'quickfire' ? 'quickfire' : 'review')
+    setView(mode === 'quickfire' ? 'quickfire' : mode === 'boss' ? 'boss' : 'review')
     let names = conceptNames
     if (!names || !names.length) {
       names = [...mem].sort((a, b) => a.mastery - b.mastery).slice(0, 4).map((c) => c.name)
@@ -101,7 +102,7 @@ export default function App() {
     setMem((m) => addConcepts(m, chosen))
     setToast(`Đã lưu ${chosen.length} khái niệm vào bộ nhớ của con ✓`)
     setPending(null)
-    setView('dashboard')
+    setView(role === 'child' ? 'home' : 'dashboard')
   }
   function onSaveErrors(concepts) {
     setMem((m) => recordErrors(m, concepts))
@@ -116,19 +117,21 @@ export default function App() {
     if (view === 'custom') {
       screen = <CustomReview mem={mem} onStart={startReview} onBack={() => setView('home')} />
     } else if (view === 'review') {
-      screen = genOrScreen(
-        <Review questions={reviewQuestions} mem={mem} title={reviewTitle} mode={reviewMode}
-          onFinish={handleFinish} onExit={() => setView('home')} />)
+      screen = genOrScreen(<Review questions={reviewQuestions} mem={mem} title={reviewTitle} onFinish={handleFinish} onExit={() => setView('home')} />)
     } else if (view === 'quickfire') {
-      screen = genOrScreen(
-        <QuickFire questions={reviewQuestions} mem={mem} title={reviewTitle}
-          onFinish={handleFinish} onExit={() => setView('home')} />)
+      screen = genOrScreen(<QuickFire questions={reviewQuestions} mem={mem} title={reviewTitle} onFinish={handleFinish} onExit={() => setView('home')} />)
+    } else if (view === 'boss') {
+      screen = genOrScreen(<BossBattle questions={reviewQuestions} mem={mem} title={reviewTitle} onFinish={handleFinish} onExit={() => setView('home')} />)
+    } else if (view === 'capture') {
+      screen = <ParentCapture onExtracted={onExtracted} onBack={() => setView('home')} />
+    } else if (view === 'approve' && pending) {
+      screen = <ParentApprove pending={pending} onSave={onSaveApprove} onBack={() => setView('capture')} />
     } else if (view === 'result') {
       screen = <Result session={session} onHome={() => setView('home')} onReport={() => switchRole('parent')} />
     } else {
       screen = <ChildHome mem={mem} streak={streak}
         onStart={() => startReview({ title: 'Ôn tập hôm nay', count: 10, mode: 'quiz' })}
-        onPractice={() => setView('custom')} />
+        onPractice={() => setView('custom')} onCapture={() => setView('capture')} />
     }
   } else {
     if (view === 'capture') screen = <ParentCapture onExtracted={onExtracted} onBack={() => setView('dashboard')} />

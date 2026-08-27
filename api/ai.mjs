@@ -1,7 +1,7 @@
 // Backend serverless (chuẩn Vercel). Giữ khóa API an toàn ở máy chủ.
 // Trình duyệt gọi POST /api/ai với { action, ... } và KHÔNG bao giờ thấy khóa.
 
-import { extractConcepts, generateQuestions, gradeHomework } from './aiCore.mjs'
+import { extractConcepts, extractFromText, generateQuestions, gradeHomework } from './aiCore.mjs'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -18,6 +18,11 @@ export default async function handler(req, res) {
     const { action } = body
     if (action === 'extract') {
       const data = await extractConcepts(key, body.image, body.media || 'image/jpeg')
+      res.status(200).json(data)
+      return
+    }
+    if (action === 'extract_text') {
+      const data = await extractFromText(key, String(body.text || '').slice(0, 2000))
       res.status(200).json(data)
       return
     }

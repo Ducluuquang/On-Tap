@@ -3,16 +3,21 @@ import { BackHeader } from '../components.jsx'
 import { nextMastery } from '../lib/memory.js'
 import { CONCEPT_NAME } from '../data/content.js'
 
-const DURATION = 90
+const DURATION = 60
 
 export default function QuickFire({ questions, mem, title = 'Quick Fire', onFinish, onExit }) {
   const [index, setIndex] = useState(0)
   const [timeLeft, setTimeLeft] = useState(DURATION)
+  const [score, setScore] = useState(0)
+  const [combo, setCombo] = useState(0)
   const [flash, setFlash] = useState(null)
+  const [pulse, setPulse] = useState(null)
+  const [gain, setGain] = useState(null)
   const [locked, setLocked] = useState(false)
-  const [correct, setCorrect] = useState(0)
   const resultsRef = useRef({})
+  const scoreRef = useRef(0)
   const doneRef = useRef(false)
+  const gainId = useRef(0)
 
   const finish = () => {
     if (doneRef.current) return
@@ -20,7 +25,7 @@ export default function QuickFire({ questions, mem, title = 'Quick Fire', onFini
     const rs = resultsRef.current
     const corr = Object.values(rs).reduce((s, r) => s + r.correct, 0)
     const ans = Object.values(rs).reduce((s, r) => s + r.correct + r.wrong, 0)
-    onFinish({ total: Math.max(ans, 1), correct: corr }, rs)
+    onFinish({ total: Math.max(ans, 1), correct: corr, score: scoreRef.current }, rs)
   }
 
   useEffect(() => {
@@ -49,24 +54,35 @@ export default function QuickFire({ questions, mem, title = 'Quick Fire', onFini
     setLocked(true)
     const ok = i === q.answer
     setFlash({ i, ok })
+    setPulse(ok ? 'ok' : 'no')
+    if (ok) {
+      const newCombo = combo + 1
+      const gained = 100 + (newCombo - 1) * 20
+      setCombo(newCombo)
+      const ns = scoreRef.current + gained
+      scoreRef.current = ns
+      setScore(ns)
+      gainId.current += 1
+      setGain({ amt: gained, id: gainId.current })
+    } else {
+      setCombo(0)
+    }
     const key = q.concept
     const prev = resultsRef.current[key] ||
       { correct: 0, wrong: 0, mastery: (mem.find((c) => c.id === key || c.name === key)?.mastery ?? 55), label }
     resultsRef.current = {
       ...resultsRef.current,
       [key]: {
-        correct: prev.correct + (ok ? 1 : 0),
-        wrong: prev.wrong + (ok ? 0 : 1),
-        mastery: nextMastery(prev.mastery, { correct: ok, usedHint: false }),
-        label,
+        correct: prev.correct + (ok ? 1 : 0), wrong: prev.wrong + (ok ? 0 : 1),
+        mastery: nextMastery(prev.mastery, { correct: ok, usedHint: false }), label,
       },
     }
-    if (ok) setCorrect((c) => c + 1)
     setTimeout(() => {
+      setPulse(null)
       if (doneRef.current) return
       if (index + 1 >= questions.length) { finish(); return }
       setIndex(index + 1); setFlash(null); setLocked(false)
-    }, 560)
+    }, 480)
   }
 
   const optClass = (i) => {
@@ -76,21 +92,27 @@ export default function QuickFire({ questions, mem, title = 'Quick Fire', onFini
   }
 
   return (
-    <div className="screen">
+    <div className={'screen qf' + (pulse ? ' pulse-' + pulse : '')}>
       <BackHeader title={title} onBack={onExit} />
-      <div className="qf-top">
-        <div className={'qf-timer' + (timeLeft <= 10 ? ' low' : '')}>⏱ {timeLeft}s</div>
-        <div className="qf-score">✅ {correct} đúng</div>
+      <div className="qf-hud">
+        <div className={'qf-timer' + (timeLeft <= 10 ? ' low' : '')}>⏱ {timeLeft}</div>
+        <div className="qf-scorebox">
+          <div className="qf-score">{score}</div>
+          {combo >= 2 && <div className="qf-combo">🔥 x{combo}</div>}
+        </div>
       </div>
       <div className="qf-bar"><span style={{ width: (timeLeft / DURATION) * 100 + '%' }} /></div>
-      <div className="qtag">{label}</div>
-      <h2 className="question">{q.q}</h2>
+      <div className="qf-qwrap">
+        {gain && <div className="gain-pop" key={gain.id}>+{gain.amt}</div>}
+        <div className="qtag">{label}</div>
+        <h2 className="question">{q.q}</h2>
+      </div>
       <div className="opts">
         {q.options.map((o, i) => (
           <button key={i} className={optClass(i)} onClick={() => answer(i)} disabled={locked}>{o}</button>
         ))}
       </div>
-      <p className="qf-note">Trả lời càng nhiều càng tốt trước khi hết giờ!</p>
+      <p className="qf-note">Đúng liên tiếp để nhân combo 🔥</p>
     </div>
   )
 }

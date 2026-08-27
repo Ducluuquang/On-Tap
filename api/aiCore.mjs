@@ -44,6 +44,17 @@ Tối đa 6 khái niệm. Tiếng Việt. Chỉ JSON.`
   return parseJSON(out)
 }
 
+// Đọc nội dung con GÕ vào (mô tả bài học) → tách khái niệm.
+export async function extractFromText(key, text) {
+  const prompt =
+`Một học sinh tiểu học Việt Nam mô tả nội dung vừa học ở trường: "${text}".
+Suy ra và trả về DUY NHẤT JSON:
+{"subject":"","grade":"","topic":"","concepts":[{"name":"","difficulty":"Cơ bản|Nâng cao","importance":"Rất quan trọng|Quan trọng|Bình thường"}]}
+Tối đa 6 khái niệm, đúng với mô tả. Tiếng Việt. Chỉ JSON.`
+  const out = await ask(key, [{ type: 'text', text: prompt }], 1200)
+  return parseJSON(out)
+}
+
 // Sinh câu hỏi ôn tập cho các khái niệm (tự kiểm tra đáp án).
 export async function generateQuestions(key, { subject = 'Toán', grade = '', topic = '', concepts = [], count = 6 }) {
   const names = concepts.map((c) => (typeof c === 'string' ? c : c.name)).join(', ')

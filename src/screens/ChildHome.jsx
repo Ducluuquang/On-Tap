@@ -1,7 +1,7 @@
 import { Brand } from '../components.jsx'
 import { CONCEPTS } from '../data/content.js'
 
-export default function ChildHome({ mem, streak, onStart, onPractice }) {
+export default function ChildHome({ mem, streak, onStart, onPractice, onCapture }) {
   const focus = [...mem].sort((a, b) => a.mastery - b.mastery)[0]
 
   return (
@@ -29,6 +29,7 @@ export default function ChildHome({ mem, streak, onStart, onPractice }) {
       </section>
 
       <button className="ghost" onClick={onPractice}>Luyện thêm điều khác</button>
+      <button className="ghost" onClick={onCapture}>📸 Thêm bài học hôm nay</button>
 
       <section className="subjects" aria-label="Môn học">
         <h3>Môn học</h3>
