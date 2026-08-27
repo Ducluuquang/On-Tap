@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { BackHeader } from '../components.jsx'
 import { nextMastery } from '../lib/memory.js'
+import { fmt } from '../lib/num.js'
 import { CONCEPT_NAME } from '../data/content.js'
 
 const PER_Q = 5000 // 5 giây rơi
@@ -105,7 +106,7 @@ export default function FallingGame({ questions, mem, title = 'Thả rơi', onFi
       <BackHeader title={title} onBack={() => { doneRef.current = true; clearInterval(tickRef.current); clearTimeout(timerRef.current); onExit() }} />
       <div className="qf-hud">
         <div className={'qf-timer' + (tick <= 2 ? ' low' : '')}>⏱ {tick}s</div>
-        <div className="qf-score">⭐ {score} · câu {index + 1}/{questions.length}</div>
+        <div className="qf-score">⭐ {fmt(score)} · câu {index + 1}/{questions.length}</div>
       </div>
       <div className="qtag">{label}</div>
       <h2 className="question fall-q">{q.q}</h2>

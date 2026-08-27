@@ -17,7 +17,10 @@ export default async function handler(req, res) {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {})
     const { action } = body
     if (action === 'extract') {
-      const data = await extractConcepts(key, body.image, body.media || 'image/jpeg')
+      const items = Array.isArray(body.items) && body.items.length
+        ? body.items
+        : [{ type: 'image', b64: body.image, media: body.media || 'image/jpeg' }]
+      const data = await extractConcepts(key, items)
       res.status(200).json(data)
       return
     }

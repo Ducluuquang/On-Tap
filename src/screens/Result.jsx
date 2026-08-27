@@ -1,4 +1,5 @@
 import { statusOf } from '../lib/memory.js'
+import { fmt } from '../lib/num.js'
 import { StatusPill } from '../components.jsx'
 
 export default function Result({ session, onHome, onReport }) {
@@ -20,7 +21,7 @@ export default function Result({ session, onHome, onReport }) {
         </div>
         <h1>Xong buổi ôn!</h1>
         <p className="result-msg">{msg}</p>
-        {typeof session.score === 'number' && <div className="score-badge">⭐ {session.score} điểm</div>}
+        {typeof session.score === 'number' && <div className="score-badge">⭐ {fmt(session.score)} điểm</div>}
         <div className="streak-up">🔥 Chuỗi ngày +1</div>
       </div>
 

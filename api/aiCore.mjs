@@ -30,17 +30,24 @@ async function ask(key, content, max = 2500) {
 
 const parseJSON = (s) => JSON.parse((s.match(/\{[\s\S]*\}/) || [s])[0])
 
-// Đọc ảnh bài học → tách khái niệm.
-export async function extractConcepts(key, imageB64, media = 'image/jpeg') {
+// Đọc MỘT hoặc NHIỀU ảnh/file (PDF) bài học → tách khái niệm.
+// items: [{ type:'image'|'document', b64, media }]. Cũng nhận cách gọi cũ (imageB64, media).
+export async function extractConcepts(key, items, mediaLegacy = 'image/jpeg') {
+  const list = Array.isArray(items)
+    ? items
+    : [{ type: 'image', b64: items, media: mediaLegacy }]
+  const blocks = list
+    .filter((it) => it && it.b64)
+    .map((it) => (it.type === 'document'
+      ? { type: 'document', source: { type: 'base64', media_type: it.media || 'application/pdf', data: it.b64 } }
+      : { type: 'image', source: { type: 'base64', media_type: it.media || 'image/jpeg', data: it.b64 } }))
+  const many = blocks.length > 1
   const prompt =
-`Đây là ảnh một bài/phiếu bài tập của học sinh tiểu học Việt Nam (có thể bị xoay).
+`Đây là ${many ? `${blocks.length} ảnh/trang` : 'ảnh một trang'} bài/phiếu bài tập của học sinh tiểu học Việt Nam (có thể bị xoay).${many ? ' Các trang có thể cùng một bài hoặc nhiều bài khác nhau — tổng hợp lại.' : ''}
 Đọc và trả về DUY NHẤT JSON:
 {"subject":"","grade":"","topic":"","concepts":[{"name":"","difficulty":"Cơ bản|Nâng cao","importance":"Rất quan trọng|Quan trọng|Bình thường"}]}
-Tối đa 6 khái niệm. Tiếng Việt. Chỉ JSON.`
-  const out = await ask(key, [
-    { type: 'image', source: { type: 'base64', media_type: media, data: imageB64 } },
-    { type: 'text', text: prompt },
-  ], 1200)
+Tối đa ${many ? 10 : 6} khái niệm, gộp trùng lặp. Tiếng Việt. Chỉ JSON.`
+  const out = await ask(key, [...blocks, { type: 'text', text: prompt }], many ? 2000 : 1200)
   return parseJSON(out)
 }
 

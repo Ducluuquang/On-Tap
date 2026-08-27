@@ -49,6 +49,42 @@ export async function extractFromImage(file) {
   return callApi({ action: 'extract', image: b64, media })
 }
 
+// Đọc nguyên file thành base64 (dùng cho PDF).
+function fileToRawBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => { const r = String(reader.result || ''); resolve(r.split(',')[1] || '') }
+    reader.onerror = () => reject(new Error('Không đọc được file'))
+    reader.readAsDataURL(file)
+  })
+}
+
+async function fileToItem(file) {
+  const type = file.type || ''
+  if (type.startsWith('image/')) {
+    const { b64, media } = await imageToBase64(file)
+    return { type: 'image', b64, media }
+  }
+  if (type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+    if (file.size > 10 * 1024 * 1024) {
+      throw new Error(`File "${file.name}" quá lớn (>10MB). Anh thử chụp ảnh từng trang thay vì PDF.`)
+    }
+    const b64 = await fileToRawBase64(file)
+    return { type: 'document', b64, media: 'application/pdf' }
+  }
+  throw new Error(`Chưa hỗ trợ định dạng của "${file.name}". Anh dùng ảnh (JPG/PNG) hoặc PDF nhé.`)
+}
+
+// Tải NHIỀU ảnh/file cùng lúc → gộp cho AI đọc trong một lần.
+export async function extractFromFiles(files) {
+  const arr = Array.from(files || [])
+  if (!arr.length) throw new Error('Chưa chọn ảnh/file nào.')
+  if (arr.length > 8) throw new Error('Mỗi lần tối đa 8 ảnh/file. Anh chia thành nhiều lần nhé.')
+  const items = []
+  for (const f of arr) items.push(await fileToItem(f)) // xử lý tuần tự cho nhẹ máy
+  return callApi({ action: 'extract', items })
+}
+
 export async function extractFromSample(sampleId) {
   return extractFromCapture(sampleId)
 }

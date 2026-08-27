@@ -22,7 +22,7 @@ function GeneratingScreen() {
     <div className="screen center">
       <div className="reading">
         <div className="spinner" />
-        <h2>AI đang soạn câu hỏi cho con…</h2>
+        <h2>Đang chuẩn bị đồng hành cùng con…</h2>
         <p>Chọn câu theo đúng khái niệm con cần ôn.</p>
       </div>
     </div>

@@ -342,3 +342,14 @@ body{
 .fall-area.frozen .fall-chip{animation-play-state:paused}
 .fall-floor{position:absolute;left:0;right:0;bottom:0;height:7px;background:repeating-linear-gradient(90deg,var(--teal) 0 13px,var(--teal-soft) 13px 26px);opacity:.55}
 @keyframes fall{from{transform:translateY(-62px)}to{transform:translateY(300px)}}
+
+/* ===== Thêm bài học: 2 tab to ===== */
+.cap-cards{display:flex;flex-direction:column;gap:12px}
+.cap-card{display:flex;align-items:center;gap:14px;width:100%;background:#fff;border:1.5px solid var(--border);border-radius:18px;padding:20px 18px;cursor:pointer;font-family:inherit;text-align:left;transition:transform .12s,border-color .12s;box-shadow:0 8px 20px rgba(20,33,46,.05)}
+.cap-card:hover{border-color:var(--teal);transform:translateY(-1px)}
+.cap-card:active{transform:scale(.99)}
+.cap-ic{font-size:1.6rem;width:56px;height:56px;border-radius:15px;background:var(--teal-soft);display:grid;place-items:center;flex:none}
+.cap-body{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0}
+.cap-body b{font-size:1.06rem;font-weight:700;color:var(--ink);line-height:1.25}
+.cap-body em{font-style:normal;font-size:.83rem;color:var(--muted);line-height:1.4}
+.cap-go{font-size:1.2rem;font-weight:800;color:var(--teal);flex:none}

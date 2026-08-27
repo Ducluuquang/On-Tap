@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { BackHeader } from '../components.jsx'
 import { nextMastery } from '../lib/memory.js'
+import { fmt } from '../lib/num.js'
 import { CONCEPT_NAME } from '../data/content.js'
 
 const DURATION = 60
@@ -97,7 +98,7 @@ export default function QuickFire({ questions, mem, title = 'Quick Fire', onFini
       <div className="qf-hud">
         <div className={'qf-timer' + (timeLeft <= 10 ? ' low' : '')}>⏱ {timeLeft}</div>
         <div className="qf-scorebox">
-          <div className="qf-score">{score}</div>
+          <div className="qf-score">{fmt(score)}</div>
           {combo >= 2 && <div className="qf-combo">🔥 x{combo}</div>}
         </div>
       </div>
