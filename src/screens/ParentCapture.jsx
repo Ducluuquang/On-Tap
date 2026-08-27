@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { BackHeader } from '../components.jsx'
-import { SAMPLE_CAPTURES } from '../lib/mockAI.js'
-import { extractFromImage, extractFromSample, extractFromText } from '../lib/aiClient.js'
+import { extractFromImage, extractFromText } from '../lib/aiClient.js'
 
 function withIds(result) {
   const concepts = (result.concepts || []).map((c, i) => ({
@@ -57,16 +56,6 @@ export default function ParentCapture({ onExtracted, onBack }) {
             <input type="file" accept="image/*" capture="environment" onChange={onFile} hidden />
           </label>
           {error && <div className="err">{error}</div>}
-          <div className="or">— hoặc thử nhanh với bài mẫu —</div>
-          <div className="samples">
-            {SAMPLE_CAPTURES.map((s) => (
-              <button key={s.id} className="sample" onClick={() => run(() => extractFromSample(s.id))}>
-                <span className="sample-ic">🖼️</span>
-                <span className="sample-txt"><b>{s.label}</b><em>{s.subject} · {s.topic} · bản mẫu</em></span>
-                <span className="sample-go">→</span>
-              </button>
-            ))}
-          </div>
         </>
       ) : (
         <>

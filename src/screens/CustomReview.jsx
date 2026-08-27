@@ -12,7 +12,8 @@ const LEVELS = [
 ]
 const COUNTS = [10, 15, 20]
 const MODES = [
-  { k: 'quiz', l: 'Trắc nghiệm' }, { k: 'quickfire', l: 'Quick Fire ⏱' }, { k: 'boss', l: 'Boss Battle 👾' },
+  { k: 'falling', l: 'Thả rơi ⏱' }, { k: 'quiz', l: 'Trắc nghiệm' },
+  { k: 'quickfire', l: 'Quick Fire ⏱' }, { k: 'boss', l: 'Boss Battle 👾' },
 ]
 
 export default function CustomReview({ mem, onStart, onBack }) {
@@ -20,7 +21,7 @@ export default function CustomReview({ mem, onStart, onBack }) {
   const [level, setLevel] = useState('weak')
   const [text, setText] = useState('')
   const [count, setCount] = useState(10)
-  const [mode, setMode] = useState('quiz')
+  const [mode, setMode] = useState('falling')
 
   const names = selectConcepts(mem, { time, level, text })
 
@@ -30,7 +31,7 @@ export default function CustomReview({ mem, onStart, onBack }) {
 
   return (
     <div className="screen">
-      <BackHeader title="Ôn theo ý muốn" onBack={onBack} />
+      <BackHeader title="Bắt đầu ôn" onBack={onBack} />
 
       <div className="cr-sec">
         <h3>Theo thời gian đã học</h3>

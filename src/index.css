@@ -295,3 +295,50 @@ body{
 .toast{position:sticky;top:8px;z-index:5;background:var(--ink);color:#fff;text-align:center;padding:10px 14px;border-radius:12px;font-size:.9rem;font-weight:600;box-shadow:0 8px 20px rgba(20,33,46,.25)}
 
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ===== Đăng nhập ===== */
+.auth{padding:34px 24px 40px;display:flex;flex-direction:column;min-height:640px;justify-content:center}
+.auth-card{display:flex;flex-direction:column;gap:11px}
+.auth-brand{display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:6px}
+.auth-brand .mark{width:42px;height:42px;border-radius:12px;background:var(--teal);color:#fff;display:grid;place-items:center;font-weight:800;font-size:.92rem}
+.auth-brand .nm{font-weight:800;letter-spacing:.16em;font-size:1.08rem;color:var(--ink)}
+.auth h1{margin:2px 0 0;text-align:center;font-size:1.4rem;font-weight:800}
+.auth-sub{margin:0 0 6px;text-align:center;color:var(--ink-soft);font-size:.9rem;line-height:1.5}
+.auth-lbl{font-size:.76rem;font-weight:700;color:var(--muted);letter-spacing:.04em;margin-top:2px}
+.auth-in{width:100%;border:1.5px solid var(--border);border-radius:12px;padding:13px 15px;font-family:inherit;font-size:1rem;color:var(--ink);background:#fff}
+.auth-in:focus{outline:none;border-color:var(--teal)}
+.auth .cta{margin-top:12px}
+.auth .err{margin-top:2px}
+
+/* logout in demo switch */
+.ds-logout{border:1px solid var(--border);background:#fff;color:var(--muted);cursor:pointer;font-family:inherit;font-weight:600;font-size:.82rem;padding:7px 14px;border-radius:999px;transition:.15s}
+.ds-logout:hover{border-color:var(--weak);color:var(--weak-tx)}
+
+/* ===== Home action cards (2 mục) ===== */
+.home-cards{display:flex;flex-direction:column;gap:12px}
+.home-card{display:flex;align-items:center;gap:14px;background:#fff;border:1.5px solid var(--border);border-radius:18px;padding:17px;cursor:pointer;font-family:inherit;text-align:left;transition:transform .12s,border-color .12s;box-shadow:0 8px 20px rgba(20,33,46,.05)}
+.home-card:hover{border-color:var(--teal);transform:translateY(-1px)}
+.home-card:active{transform:scale(.99)}
+.home-card.primary{background:var(--teal);border-color:var(--teal);box-shadow:0 12px 26px rgba(15,118,110,.26)}
+.hc-ic{font-size:1.6rem;width:52px;height:52px;border-radius:14px;background:var(--teal-soft);display:grid;place-items:center;flex:none}
+.home-card.primary .hc-ic{background:rgba(255,255,255,.18)}
+.hc-body{flex:1;display:flex;flex-direction:column;gap:3px;min-width:0}
+.hc-body b{font-size:1.08rem;font-weight:700;color:var(--ink)}
+.hc-body em{font-style:normal;font-size:.84rem;color:var(--muted);line-height:1.35}
+.home-card.primary .hc-body b{color:#fff}
+.home-card.primary .hc-body em{color:rgba(255,255,255,.85)}
+.hc-go{font-size:1.2rem;font-weight:800;color:var(--teal);flex:none}
+.home-card.primary .hc-go{color:#fff}
+
+/* ===== Game: Thả rơi ===== */
+.screen.shake{animation:shake .4s}
+.fall-q{font-size:1.15rem}
+.fall-area{position:relative;height:342px;margin-top:2px;overflow:hidden;border-radius:16px;border:1px solid var(--border);background:linear-gradient(180deg,#F4F9F8,#E6F0EE)}
+.fall-area::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 20% 12%,rgba(24,165,151,.10),transparent 45%),radial-gradient(circle at 82% 8%,rgba(224,145,47,.10),transparent 45%);pointer-events:none}
+.fall-chip{position:absolute;top:0;width:19%;min-height:50px;padding:9px 5px;border-radius:13px;border:0;cursor:pointer;font-family:inherit;font-weight:800;font-size:1.02rem;color:#fff;background:linear-gradient(180deg,#1fb3a3,var(--teal));box-shadow:0 6px 14px rgba(15,118,110,.30);display:grid;place-items:center;text-align:center;line-height:1.12;animation:fall 5s linear forwards;will-change:transform}
+.fall-chip:active{filter:brightness(1.08)}
+.fall-chip.correct{background:linear-gradient(180deg,#3ac07f,var(--mastered));box-shadow:0 0 0 3px var(--mastered-bg),0 6px 16px rgba(46,158,107,.4)}
+.fall-chip.wrong{background:linear-gradient(180deg,#e8875a,var(--weak));box-shadow:0 0 0 3px var(--weak-bg),0 6px 16px rgba(224,112,58,.4)}
+.fall-area.frozen .fall-chip{animation-play-state:paused}
+.fall-floor{position:absolute;left:0;right:0;bottom:0;height:7px;background:repeating-linear-gradient(90deg,var(--teal) 0 13px,var(--teal-soft) 13px 26px);opacity:.55}
+@keyframes fall{from{transform:translateY(-62px)}to{transform:translateY(300px)}}

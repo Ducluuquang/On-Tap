@@ -1,9 +1,6 @@
 import { Brand } from '../components.jsx'
-import { CONCEPTS } from '../data/content.js'
 
-export default function ChildHome({ mem, streak, onStart, onPractice, onCapture }) {
-  const focus = [...mem].sort((a, b) => a.mastery - b.mastery)[0]
-
+export default function ChildHome({ streak, onReview, onCapture }) {
   return (
     <div className="screen">
       <header className="topbar">
@@ -15,21 +12,28 @@ export default function ChildHome({ mem, streak, onStart, onPractice, onCapture 
 
       <section className="hello">
         <h1>Chào Minh!</h1>
-        <p>Hôm nay ôn một chút cho nhớ lâu nhé.</p>
+        <p>Hôm nay muốn làm gì nào?</p>
       </section>
 
-      <section className="mission" aria-label="Nhiệm vụ hôm nay">
-        <div className="mission-top">
-          <span className="tag">TOÁN · PHÂN SỐ</span>
-          <span className="mission-time">≈ 10 phút · 6 câu</span>
-        </div>
-        <h2>Ôn lại: {focus.name}</h2>
-        <p className="mission-sub">Tập trung phần con còn hay nhầm + vài câu ôn lại cái đã vững.</p>
-        <button className="cta" onClick={onStart}>Bắt đầu ôn</button>
-      </section>
+      <section className="home-cards" aria-label="Chọn việc muốn làm">
+        <button className="home-card primary" onClick={onReview}>
+          <span className="hc-ic">🎯</span>
+          <span className="hc-body">
+            <b>Bắt đầu ôn</b>
+            <em>Chọn môn, chọn phần con muốn ôn rồi chơi</em>
+          </span>
+          <span className="hc-go">→</span>
+        </button>
 
-      <button className="ghost" onClick={onPractice}>Luyện thêm điều khác</button>
-      <button className="ghost" onClick={onCapture}>📸 Thêm bài học hôm nay</button>
+        <button className="home-card" onClick={onCapture}>
+          <span className="hc-ic">📸</span>
+          <span className="hc-body">
+            <b>Thêm bài học hôm nay</b>
+            <em>Chụp ảnh hoặc gõ bài con vừa học để AI ghi nhớ</em>
+          </span>
+          <span className="hc-go">→</span>
+        </button>
+      </section>
 
       <section className="subjects" aria-label="Môn học">
         <h3>Môn học</h3>

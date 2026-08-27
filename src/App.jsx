@@ -2,12 +2,15 @@ import { useState, useEffect } from 'react'
 import { loadMemory, saveMemory, applySession, addConcepts, recordErrors } from './lib/memory.js'
 import { buildReview } from './lib/mockAI.js'
 import { generateQuestions } from './lib/aiClient.js'
+import { loadAccount, saveAccount, loadSession, setSession as persistSession } from './lib/auth.js'
 
+import Auth from './screens/Auth.jsx'
 import ChildHome from './screens/ChildHome.jsx'
 import CustomReview from './screens/CustomReview.jsx'
 import Review from './screens/Review.jsx'
 import QuickFire from './screens/QuickFire.jsx'
 import BossBattle from './screens/BossBattle.jsx'
+import FallingGame from './screens/FallingGame.jsx'
 import Result from './screens/Result.jsx'
 import ParentCapture from './screens/ParentCapture.jsx'
 import ParentApprove from './screens/ParentApprove.jsx'
@@ -39,6 +42,9 @@ function normalizeQs(qs) {
 }
 
 export default function App() {
+  const [account, setAccount] = useState(loadAccount)
+  const [authed, setAuthed] = useState(() => loadSession() && !!loadAccount())
+
   const [mem, setMem] = useState(loadMemory)
   const [role, setRole] = useState('child')
   const [view, setView] = useState('home')
@@ -58,6 +64,24 @@ export default function App() {
     return () => clearTimeout(t)
   }, [toast])
 
+  // ---- Đăng nhập ----
+  function handleRegister(phone) {
+    const acc = { username: phone, password: phone }
+    saveAccount(acc); setAccount(acc)
+    persistSession(true); setAuthed(true)
+  }
+  function handleLogin(u, p) {
+    const acc = loadAccount()
+    if (acc && u === acc.username && p === acc.password) {
+      persistSession(true); setAuthed(true); return true
+    }
+    return false
+  }
+  function logout() {
+    persistSession(false); setAuthed(false)
+    setRole('child'); setView('home')
+  }
+
   function switchRole(r) {
     setRole(r)
     setView(r === 'child' ? 'home' : 'dashboard')
@@ -68,7 +92,7 @@ export default function App() {
     setReviewMode(mode)
     setReviewQuestions(null)
     setGenerating(true)
-    setView(mode === 'quickfire' ? 'quickfire' : mode === 'boss' ? 'boss' : 'review')
+    setView(mode === 'falling' ? 'falling' : mode === 'quickfire' ? 'quickfire' : mode === 'boss' ? 'boss' : 'review')
     let names = conceptNames
     if (!names || !names.length) {
       names = [...mem].sort((a, b) => a.mastery - b.mastery).slice(0, 4).map((c) => c.name)
@@ -112,12 +136,24 @@ export default function App() {
 
   const genOrScreen = (node) => (generating || !reviewQuestions) ? <GeneratingScreen /> : node
 
+  if (!authed) {
+    return (
+      <div className="stage">
+        <div className="phone">
+          <Auth account={account} onRegister={handleRegister} onLogin={handleLogin} />
+        </div>
+      </div>
+    )
+  }
+
   let screen = null
   if (role === 'child') {
     if (view === 'custom') {
       screen = <CustomReview mem={mem} onStart={startReview} onBack={() => setView('home')} />
     } else if (view === 'review') {
       screen = genOrScreen(<Review questions={reviewQuestions} mem={mem} title={reviewTitle} onFinish={handleFinish} onExit={() => setView('home')} />)
+    } else if (view === 'falling') {
+      screen = genOrScreen(<FallingGame questions={reviewQuestions} mem={mem} title={reviewTitle} onFinish={handleFinish} onExit={() => setView('home')} />)
     } else if (view === 'quickfire') {
       screen = genOrScreen(<QuickFire questions={reviewQuestions} mem={mem} title={reviewTitle} onFinish={handleFinish} onExit={() => setView('home')} />)
     } else if (view === 'boss') {
@@ -130,8 +166,7 @@ export default function App() {
       screen = <Result session={session} onHome={() => setView('home')} onReport={() => switchRole('parent')} />
     } else {
       screen = <ChildHome mem={mem} streak={streak}
-        onStart={() => startReview({ title: 'Ôn tập hôm nay', count: 10, mode: 'quiz' })}
-        onPractice={() => setView('custom')} onCapture={() => setView('capture')} />
+        onReview={() => setView('custom')} onCapture={() => setView('capture')} />
     }
   } else {
     if (view === 'capture') screen = <ParentCapture onExtracted={onExtracted} onBack={() => setView('dashboard')} />
@@ -148,6 +183,7 @@ export default function App() {
           <button className={role === 'child' ? 'on' : ''} onClick={() => switchRole('child')}>Con</button>
           <button className={role === 'parent' ? 'on' : ''} onClick={() => switchRole('parent')}>Phụ huynh</button>
         </div>
+        <button className="ds-logout" onClick={logout} title="Đăng xuất">Đăng xuất</button>
       </div>
       <div className="phone">{screen}</div>
     </div>
