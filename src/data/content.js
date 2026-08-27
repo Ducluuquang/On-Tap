@@ -15,7 +15,7 @@ export const CONCEPT_NAME = Object.fromEntries(CONCEPTS.map((c) => [c.id, c.name
 // answer = chỉ số (0-based) của đáp án đúng trong options
 export const QUESTIONS = [
   // Phân số bằng nhau
-  { id: 'q1', concept: 'ps-bang-nhau', q: 'Phân số nào bằng 1/2 ?', options: ['2/4', '3/5', '2/3', '4/9'], answer: 0,
+  { id: 'q1', concept: 'ps-bang-nhau', q: 'Phân số nào bằng 1/2 ?', options: ['2/4', '3/5', '2/3', '4/9'], answer: 0, mcOnly: true,
     explain: 'Nhân cả tử và mẫu của 1/2 với 2 được 2/4.', hint: 'Thử nhân tử và mẫu với cùng một số.' },
   { id: 'q2', concept: 'ps-bang-nhau', q: '2/3 = ?/9', options: ['5/9', '6/9', '4/9', '3/9'], answer: 1,
     explain: 'Mẫu nhân 3 (3×3=9) thì tử cũng nhân 3: 2×3 = 6. Vậy 6/9.', hint: 'Mẫu 3 thành 9 là nhân mấy?' },
@@ -27,7 +27,7 @@ export const QUESTIONS = [
     explain: 'Chia cả tử và mẫu cho 2: 6:2=3, 8:2=4. Được 3/4.', hint: 'Số nào chia hết cả 6 và 8?' },
   { id: 'q5', concept: 'rut-gon', q: 'Rút gọn phân số 9/12 về tối giản?', options: ['3/4', '4/3', '3/6', '9/6'], answer: 0,
     explain: 'Chia cả tử và mẫu cho 3: 9:3=3, 12:3=4. Được 3/4.', hint: 'Cả 9 và 12 cùng chia hết cho mấy?' },
-  { id: 'q6', concept: 'rut-gon', q: 'Phân số nào đã tối giản (không rút gọn được nữa)?', options: ['4/6', '5/9', '6/8', '10/15'], answer: 1,
+  { id: 'q6', concept: 'rut-gon', q: 'Phân số nào đã tối giản (không rút gọn được nữa)?', options: ['4/6', '5/9', '6/8', '10/15'], answer: 1, mcOnly: true,
     explain: '5 và 9 không có ước chung nào ngoài 1 nên 5/9 đã tối giản. Các phân số kia còn rút gọn được.', hint: 'Tìm phân số mà tử và mẫu không cùng chia hết cho số nào (ngoài 1).' },
 
   // Quy đồng mẫu số
@@ -43,7 +43,7 @@ export const QUESTIONS = [
     explain: 'Cùng mẫu số thì tử lớn hơn là phân số lớn hơn. 2 < 3 nên 2/5 < 3/5.', hint: 'Cùng mẫu, chỉ cần so tử số.' },
   { id: 'q11', concept: 'so-sanh', q: 'So sánh 1/2 và 2/3', options: ['1/2 > 2/3', '1/2 < 2/3', '1/2 = 2/3', 'Không so sánh được'], answer: 1,
     explain: 'Quy đồng: 1/2 = 3/6, 2/3 = 4/6. Vì 3/6 < 4/6 nên 1/2 < 2/3.', hint: 'Quy đồng về cùng mẫu 6 rồi so tử.' },
-  { id: 'q12', concept: 'so-sanh', q: 'Phân số nào lớn nhất?', options: ['1/2', '2/3', '3/4', '1/4'], answer: 2,
+  { id: 'q12', concept: 'so-sanh', q: 'Phân số nào lớn nhất?', options: ['1/2', '2/3', '3/4', '1/4'], answer: 2, mcOnly: true,
     explain: 'Đổi ra: 1/2=0,5 ; 2/3≈0,67 ; 3/4=0,75 ; 1/4=0,25. Lớn nhất là 3/4.', hint: 'Thử nghĩ mỗi phân số gần bằng bao nhiêu phần của 1.' },
 
   // Cộng phân số cùng mẫu

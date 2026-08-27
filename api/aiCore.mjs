@@ -80,10 +80,23 @@ Chỉ JSON.`
 }
 
 // Sinh câu hỏi ôn tập cho các khái niệm (tự kiểm tra đáp án).
-export async function generateQuestions(key, { subject = 'Toán', grade = '', topic = '', concepts = [], count = 6 }) {
+// format='open': câu TỰ ĐIỀN (mở, tự chứa) cho chế độ không trắc nghiệm.
+export async function generateQuestions(key, { subject = 'Toán', grade = '', topic = '', concepts = [], count = 6, format = 'choice' }) {
   const names = concepts.map((c) => (typeof c === 'string' ? c : c.name)).join(', ')
-  const prompt =
-`Môn ${subject}, lớp ${grade}, chủ đề "${topic}". Các khái niệm: ${names}.
+  const open = format === 'open'
+  const prompt = open
+    ? `Môn ${subject}, lớp ${grade}, chủ đề "${topic}". Các khái niệm: ${names}.
+Tạo ${count} câu hỏi để học sinh TỰ ĐIỀN đáp án (KHÔNG có lựa chọn sẵn).
+QUY TẮC BẮT BUỘC:
+- Mỗi câu phải TỰ CHỨA đầy đủ dữ kiện và chỉ có MỘT đáp án đúng để con tự tính/viết ra.
+- TUYỆT ĐỐI KHÔNG dùng dạng "trong các ... sau", "phân số nào", "đáp án nào", "số nào", không liệt kê lựa chọn, không hỏi kiểu chọn 1 trong nhiều. Vì không hiển thị lựa chọn nên câu đó sẽ không trả lời được.
+- Câu TỐT: "Rút gọn phân số 6/8 về tối giản.", "Tính 1/5 + 2/5.", "Số 305 040 đọc là gì?", "So sánh 1/2 và 2/3 (điền dấu >, < hoặc =)."
+- Câu XẤU (cấm): "Phân số nào tối giản?", "Trong các phân số sau...".
+Với mỗi câu, tự kiểm tra kỹ để đáp án chắc chắn đúng.
+Trả DUY NHẤT JSON:
+{"questions":[{"concept":"","q":"","answer":"","explain":"","hint":""}]}
+"answer" là đáp án đúng viết ngắn gọn (số, phân số, hoặc cụm từ). Tiếng Việt, chính xác. Chỉ JSON.`
+    : `Môn ${subject}, lớp ${grade}, chủ đề "${topic}". Các khái niệm: ${names}.
 Tạo ${count} câu hỏi trắc nghiệm cho học sinh ôn tập, mỗi câu 4 lựa chọn.
 Với mỗi câu, tự kiểm tra kỹ để đáp án chắc chắn đúng.
 Trả DUY NHẤT JSON:

@@ -45,6 +45,19 @@ function normalizeQs(qs) {
     }))
 }
 
+// Câu TỰ ĐIỀN (mở): đáp án là chuỗi. Loại bỏ câu kiểu "trong các... sau" (cần danh sách lựa chọn).
+function normalizeOpen(qs) {
+  if (!Array.isArray(qs)) return []
+  return qs
+    .filter((q) => q && q.q && q.answer !== undefined && String(q.answer).trim() !== '')
+    .filter((q) => !/trong (các|những)[^.?!]{0,40}(sau|dưới đây)/i.test(q.q))
+    .map((q) => ({
+      concept: q.concept || 'Ôn tập',
+      q: q.q, answer: String(q.answer).trim(),
+      explain: q.explain || '', hint: q.hint || '',
+    }))
+}
+
 export default function App() {
   const [account, setAccount] = useState(loadAccount)
   const [authed, setAuthed] = useState(() => loadSession() && !!loadAccount())
@@ -123,11 +136,13 @@ export default function App() {
       names = [...mem].sort((a, b) => a.mastery - b.mastery).slice(0, 4).map((c) => c.name)
     }
     const topic = mem.find((c) => c.name === names[0])?.topic || 'Phân số'
+    const isTyped = m === 'typed'
     let qs = []
     try {
-      qs = normalizeQs(await generateQuestions({ subject: 'Toán', grade: '4-5', topic, concepts: names, count }))
+      const raw = await generateQuestions({ subject: 'Toán', grade: '4-5', topic, concepts: names, count, format: isTyped ? 'open' : 'choice' })
+      qs = isTyped ? normalizeOpen(raw) : normalizeQs(raw)
     } catch { qs = [] }
-    if (!qs.length) qs = buildReview(mem, count)
+    if (!qs.length) qs = buildReview(mem, count, isTyped ? { openOnly: true } : {})
     setReviewQuestions(qs)
     setGenerating(false)
   }

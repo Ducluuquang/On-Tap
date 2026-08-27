@@ -31,7 +31,8 @@ export default function TypedReview({ questions, mem, title = 'Điền đáp án
 
   const q = questions[index]
   const label = CONCEPT_NAME[q.concept] || q.concept
-  const correctText = q.options[q.answer]
+  // Câu mở: answer là chuỗi. Câu dự phòng (mock): answer là chỉ số trong options.
+  const correctText = typeof q.answer === 'string' ? q.answer : (q.options ? q.options[q.answer] : '')
 
   async function check() {
     if (resolved || checking || !val.trim()) return
