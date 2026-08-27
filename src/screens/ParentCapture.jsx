@@ -34,7 +34,7 @@ export default function ParentCapture({ onExtracted, onBack }) {
       <div className="screen center">
         <div className="reading">
           <div className="spinner" />
-          <h2>AI đang đọc bài…</h2>
+          <h2>Đang đọc bài của con…</h2>
           <p>Hiểu nội dung và tách thành các khái niệm.</p>
         </div>
       </div>
@@ -84,7 +84,7 @@ export default function ParentCapture({ onExtracted, onBack }) {
           />
           {error && <div className="err">{error}</div>}
           <button className="cta" disabled={!text.trim()} onClick={() => run(() => extractFromText(text.trim()))}>
-            Cho AI đọc và ghi nhớ
+            Đọc và ghi nhớ bài học
           </button>
           <button className="ghost small" onClick={() => { setMode('choose'); setError('') }}>← Chọn cách khác</button>
         </>

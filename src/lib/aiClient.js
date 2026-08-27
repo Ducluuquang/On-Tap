@@ -10,7 +10,7 @@ async function callApi(body) {
     body: JSON.stringify(body),
   })
   if (!r.ok) {
-    let msg = 'Máy chủ AI chưa sẵn sàng (cần deploy để dùng ảnh thật).'
+    let msg = 'Máy chủ chưa sẵn sàng (cần đưa app lên mạng để dùng ảnh thật).'
     try { msg = (await r.json()).error || msg } catch { /* noop */ }
     throw new Error(msg)
   }
@@ -19,7 +19,7 @@ async function callApi(body) {
 
 // Thu nhỏ ảnh trước khi gửi lên: nhẹ hơn nhiều (tránh "Failed to fetch" do ảnh quá lớn),
 // và AI cũng đọc nhanh hơn. Ảnh điện thoại 3–5 MB được nén còn vài trăm KB.
-export function imageToBase64(file, maxDim = 1500, quality = 0.85) {
+export function imageToBase64(file, maxDim = 1300, quality = 0.72) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const img = new Image()

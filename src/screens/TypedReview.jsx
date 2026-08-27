@@ -95,7 +95,7 @@ export default function TypedReview({ questions, mem, title = 'Điền đáp án
 
       {!resolved ? (
         checking ? (
-          <button className="cta" disabled>🤔 AI đang kiểm tra đáp án…</button>
+          <button className="cta" disabled>🤔 Đang kiểm tra kết quả…</button>
         ) : (
           <button className="cta" disabled={!val.trim()} onClick={check}>Kiểm tra</button>
         )

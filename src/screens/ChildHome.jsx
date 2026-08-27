@@ -29,7 +29,7 @@ export default function ChildHome({ streak, onReview, onCapture }) {
           <span className="hc-ic">📸</span>
           <span className="hc-body">
             <b>Thêm bài học hôm nay</b>
-            <em>Chụp ảnh hoặc gõ bài con vừa học để AI ghi nhớ</em>
+            <em>Chụp ảnh hoặc gõ bài con vừa học để ghi nhớ</em>
           </span>
           <span className="hc-go">→</span>
         </button>
@@ -45,7 +45,7 @@ export default function ChildHome({ streak, onReview, onCapture }) {
       </section>
 
       <footer className="foot">
-        Bản demo · Nội dung do AI giả lập. Bản thật: AI tạo từ chính bài con học ở trường.
+        Bản demo · Nội dung minh hoạ. Bản thật được tạo từ chính bài con học ở trường.
       </footer>
     </div>
   )

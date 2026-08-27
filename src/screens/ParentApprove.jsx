@@ -10,9 +10,9 @@ export default function ParentApprove({ pending, onSave, onBack }) {
 
   return (
     <div className="screen">
-      <BackHeader title="AI hiểu được gì" onBack={onBack} />
+      <BackHeader title="Nội dung đã đọc được" onBack={onBack} />
       <p className="para">
-        Kiểm tra nhanh xem AI hiểu đúng chưa, rồi lưu vào bộ nhớ của con. Bạn có thể bỏ chọn phần không đúng.
+        Kiểm tra nhanh xem đã hiểu đúng chưa, rồi lưu vào bộ nhớ của con. Bạn có thể bỏ chọn phần không đúng.
       </p>
 
       <div className="understood">

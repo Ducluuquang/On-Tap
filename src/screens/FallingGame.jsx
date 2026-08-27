@@ -5,12 +5,13 @@ import { fmt } from '../lib/num.js'
 import { createActiveTimer } from '../lib/stats.js'
 import { CONCEPT_NAME } from '../data/content.js'
 
-const PER_Q = 5000 // 5 giây rơi
+const PER_Q = 10000 // 10 giây rơi
+const START_SEC = 10
 
 export default function FallingGame({ questions, mem, title = 'Thả rơi', onFinish, onExit }) {
   const [index, setIndex] = useState(0)
   const [score, setScore] = useState(0)
-  const [tick, setTick] = useState(5)
+  const [tick, setTick] = useState(START_SEC)
   const [flash, setFlash] = useState(null)
   const [locked, setLocked] = useState(false)
   const resultsRef = useRef({})
@@ -80,14 +81,14 @@ export default function FallingGame({ questions, mem, title = 'Thả rơi', onFi
 
   useEffect(() => {
     if (!questions || !questions.length || doneRef.current) return undefined
-    setLocked(false); setFlash(null); setTick(5)
+    setLocked(false); setFlash(null); setTick(START_SEC)
     activeTimer.current.reset()
     if (!audioRef.current) {
       try { audioRef.current = new (window.AudioContext || window.webkitAudioContext)() } catch { /* noop */ }
     }
     if (audioRef.current && audioRef.current.state === 'suspended') audioRef.current.resume().catch(() => {})
     playTick()
-    let t = 5
+    let t = START_SEC
     tickRef.current = setInterval(() => { t -= 1; setTick(Math.max(0, t)); playTick() }, 1000)
     timerRef.current = setTimeout(() => resolve(null), PER_Q)
     return () => { clearInterval(tickRef.current); clearTimeout(timerRef.current) }
@@ -109,7 +110,7 @@ export default function FallingGame({ questions, mem, title = 'Thả rơi', onFi
     <div className={'screen' + (flash && !flash.ok ? ' shake' : '')}>
       <BackHeader title={title} onBack={() => { doneRef.current = true; clearInterval(tickRef.current); clearTimeout(timerRef.current); onExit() }} />
       <div className="qf-hud">
-        <div className={'qf-timer' + (tick <= 2 ? ' low' : '')}>⏱ {tick}s</div>
+        <div className={'qf-timer' + (tick <= 3 ? ' low' : '')}>⏱ {tick}s</div>
         <div className="qf-score">⭐ {fmt(score)} · câu {index + 1}/{questions.length}</div>
       </div>
       <div className="qtag">{label}</div>

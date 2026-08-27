@@ -335,7 +335,7 @@ body{
 .fall-q{font-size:1.15rem}
 .fall-area{position:relative;height:342px;margin-top:2px;overflow:hidden;border-radius:16px;border:1px solid var(--border);background:linear-gradient(180deg,#F4F9F8,#E6F0EE)}
 .fall-area::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 20% 12%,rgba(24,165,151,.10),transparent 45%),radial-gradient(circle at 82% 8%,rgba(224,145,47,.10),transparent 45%);pointer-events:none}
-.fall-chip{position:absolute;top:0;width:19%;min-height:50px;padding:9px 5px;border-radius:13px;border:0;cursor:pointer;font-family:inherit;font-weight:800;font-size:1.02rem;color:#fff;background:linear-gradient(180deg,#1fb3a3,var(--teal));box-shadow:0 6px 14px rgba(15,118,110,.30);display:grid;place-items:center;text-align:center;line-height:1.12;animation:fall 5s linear forwards;will-change:transform}
+.fall-chip{position:absolute;top:0;width:19%;min-height:50px;padding:9px 5px;border-radius:13px;border:0;cursor:pointer;font-family:inherit;font-weight:800;font-size:1.02rem;color:#fff;background:linear-gradient(180deg,#1fb3a3,var(--teal));box-shadow:0 6px 14px rgba(15,118,110,.30);display:grid;place-items:center;text-align:center;line-height:1.12;animation:fall 10s linear forwards;will-change:transform}
 .fall-chip:active{filter:brightness(1.08)}
 .fall-chip.correct{background:linear-gradient(180deg,#3ac07f,var(--mastered));box-shadow:0 0 0 3px var(--mastered-bg),0 6px 16px rgba(46,158,107,.4)}
 .fall-chip.wrong{background:linear-gradient(180deg,#e8875a,var(--weak));box-shadow:0 0 0 3px var(--weak-bg),0 6px 16px rgba(224,112,58,.4)}

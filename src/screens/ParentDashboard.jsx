@@ -30,7 +30,7 @@ function StudyChart({ stats }) {
   )
 }
 
-export default function ParentDashboard({ mem, session, stats, onCapture, onGrade, onSettings, toast }) {
+export default function ParentDashboard({ mem, session, stats, onSettings, toast }) {
   const concepts = conceptStatusList(mem)
   const pct = session ? Math.round((session.correct / session.total) * 100) : null
   const summary = parentSummary(mem, session)
@@ -74,7 +74,7 @@ export default function ParentDashboard({ mem, session, stats, onCapture, onGrad
       <div className="ai-summary">
         <div className="ai-ic">✨</div>
         <div>
-          <div className="ai-label">AI tóm tắt</div>
+          <div className="ai-label">Nhận xét cho con</div>
           <p>{summary}</p>
         </div>
       </div>
@@ -95,9 +95,7 @@ export default function ParentDashboard({ mem, session, stats, onCapture, onGrad
         ))}
       </section>
 
-      <button className="cta" onClick={onCapture}>Chụp bài con học hôm nay</button>
-      <button className="ghost" onClick={onGrade}>Chấm bài con đã làm</button>
-      <button className="ghost" onClick={onSettings}>⚙️ Mục tiêu &amp; khoá trắc nghiệm</button>
+      <button className="cta" onClick={onSettings}>⚙️ Mục tiêu &amp; bật/tắt trắc nghiệm</button>
 
       <footer className="foot">
         Bản demo · Số liệu minh hoạ. Bản thật cập nhật theo kết quả ôn thực tế của con.

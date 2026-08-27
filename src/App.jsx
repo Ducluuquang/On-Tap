@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { loadMemory, saveMemory, applySession, addConcepts, recordErrors } from './lib/memory.js'
+import { loadMemory, saveMemory, applySession, addConcepts } from './lib/memory.js'
 import { buildReview } from './lib/mockAI.js'
 import { generateQuestions } from './lib/aiClient.js'
 import { loadAccount, saveAccount, loadSession, setSession as persistSession } from './lib/auth.js'
@@ -18,7 +18,6 @@ import FallingGame from './screens/FallingGame.jsx'
 import Result from './screens/Result.jsx'
 import ParentCapture from './screens/ParentCapture.jsx'
 import ParentApprove from './screens/ParentApprove.jsx'
-import ParentGrade from './screens/ParentGrade.jsx'
 import ParentDashboard from './screens/ParentDashboard.jsx'
 
 function GeneratingScreen() {
@@ -139,7 +138,7 @@ export default function App() {
     const isTyped = m === 'typed'
     let qs = []
     try {
-      const raw = await generateQuestions({ subject: 'Toán', grade: '4-5', topic, concepts: names, count, format: isTyped ? 'open' : 'choice' })
+      const raw = await generateQuestions({ subject: 'Toán', grade: '4-5', topic, concepts: names, count, format: isTyped ? 'open' : 'choice', fast: true })
       qs = isTyped ? normalizeOpen(raw) : normalizeQs(raw)
     } catch { qs = [] }
     if (!qs.length) qs = buildReview(mem, count, isTyped ? { openOnly: true } : {})
@@ -169,12 +168,6 @@ export default function App() {
     setPending(null)
     setView(role === 'child' ? 'home' : 'dashboard')
   }
-  function onSaveErrors(concepts) {
-    setMem((m) => recordErrors(m, concepts))
-    setToast(`Đã thêm ${concepts.length} chỗ con sai vào danh sách ôn lại ✓`)
-    setView('dashboard')
-  }
-
   const genOrScreen = (node) => (generating || !reviewQuestions) ? <GeneratingScreen /> : node
   const homeView = role === 'child' ? 'home' : 'dashboard'
 
@@ -219,10 +212,8 @@ export default function App() {
         onReview={() => setView('custom')} onCapture={() => setView('capture')} />
     }
   } else {
-    if (view === 'capture') screen = <ParentCapture onExtracted={onExtracted} onBack={() => setView('dashboard')} />
-    else if (view === 'approve' && pending) screen = <ParentApprove pending={pending} onSave={onSaveApprove} onBack={() => setView('capture')} />
-    else if (view === 'grade') screen = <ParentGrade onSaveErrors={onSaveErrors} onBack={() => setView('dashboard')} />
-    else screen = <ParentDashboard mem={mem} session={session} stats={stats} onCapture={() => setView('capture')} onGrade={() => setView('grade')} onSettings={() => setView('settings')} toast={toast} />
+    // Phụ huynh chỉ xem báo cáo + vào Cài đặt (mục tiêu, bật/tắt trắc nghiệm).
+    screen = <ParentDashboard mem={mem} session={session} stats={stats} onSettings={() => setView('settings')} toast={toast} />
   }
 
   return (

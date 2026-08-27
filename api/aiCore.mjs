@@ -5,20 +5,26 @@ const API = 'https://api.anthropic.com/v1/messages'
 const MODELS = 'https://api.anthropic.com/v1/models'
 const H = (key) => ({ 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' })
 
-let cachedModel = null
-export async function pickModel(key) {
-  if (cachedModel) return cachedModel
+let cachedIds = null
+async function modelIds(key) {
+  if (cachedIds) return cachedIds
   try {
     const r = await fetch(MODELS, { headers: H(key) })
     const d = await r.json()
-    const ids = (d.data || []).map((m) => m.id)
-    cachedModel = ids.find((i) => /sonnet/i.test(i)) || ids.find((i) => /haiku/i.test(i)) || ids[0]
-  } catch { cachedModel = 'claude-sonnet-4-5' }
-  return cachedModel
+    cachedIds = (d.data || []).map((m) => m.id)
+  } catch { cachedIds = [] }
+  return cachedIds
+}
+// fast=true: ưu tiên model nhanh (haiku) cho việc ĐỌC bài — nhanh hơn nhiều mà vẫn đủ chính xác.
+// Mặc định: sonnet (soạn/chấm câu hỏi — cần chính xác cao).
+export async function pickModel(key, { fast = false } = {}) {
+  const ids = await modelIds(key)
+  if (fast) return ids.find((i) => /haiku/i.test(i)) || ids.find((i) => /sonnet/i.test(i)) || ids[0] || 'claude-haiku-4-5'
+  return ids.find((i) => /sonnet/i.test(i)) || ids.find((i) => /haiku/i.test(i)) || ids[0] || 'claude-sonnet-4-5'
 }
 
-async function ask(key, content, max = 2500) {
-  const model = await pickModel(key)
+async function ask(key, content, max = 2500, { fast = false } = {}) {
+  const model = await pickModel(key, { fast })
   const r = await fetch(API, {
     method: 'POST', headers: H(key),
     body: JSON.stringify({ model, max_tokens: max, messages: [{ role: 'user', content }] }),
@@ -47,7 +53,7 @@ export async function extractConcepts(key, items, mediaLegacy = 'image/jpeg') {
 Đọc và trả về DUY NHẤT JSON:
 {"subject":"","grade":"","topic":"","concepts":[{"name":"","difficulty":"Cơ bản|Nâng cao","importance":"Rất quan trọng|Quan trọng|Bình thường"}]}
 Tối đa ${many ? 10 : 6} khái niệm, gộp trùng lặp. Tiếng Việt. Chỉ JSON.`
-  const out = await ask(key, [...blocks, { type: 'text', text: prompt }], many ? 2000 : 1200)
+  const out = await ask(key, [...blocks, { type: 'text', text: prompt }], many ? 1500 : 900, { fast: true })
   return parseJSON(out)
 }
 
@@ -58,7 +64,7 @@ export async function extractFromText(key, text) {
 Suy ra và trả về DUY NHẤT JSON:
 {"subject":"","grade":"","topic":"","concepts":[{"name":"","difficulty":"Cơ bản|Nâng cao","importance":"Rất quan trọng|Quan trọng|Bình thường"}]}
 Tối đa 6 khái niệm, đúng với mô tả. Tiếng Việt. Chỉ JSON.`
-  const out = await ask(key, [{ type: 'text', text: prompt }], 1200)
+  const out = await ask(key, [{ type: 'text', text: prompt }], 900, { fast: true })
   return parseJSON(out)
 }
 
@@ -79,14 +85,13 @@ Chỉ JSON.`
   return parseJSON(out)
 }
 
-// Sinh câu hỏi ôn tập cho các khái niệm (tự kiểm tra đáp án).
-// format='open': câu TỰ ĐIỀN (mở, tự chứa) cho chế độ không trắc nghiệm.
-export async function generateQuestions(key, { subject = 'Toán', grade = '', topic = '', concepts = [], count = 6, format = 'choice' }) {
+// Soạn MỘT đợt câu hỏi (dùng cho chạy song song).
+async function genChunk(key, { subject, grade, topic, concepts, format, fast = false }, n, salt = '') {
   const names = concepts.map((c) => (typeof c === 'string' ? c : c.name)).join(', ')
   const open = format === 'open'
-  const prompt = open
+  const prompt = salt + (open
     ? `Môn ${subject}, lớp ${grade}, chủ đề "${topic}". Các khái niệm: ${names}.
-Tạo ${count} câu hỏi để học sinh TỰ ĐIỀN đáp án (KHÔNG có lựa chọn sẵn).
+Tạo ${n} câu hỏi để học sinh TỰ ĐIỀN đáp án (KHÔNG có lựa chọn sẵn).
 QUY TẮC BẮT BUỘC:
 - Mỗi câu phải TỰ CHỨA đầy đủ dữ kiện và chỉ có MỘT đáp án đúng để con tự tính/viết ra.
 - TUYỆT ĐỐI KHÔNG dùng dạng "trong các ... sau", "phân số nào", "đáp án nào", "số nào", không liệt kê lựa chọn, không hỏi kiểu chọn 1 trong nhiều. Vì không hiển thị lựa chọn nên câu đó sẽ không trả lời được.
@@ -94,17 +99,32 @@ QUY TẮC BẮT BUỘC:
 - Câu XẤU (cấm): "Phân số nào tối giản?", "Trong các phân số sau...".
 Với mỗi câu, tự kiểm tra kỹ để đáp án chắc chắn đúng.
 Trả DUY NHẤT JSON:
-{"questions":[{"concept":"","q":"","answer":"","explain":"","hint":""}]}
-"answer" là đáp án đúng viết ngắn gọn (số, phân số, hoặc cụm từ). Tiếng Việt, chính xác. Chỉ JSON.`
+{"questions":[{"concept":"","q":"","answer":"","explain":""}]}
+"answer" là đáp án đúng viết ngắn gọn (số, phân số, hoặc cụm từ). "explain" giải thích ngắn gọn ≤20 từ. Tiếng Việt, chính xác. Chỉ JSON.`
     : `Môn ${subject}, lớp ${grade}, chủ đề "${topic}". Các khái niệm: ${names}.
-Tạo ${count} câu hỏi trắc nghiệm cho học sinh ôn tập, mỗi câu 4 lựa chọn.
+Tạo ${n} câu hỏi trắc nghiệm cho học sinh ôn tập, mỗi câu 4 lựa chọn.
 Với mỗi câu, tự kiểm tra kỹ để đáp án chắc chắn đúng.
 Trả DUY NHẤT JSON:
-{"questions":[{"concept":"","q":"","options":["","","",""],"answer":0,"explain":"","hint":""}]}
-"answer" là chỉ số 0-3 của đáp án đúng. Tiếng Việt, nội dung chính xác. Chỉ JSON.`
-  const max = Math.min(8000, 1600 + count * 320)
-  const out = await ask(key, [{ type: 'text', text: prompt }], max)
-  return parseJSON(out).questions
+{"questions":[{"concept":"","q":"","options":["","","",""],"answer":0,"explain":""}]}
+"answer" là chỉ số 0-3 của đáp án đúng. "explain" giải thích ngắn gọn ≤20 từ. Tiếng Việt, chính xác. Chỉ JSON.`)
+  const max = Math.min(4000, 700 + n * 260)
+  const out = await ask(key, [{ type: 'text', text: prompt }], max, { fast })
+  return parseJSON(out).questions || []
+}
+
+// Sinh câu hỏi ôn tập — chia thành nhiều đợt CHẠY SONG SONG cho nhanh (vẫn dùng model chính xác cao).
+// format='open': câu TỰ ĐIỀN (mở, tự chứa) cho chế độ không trắc nghiệm.
+export async function generateQuestions(key, opts) {
+  const { subject = 'Toán', grade = '', topic = '', concepts = [], count = 6, format = 'choice', fast = false } = opts
+  const base = { subject, grade, topic, concepts, format, fast }
+  const CHUNK = 5
+  if (count <= CHUNK) return genChunk(key, base, count)
+  const sizes = []
+  for (let r = count; r > 0; r -= CHUNK) sizes.push(Math.min(CHUNK, r))
+  const parts = await Promise.all(
+    sizes.map((n, i) => genChunk(key, base, n, `(Đợt ${i + 1}: ra dạng bài đa dạng, tránh trùng lặp) `).catch(() => [])),
+  )
+  return parts.flat().slice(0, count)
 }
 
 // Chấm một trang bài con ĐÃ LÀM (đọc chữ viết tay, kết luận đúng/sai, gán khái niệm).
