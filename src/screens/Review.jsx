@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { BackHeader } from '../components.jsx'
 import { nextMastery } from '../lib/memory.js'
+import { createActiveTimer } from '../lib/stats.js'
 import { CONCEPT_NAME } from '../data/content.js'
 
 // Trắc nghiệm để HỌC: có giải thích. Sai là sai — không cho thử lại.
@@ -10,6 +11,7 @@ export default function Review({ questions, mem, title = 'Ôn tập hôm nay', o
   const [resolved, setResolved] = useState(false)
   const [results, setResults] = useState({})
   const [solved, setSolved] = useState(0)
+  const timer = useRef(createActiveTimer())
 
   if (!questions || questions.length === 0) {
     return (
@@ -26,6 +28,7 @@ export default function Review({ questions, mem, title = 'Ôn tập hôm nay', o
 
   function choose(i) {
     if (resolved) return
+    timer.current.step()
     setPicked(i)
     setResolved(true)
   }
@@ -45,7 +48,10 @@ export default function Review({ questions, mem, title = 'Ôn tập hôm nay', o
     const newResults = { ...results, [key]: updated }
     const newSolved = solved + (isCorrect ? 1 : 0)
     setResults(newResults); setSolved(newSolved)
-    if (index + 1 >= questions.length) { onFinish({ total: questions.length, correct: newSolved }, newResults); return }
+    if (index + 1 >= questions.length) {
+      onFinish({ total: questions.length, correct: newSolved, activeSeconds: timer.current.get() }, newResults); return
+    }
+    timer.current.reset()
     setIndex(index + 1); setPicked(null); setResolved(false)
   }
 

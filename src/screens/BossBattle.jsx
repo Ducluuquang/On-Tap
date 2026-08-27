@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { BackHeader } from '../components.jsx'
 import { nextMastery } from '../lib/memory.js'
+import { createActiveTimer } from '../lib/stats.js'
 import { CONCEPT_NAME } from '../data/content.js'
 
 export default function BossBattle({ questions, mem, title = 'Boss Battle', onFinish, onExit }) {
@@ -15,6 +16,7 @@ export default function BossBattle({ questions, mem, title = 'Boss Battle', onFi
   const [over, setOver] = useState(null)
   const [correct, setCorrect] = useState(0)
   const resultsRef = useRef({})
+  const activeTimer = useRef(createActiveTimer())
 
   if (!total) {
     return (
@@ -31,6 +33,7 @@ export default function BossBattle({ questions, mem, title = 'Boss Battle', onFi
 
   function choose(i) {
     if (resolved || over) return
+    activeTimer.current.step()
     setPicked(i); setResolved(true)
     const ok = i === q.answer
     const key = q.concept
@@ -56,6 +59,7 @@ export default function BossBattle({ questions, mem, title = 'Boss Battle', onFi
     if (hearts <= 0) { endGame('lose'); return }
     if (hp <= 0) { endGame('win'); return }
     if (index + 1 >= total) { endGame(hp <= 0 ? 'win' : 'survive'); return }
+    activeTimer.current.reset()
     setIndex(index + 1); setPicked(null); setResolved(false)
   }
 
@@ -74,7 +78,7 @@ export default function BossBattle({ questions, mem, title = 'Boss Battle', onFi
           <h1>{win ? 'Hạ gục Boss!' : over === 'survive' ? 'Boss còn chút máu!' : 'Boss thắng ván này'}</h1>
           <p>{win ? 'Quá đỉnh! Con đánh bại Boss rồi.' : 'Gần rồi — ôn thêm chút là hạ được Boss thôi.'}</p>
           <div className="boss-over-stat">Đúng {correct}/{total} câu · còn {hearts} ❤️</div>
-          <button className="cta" onClick={() => onFinish({ total, correct, boss: over }, resultsRef.current)}>Xong</button>
+          <button className="cta" onClick={() => onFinish({ total, correct, boss: over, activeSeconds: activeTimer.current.get() }, resultsRef.current)}>Xong</button>
         </div>
       </div>
     )

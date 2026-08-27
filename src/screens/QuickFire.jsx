@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { BackHeader } from '../components.jsx'
 import { nextMastery } from '../lib/memory.js'
 import { fmt } from '../lib/num.js'
+import { createActiveTimer } from '../lib/stats.js'
 import { CONCEPT_NAME } from '../data/content.js'
 
 const DURATION = 60
@@ -19,6 +20,7 @@ export default function QuickFire({ questions, mem, title = 'Quick Fire', onFini
   const scoreRef = useRef(0)
   const doneRef = useRef(false)
   const gainId = useRef(0)
+  const activeTimer = useRef(createActiveTimer())
 
   const finish = () => {
     if (doneRef.current) return
@@ -26,7 +28,7 @@ export default function QuickFire({ questions, mem, title = 'Quick Fire', onFini
     const rs = resultsRef.current
     const corr = Object.values(rs).reduce((s, r) => s + r.correct, 0)
     const ans = Object.values(rs).reduce((s, r) => s + r.correct + r.wrong, 0)
-    onFinish({ total: Math.max(ans, 1), correct: corr, score: scoreRef.current }, rs)
+    onFinish({ total: Math.max(ans, 1), correct: corr, score: scoreRef.current, activeSeconds: activeTimer.current.get() }, rs)
   }
 
   useEffect(() => {
@@ -53,6 +55,7 @@ export default function QuickFire({ questions, mem, title = 'Quick Fire', onFini
   function answer(i) {
     if (locked || doneRef.current) return
     setLocked(true)
+    activeTimer.current.step()
     const ok = i === q.answer
     setFlash({ i, ok })
     setPulse(ok ? 'ok' : 'no')
@@ -82,6 +85,7 @@ export default function QuickFire({ questions, mem, title = 'Quick Fire', onFini
       setPulse(null)
       if (doneRef.current) return
       if (index + 1 >= questions.length) { finish(); return }
+      activeTimer.current.reset()
       setIndex(index + 1); setFlash(null); setLocked(false)
     }, 480)
   }

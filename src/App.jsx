@@ -3,11 +3,15 @@ import { loadMemory, saveMemory, applySession, addConcepts, recordErrors } from 
 import { buildReview } from './lib/mockAI.js'
 import { generateQuestions } from './lib/aiClient.js'
 import { loadAccount, saveAccount, loadSession, setSession as persistSession } from './lib/auth.js'
+import { loadStats, saveStats, addSeconds, setGoalMin } from './lib/stats.js'
+import { loadSettings, saveSettings } from './lib/settings.js'
 
 import Auth from './screens/Auth.jsx'
+import Settings from './screens/Settings.jsx'
 import ChildHome from './screens/ChildHome.jsx'
 import CustomReview from './screens/CustomReview.jsx'
 import Review from './screens/Review.jsx'
+import TypedReview from './screens/TypedReview.jsx'
 import QuickFire from './screens/QuickFire.jsx'
 import BossBattle from './screens/BossBattle.jsx'
 import FallingGame from './screens/FallingGame.jsx'
@@ -44,6 +48,8 @@ function normalizeQs(qs) {
 export default function App() {
   const [account, setAccount] = useState(loadAccount)
   const [authed, setAuthed] = useState(() => loadSession() && !!loadAccount())
+  const [stats, setStats] = useState(loadStats)
+  const [settings, setSettings] = useState(loadSettings)
 
   const [mem, setMem] = useState(loadMemory)
   const [role, setRole] = useState('child')
@@ -58,24 +64,41 @@ export default function App() {
   const [generating, setGenerating] = useState(false)
 
   useEffect(() => { saveMemory(mem) }, [mem])
+  useEffect(() => { saveStats(stats) }, [stats])
+  useEffect(() => { saveSettings(settings) }, [settings])
   useEffect(() => {
     if (!toast) return undefined
     const t = setTimeout(() => setToast(''), 2600)
     return () => clearTimeout(t)
   }, [toast])
 
-  // ---- Đăng nhập ----
-  function handleRegister(phone) {
-    const acc = { username: phone, password: phone }
+  // ---- Đăng nhập / tài khoản ----
+  function handleRegister(phone, email) {
+    const acc = { username: phone, password: phone, email: email || '' }
     saveAccount(acc); setAccount(acc)
     persistSession(true); setAuthed(true)
   }
   function handleLogin(u, p) {
     const acc = loadAccount()
-    if (acc && u === acc.username && p === acc.password) {
-      persistSession(true); setAuthed(true); return true
+    if (acc && u === acc.username && p === acc.password) { persistSession(true); setAuthed(true); return true }
+    return false
+  }
+  function handleReset(phone, newPass) {
+    const acc = loadAccount()
+    if (acc && phone === acc.username) {
+      const next = { ...acc, password: newPass }
+      saveAccount(next); setAccount(next); persistSession(true); setAuthed(true); return true
     }
     return false
+  }
+  function changePassword(cur, next) {
+    if (!account || cur !== account.password) return false
+    const acc = { ...account, password: next }
+    saveAccount(acc); setAccount(acc); return true
+  }
+  function saveEmail(email) {
+    const acc = { ...account, email }
+    saveAccount(acc); setAccount(acc)
   }
   function logout() {
     persistSession(false); setAuthed(false)
@@ -88,11 +111,13 @@ export default function App() {
   }
 
   async function startReview({ title = 'Ôn tập', conceptNames, count = 10, mode = 'quiz' } = {}) {
+    // An toàn: nếu phụ huynh đã tắt trắc nghiệm thì mọi buổi ôn đều là tự điền.
+    const m = settings.allowChoice ? mode : 'typed'
     setReviewTitle(title)
-    setReviewMode(mode)
+    setReviewMode(m)
     setReviewQuestions(null)
     setGenerating(true)
-    setView(mode === 'falling' ? 'falling' : mode === 'quickfire' ? 'quickfire' : mode === 'boss' ? 'boss' : 'review')
+    setView(m === 'typed' ? 'typed' : m === 'falling' ? 'falling' : m === 'quickfire' ? 'quickfire' : m === 'boss' ? 'boss' : 'review')
     let names = conceptNames
     if (!names || !names.length) {
       names = [...mem].sort((a, b) => a.mastery - b.mastery).slice(0, 4).map((c) => c.name)
@@ -108,6 +133,7 @@ export default function App() {
   }
 
   function handleFinish(summary, perConcept) {
+    if (summary.activeSeconds) setStats((s) => addSeconds(s, summary.activeSeconds))
     const deltas = Object.entries(perConcept).map(([key, r]) => {
       const old = mem.find((c) => c.id === key || c.name === key)
       return { id: key, name: r.label || (old ? old.name : key), before: old ? old.mastery : 55, after: r.mastery }
@@ -135,23 +161,32 @@ export default function App() {
   }
 
   const genOrScreen = (node) => (generating || !reviewQuestions) ? <GeneratingScreen /> : node
+  const homeView = role === 'child' ? 'home' : 'dashboard'
 
   if (!authed) {
     return (
       <div className="stage">
         <div className="phone">
-          <Auth account={account} onRegister={handleRegister} onLogin={handleLogin} />
+          <Auth account={account} onRegister={handleRegister} onLogin={handleLogin} onReset={handleReset} />
         </div>
       </div>
     )
   }
 
   let screen = null
-  if (role === 'child') {
+  if (view === 'settings') {
+    screen = <Settings account={account} settings={settings} stats={stats}
+      onChangePassword={changePassword} onSaveEmail={saveEmail}
+      onSetGoal={(min) => setStats((s) => setGoalMin(s, min))}
+      onToggleChoice={(v) => setSettings((s) => ({ ...s, allowChoice: v }))}
+      onBack={() => setView(homeView)} />
+  } else if (role === 'child') {
     if (view === 'custom') {
-      screen = <CustomReview mem={mem} onStart={startReview} onBack={() => setView('home')} />
+      screen = <CustomReview mem={mem} allowChoice={settings.allowChoice} onStart={startReview} onBack={() => setView('home')} />
     } else if (view === 'review') {
       screen = genOrScreen(<Review questions={reviewQuestions} mem={mem} title={reviewTitle} onFinish={handleFinish} onExit={() => setView('home')} />)
+    } else if (view === 'typed') {
+      screen = genOrScreen(<TypedReview questions={reviewQuestions} mem={mem} title={reviewTitle} onFinish={handleFinish} onExit={() => setView('home')} />)
     } else if (view === 'falling') {
       screen = genOrScreen(<FallingGame questions={reviewQuestions} mem={mem} title={reviewTitle} onFinish={handleFinish} onExit={() => setView('home')} />)
     } else if (view === 'quickfire') {
@@ -172,7 +207,7 @@ export default function App() {
     if (view === 'capture') screen = <ParentCapture onExtracted={onExtracted} onBack={() => setView('dashboard')} />
     else if (view === 'approve' && pending) screen = <ParentApprove pending={pending} onSave={onSaveApprove} onBack={() => setView('capture')} />
     else if (view === 'grade') screen = <ParentGrade onSaveErrors={onSaveErrors} onBack={() => setView('dashboard')} />
-    else screen = <ParentDashboard mem={mem} session={session} onCapture={() => setView('capture')} onGrade={() => setView('grade')} toast={toast} />
+    else screen = <ParentDashboard mem={mem} session={session} stats={stats} onCapture={() => setView('capture')} onGrade={() => setView('grade')} onSettings={() => setView('settings')} toast={toast} />
   }
 
   return (
@@ -183,6 +218,7 @@ export default function App() {
           <button className={role === 'child' ? 'on' : ''} onClick={() => switchRole('child')}>Con</button>
           <button className={role === 'parent' ? 'on' : ''} onClick={() => switchRole('parent')}>Phụ huynh</button>
         </div>
+        <button className="ds-logout" onClick={() => setView('settings')} title="Cài đặt">⚙️</button>
         <button className="ds-logout" onClick={logout} title="Đăng xuất">Đăng xuất</button>
       </div>
       <div className="phone">{screen}</div>

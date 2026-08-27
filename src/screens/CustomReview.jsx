@@ -11,17 +11,19 @@ const LEVELS = [
   { k: 'notmastered', l: 'Chưa thành thạo' }, { k: 'all', l: 'Tổng hợp' },
 ]
 const COUNTS = [10, 15, 20]
-const MODES = [
-  { k: 'falling', l: 'Thả rơi ⏱' }, { k: 'quiz', l: 'Trắc nghiệm' },
-  { k: 'quickfire', l: 'Quick Fire ⏱' }, { k: 'boss', l: 'Boss Battle 👾' },
+const ALL_MODES = [
+  { k: 'falling', l: 'Thả rơi ⏱', choice: true }, { k: 'quiz', l: 'Trắc nghiệm', choice: true },
+  { k: 'quickfire', l: 'Quick Fire ⏱', choice: true }, { k: 'boss', l: 'Boss Battle 👾', choice: true },
+  { k: 'typed', l: 'Điền đáp án ✍️', choice: false },
 ]
 
-export default function CustomReview({ mem, onStart, onBack }) {
+export default function CustomReview({ mem, onStart, onBack, allowChoice = true }) {
+  const modes = allowChoice ? ALL_MODES : ALL_MODES.filter((m) => !m.choice)
   const [time, setTime] = useState('all')
   const [level, setLevel] = useState('weak')
   const [text, setText] = useState('')
   const [count, setCount] = useState(10)
-  const [mode, setMode] = useState('falling')
+  const [mode, setMode] = useState(allowChoice ? 'falling' : 'typed')
 
   const names = selectConcepts(mem, { time, level, text })
 
@@ -70,10 +72,11 @@ export default function CustomReview({ mem, onStart, onBack }) {
           ))}
         </div>
         <div className="chips" style={{ marginTop: '10px' }}>
-          {MODES.map((o) => (
+          {modes.map((o) => (
             <button key={o.k} className={'chip' + (mode === o.k ? ' on' : '')} onClick={() => setMode(o.k)}>{o.l}</button>
           ))}
         </div>
+        {!allowChoice && <p className="cr-hint">Phụ huynh đã tắt trắc nghiệm — con tự nghĩ và điền đáp án ✍️</p>}
       </div>
 
       <div className="cr-preview">

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { BackHeader } from '../components.jsx'
 import { nextMastery } from '../lib/memory.js'
 import { fmt } from '../lib/num.js'
+import { createActiveTimer } from '../lib/stats.js'
 import { CONCEPT_NAME } from '../data/content.js'
 
 const PER_Q = 5000 // 5 giây rơi
@@ -19,6 +20,7 @@ export default function FallingGame({ questions, mem, title = 'Thả rơi', onFi
   const tickRef = useRef(null)
   const audioRef = useRef(null)
   const tocRef = useRef(true)
+  const activeTimer = useRef(createActiveTimer())
 
   const q = questions && questions[index]
   // Xáo vị trí các đáp án theo từng câu để đáp án đúng không cố định 1 chỗ
@@ -48,12 +50,13 @@ export default function FallingGame({ questions, mem, title = 'Thả rơi', onFi
     const rs = resultsRef.current
     const corr = Object.values(rs).reduce((s, r) => s + r.correct, 0)
     const ans = Object.values(rs).reduce((s, r) => s + r.correct + r.wrong, 0)
-    onFinish({ total: Math.max(ans, 1), correct: corr, score: scoreRef.current }, rs)
+    onFinish({ total: Math.max(ans, 1), correct: corr, score: scoreRef.current, activeSeconds: activeTimer.current.get() }, rs)
   }
 
   function resolve(picked) {
     if (locked || doneRef.current) return
     setLocked(true)
+    activeTimer.current.step()
     clearInterval(tickRef.current); clearTimeout(timerRef.current)
     const ok = picked != null && picked === q.answer
     setFlash({ ok, i: picked })
@@ -78,6 +81,7 @@ export default function FallingGame({ questions, mem, title = 'Thả rơi', onFi
   useEffect(() => {
     if (!questions || !questions.length || doneRef.current) return undefined
     setLocked(false); setFlash(null); setTick(5)
+    activeTimer.current.reset()
     if (!audioRef.current) {
       try { audioRef.current = new (window.AudioContext || window.webkitAudioContext)() } catch { /* noop */ }
     }

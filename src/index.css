@@ -353,3 +353,58 @@ body{
 .cap-body b{font-size:1.06rem;font-weight:700;color:var(--ink);line-height:1.25}
 .cap-body em{font-style:normal;font-size:.83rem;color:var(--muted);line-height:1.4}
 .cap-go{font-size:1.2rem;font-weight:800;color:var(--teal);flex:none}
+
+/* ===== Auth: link quên mật khẩu + ghi chú ===== */
+.linkbtn{background:none;border:0;cursor:pointer;font-family:inherit;color:var(--teal-dark);font-weight:600;font-size:.9rem;text-decoration:underline;padding:8px;align-self:center}
+.auth-note{margin:8px 0 0;font-size:.76rem;color:var(--muted);line-height:1.5;text-align:center}
+.lbl-opt{font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0}
+
+/* ===== Cài đặt ===== */
+.set-sec{display:flex;flex-direction:column;gap:9px;background:#fff;border:1px solid var(--border);border-radius:14px;padding:15px 16px;box-shadow:0 6px 16px rgba(20,33,46,.04)}
+.set-sec h3{margin:0;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.set-row{display:flex;align-items:center;justify-content:space-between;font-size:.95rem}
+.set-row span{color:var(--muted)}
+.ok-msg{background:var(--mastered-bg);color:var(--mastered-tx);border:1px solid #C7E6D3;border-radius:10px;padding:9px 13px;font-size:.86rem;font-weight:600}
+.goal-row{display:flex;align-items:center;gap:14px}
+.goal-btn{width:44px;height:44px;border-radius:12px;border:1.5px solid var(--border);background:#fff;font-size:1.4rem;font-weight:700;color:var(--teal-dark);cursor:pointer;flex:none}
+.goal-btn:hover{border-color:var(--teal)}
+.goal-val{display:flex;flex-direction:column;align-items:center;flex:1}
+.goal-val b{font-size:1.7rem;font-weight:800;color:var(--teal-dark);line-height:1}
+.goal-val span{font-size:.78rem;color:var(--muted);margin-top:2px}
+.switch-row{display:flex;align-items:center;justify-content:space-between;gap:14px;cursor:pointer}
+.switch-txt{display:flex;flex-direction:column;gap:2px}
+.switch-txt b{font-size:.96rem;font-weight:600}
+.switch-txt em{font-style:normal;font-size:.82rem;color:var(--muted);line-height:1.4}
+.switch{width:50px;height:29px;border-radius:999px;background:#CBD5D2;position:relative;cursor:pointer;transition:background .15s;flex:none}
+.switch.on{background:var(--teal)}
+.switch .knob{position:absolute;top:3px;left:3px;width:23px;height:23px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.switch.on .knob{left:24px}
+
+/* ===== Tự điền đáp án ===== */
+.typed-in{width:100%;border:2px solid var(--border);border-radius:14px;padding:15px 17px;font-family:inherit;font-size:1.2rem;font-weight:700;color:var(--ink);background:#fff;text-align:center}
+.typed-in:focus{outline:none;border-color:var(--teal)}
+.typed-in.ok{border-color:var(--mastered);background:var(--mastered-bg);color:var(--mastered-tx)}
+.typed-in.no{border-color:var(--weak);background:var(--weak-bg);color:var(--weak-tx)}
+
+/* ===== Báo cáo: biểu đồ giờ học ===== */
+.study{background:#fff;border:1px solid var(--border);border-radius:16px;padding:15px 16px;box-shadow:0 8px 20px rgba(20,33,46,.05);display:flex;flex-direction:column;gap:12px}
+.study-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.study-head h3{margin:0;font-size:.9rem;font-weight:700}
+.goal-pill{font-size:.7rem;font-weight:700;padding:5px 11px;border-radius:999px;background:var(--dev-bg);color:var(--dev-tx);white-space:nowrap}
+.goal-pill.met{background:var(--mastered-bg);color:var(--mastered-tx)}
+.chart{display:flex;flex-direction:column;gap:7px}
+.chart-plot{position:relative;height:132px;display:flex;align-items:flex-end;gap:8px}
+.chart-goal{position:absolute;left:0;right:0;border-top:2px dashed var(--amber);pointer-events:none}
+.chart-goal i{position:absolute;right:0;top:-8px;font-size:.62rem;font-style:normal;color:#9A6712;background:#fff;padding:0 5px;font-weight:700;border-radius:4px}
+.cbar{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px}
+.cbar-num{font-size:.66rem;font-weight:700;color:var(--ink-soft);line-height:1}
+.cbar-fill{width:72%;max-width:26px;border-radius:7px 7px 0 0;background:#C4D8D3;transition:height .5s}
+.cbar-fill.met{background:linear-gradient(180deg,#1fb3a3,var(--teal))}
+.cbar-fill.today{outline:2px solid var(--teal-dark);outline-offset:1px}
+.chart-x{display:flex;gap:8px}
+.chart-x span{flex:1;text-align:center;font-size:.74rem;color:var(--muted);font-weight:600}
+.chart-x span.on{color:var(--teal-dark);font-weight:800}
+.study-foot{display:flex;gap:10px;border-top:1px solid var(--line);padding-top:10px}
+.study-foot>div{flex:1;display:flex;flex-direction:column}
+.study-foot b{font-size:1.05rem;font-weight:800;color:var(--teal-dark)}
+.study-foot span{font-size:.76rem;color:var(--muted);margin-top:1px}
