@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { BackHeader } from '../components.jsx'
 import { nextMastery } from '../lib/memory.js'
 import { createActiveTimer } from '../lib/stats.js'
@@ -19,6 +19,15 @@ export default function TypedReview({ questions, mem, title = 'Điền đáp án
   const [results, setResults] = useState({})
   const [solved, setSolved] = useState(0)
   const timer = useRef(createActiveTimer())
+
+  // Nhấn Enter = "Câu tiếp theo" (khi đã có kết quả). Lúc đang gõ, Enter = "Kiểm tra".
+  useEffect(() => {
+    if (!resolved) return undefined
+    const onKey = (e) => { if (e.key === 'Enter') { e.preventDefault(); next() } }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolved, ok, index])
 
   if (!questions || questions.length === 0) {
     return (
@@ -84,13 +93,14 @@ export default function TypedReview({ questions, mem, title = 'Điền đáp án
       <h2 className="question">{q.q}</h2>
 
       <input
+        key={index}
         className={'typed-in' + (resolved ? (ok ? ' ok' : ' no') : '')}
         placeholder="Gõ đáp án của con…"
         value={val}
         disabled={resolved || checking}
         autoFocus
         onChange={(e) => setVal(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') (resolved ? next() : check()) }}
+        onKeyDown={(e) => { if (e.key === 'Enter' && !resolved) check() }}
       />
 
       {!resolved ? (

@@ -40,8 +40,15 @@ export function extractFromCapture(sampleId) {
 
 // Chọn câu hỏi cho buổi ôn: ưu tiên concept yếu (mastery thấp) nhiều câu hơn.
 // openOnly = true: chỉ lấy câu TỰ CHỨA (bỏ câu kiểu "trong các... sau") cho chế độ tự điền.
-export function buildReview(mem, count = 6, { openOnly = false } = {}) {
-  const ranked = [...mem].sort((a, b) => a.mastery - b.mastery)
+// conceptNames: nếu có, CHỈ lấy câu thuộc đúng khái niệm đang ôn (tránh ra câu lạc đề khi dự phòng).
+export function buildReview(mem, count = 6, { openOnly = false, conceptNames = null } = {}) {
+  let pool = [...mem]
+  if (conceptNames && conceptNames.length) {
+    const set = new Set(conceptNames.map((n) => String(n).toLowerCase()))
+    const only = pool.filter((c) => set.has(c.name.toLowerCase()) || set.has(c.id))
+    if (only.length) pool = only
+  }
+  const ranked = pool.sort((a, b) => a.mastery - b.mastery)
   const picks = []
   // 2 câu từ concept yếu nhất, rồi rải đều các concept còn lại.
   const order = [ranked[0], ranked[0], ...ranked.slice(1), ...ranked]

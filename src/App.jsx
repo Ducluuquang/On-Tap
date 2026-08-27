@@ -134,14 +134,18 @@ export default function App() {
     if (!names || !names.length) {
       names = [...mem].sort((a, b) => a.mastery - b.mastery).slice(0, 4).map((c) => c.name)
     }
-    const topic = mem.find((c) => c.name === names[0])?.topic || 'Phân số'
+    // Lấy đúng MÔN + CHỦ ĐỀ của khái niệm đang ôn (không mặc định "Phân số" nữa),
+    // để câu hỏi ra đúng nội dung con đang học (số tự nhiên, hình học…).
+    const first = mem.find((c) => c.name === names[0])
+    const subject = first?.subject || 'Toán'
+    const topic = first?.topic || names[0] || 'Ôn tập'
     const isTyped = m === 'typed'
     let qs = []
     try {
-      const raw = await generateQuestions({ subject: 'Toán', grade: '4-5', topic, concepts: names, count, format: isTyped ? 'open' : 'choice', fast: true })
+      const raw = await generateQuestions({ subject, grade: '4-5', topic, concepts: names, count, format: isTyped ? 'open' : 'choice', fast: true })
       qs = isTyped ? normalizeOpen(raw) : normalizeQs(raw)
     } catch { qs = [] }
-    if (!qs.length) qs = buildReview(mem, count, isTyped ? { openOnly: true } : {})
+    if (!qs.length) qs = buildReview(mem, count, { openOnly: isTyped, conceptNames: names })
     setReviewQuestions(qs)
     setGenerating(false)
   }

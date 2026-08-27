@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { BackHeader } from '../components.jsx'
 import { nextMastery } from '../lib/memory.js'
 import { createActiveTimer } from '../lib/stats.js'
@@ -12,6 +12,15 @@ export default function Review({ questions, mem, title = 'Ôn tập hôm nay', o
   const [results, setResults] = useState({})
   const [solved, setSolved] = useState(0)
   const timer = useRef(createActiveTimer())
+
+  // Nhấn Enter = "Câu tiếp theo" khi đã trả lời xong.
+  useEffect(() => {
+    if (!resolved) return undefined
+    const onKey = (e) => { if (e.key === 'Enter') { e.preventDefault(); next() } }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolved, picked, index])
 
   if (!questions || questions.length === 0) {
     return (

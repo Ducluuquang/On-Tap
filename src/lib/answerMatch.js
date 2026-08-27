@@ -18,16 +18,18 @@ const SYN = [
 export function canon(s) {
   let t = stripD(norm(s)).replace(/[^a-z0-9/.,\s]/g, ' ').replace(/\s+/g, ' ').trim()
   for (const [re, to] of SYN) t = t.replace(re, to)
-  return t.replace(/\s+/g, ' ').trim()
+  return t.replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ').trim() // gộp "3 / 4" -> "3/4"
 }
 
-// true nếu chắc chắn khớp (đúng giá trị / chỉ khác cách đọc). false = chưa chắc, nên hỏi AI.
+// true nếu CHẮC CHẮN khớp (giống hệt sau chuẩn hoá, hoặc cùng một GIÁ TRỊ SỐ nguyên/thập phân).
+// false = chưa chắc → để lớp 2 (chấm bằng nghĩa) quyết định.
+// LƯU Ý: KHÔNG so giá trị với phân số dạng a/b (vì "3/4" và "3/8" khác nhau) — chỉ khớp chuỗi.
 export function localMatch(typed, correct) {
   const a = canon(typed), b = canon(correct)
   if (!a) return false
   if (a === b) return true
-  const na = a.replace(/\s/g, '').replace(',', '.'), nb = b.replace(/\s/g, '').replace(',', '.')
-  if (na === nb) return true
-  const fa = parseFloat(na), fb = parseFloat(nb)
-  return !Number.isNaN(fa) && !Number.isNaN(fb) && fa === fb
+  const na = a.replace(/\s+/g, '').replace(',', '.'), nb = b.replace(/\s+/g, '').replace(',', '.')
+  // Chỉ so giá trị khi CẢ HAI là số nguyên/thập phân thuần (không có dấu "/").
+  if (/^-?\d+(\.\d+)?$/.test(na) && /^-?\d+(\.\d+)?$/.test(nb)) return Number(na) === Number(nb)
+  return false
 }
