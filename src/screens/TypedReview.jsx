@@ -2,26 +2,20 @@ import { useState, useRef } from 'react'
 import { BackHeader } from '../components.jsx'
 import { nextMastery } from '../lib/memory.js'
 import { createActiveTimer } from '../lib/stats.js'
+import { localMatch } from '../lib/answerMatch.js'
+import { judgeAnswer } from '../lib/aiClient.js'
 import { CONCEPT_NAME } from '../data/content.js'
 
-// Tự ĐIỀN đáp án (không có sẵn lựa chọn) — con phải tự nghĩ ra kết quả rồi gõ vào.
-const norm = (s) => String(s).trim().toLowerCase().replace(/\s+/g, ' ').replace(/[.．。,;:!?]+$/, '')
-const stripD = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd')
-function isMatch(typed, correct) {
-  const a = norm(typed), b = norm(correct)
-  if (!a) return false
-  if (a === b || stripD(a) === stripD(b)) return true
-  const na = a.replace(/\s/g, '').replace(',', '.'), nb = b.replace(/\s/g, '').replace(',', '.')
-  if (na === nb) return true
-  const fa = parseFloat(na), fb = parseFloat(nb)
-  return !Number.isNaN(fa) && !Number.isNaN(fb) && fa === fb
-}
-
+// Tự ĐIỀN đáp án — con phải tự nghĩ ra kết quả rồi gõ vào.
+// Chấm 2 lớp: (1) so khớp thông minh trên máy (nhanh, hiểu bốn/tư, linh/lẻ, nghìn/ngàn…);
+// (2) nếu chưa khớp thì để AI chấm xem có cùng nghĩa không rồi mới kết luận.
 export default function TypedReview({ questions, mem, title = 'Điền đáp án', onFinish, onExit }) {
   const [index, setIndex] = useState(0)
   const [val, setVal] = useState('')
   const [resolved, setResolved] = useState(false)
+  const [checking, setChecking] = useState(false)
   const [ok, setOk] = useState(false)
+  const [note, setNote] = useState('')
   const [results, setResults] = useState({})
   const [solved, setSolved] = useState(0)
   const timer = useRef(createActiveTimer())
@@ -39,11 +33,20 @@ export default function TypedReview({ questions, mem, title = 'Điền đáp án
   const label = CONCEPT_NAME[q.concept] || q.concept
   const correctText = q.options[q.answer]
 
-  function check() {
-    if (resolved || !val.trim()) return
+  async function check() {
+    if (resolved || checking || !val.trim()) return
     timer.current.step()
-    setOk(isMatch(val, correctText))
-    setResolved(true)
+    // Lớp 1: so khớp trên máy (tức thì)
+    if (localMatch(val, correctText)) { setOk(true); setNote(''); setResolved(true); return }
+    // Lớp 2: nhờ AI chấm cùng nghĩa
+    setChecking(true)
+    try {
+      const r = await judgeAnswer({ question: q.q, correct: correctText, answer: val.trim() })
+      setOk(!!r.correct); setNote(r.note || '')
+    } catch {
+      setOk(false); setNote('') // AI chưa sẵn sàng — coi như chưa đúng, vẫn hiện đáp án mẫu
+    }
+    setChecking(false); setResolved(true)
   }
 
   function next() {
@@ -65,7 +68,7 @@ export default function TypedReview({ questions, mem, title = 'Điền đáp án
       onFinish({ total: questions.length, correct: newSolved, activeSeconds: timer.current.get() }, newResults); return
     }
     timer.current.reset()
-    setIndex(index + 1); setVal(''); setResolved(false); setOk(false)
+    setIndex(index + 1); setVal(''); setResolved(false); setOk(false); setNote('')
   }
 
   return (
@@ -83,17 +86,22 @@ export default function TypedReview({ questions, mem, title = 'Điền đáp án
         className={'typed-in' + (resolved ? (ok ? ' ok' : ' no') : '')}
         placeholder="Gõ đáp án của con…"
         value={val}
-        disabled={resolved}
+        disabled={resolved || checking}
         autoFocus
         onChange={(e) => setVal(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') (resolved ? next() : check()) }}
       />
 
       {!resolved ? (
-        <button className="cta" disabled={!val.trim()} onClick={check}>Kiểm tra</button>
+        checking ? (
+          <button className="cta" disabled>🤔 AI đang kiểm tra đáp án…</button>
+        ) : (
+          <button className="cta" disabled={!val.trim()} onClick={check}>Kiểm tra</button>
+        )
       ) : (
         <div className={'fb ' + (ok ? 'fb-ok' : 'fb-no')}>
           <b>{ok ? 'Chính xác! 🎉' : 'Chưa đúng.'}</b>
+          {ok && note && <p>{note}</p>}
           {!ok && <p>Đáp án đúng: <b>{correctText}</b></p>}
           {q.explain && <p>{q.explain}</p>}
           <button className="cta" onClick={next}>
@@ -102,7 +110,7 @@ export default function TypedReview({ questions, mem, title = 'Điền đáp án
         </div>
       )}
 
-      <p className="qf-note">Con tự nghĩ ra kết quả rồi gõ vào — không có sẵn đáp án để chọn ✍️</p>
+      <p className="qf-note">Con tự nghĩ ra kết quả rồi gõ vào — cách đọc/viết khác nhau nhưng đúng vẫn được tính ✍️</p>
     </div>
   )
 }

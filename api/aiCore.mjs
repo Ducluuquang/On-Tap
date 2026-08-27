@@ -62,6 +62,23 @@ Tối đa 6 khái niệm, đúng với mô tả. Tiếng Việt. Chỉ JSON.`
   return parseJSON(out)
 }
 
+// Chấm câu trả lời TỰ ĐIỀN: hiểu các cách diễn đạt/đọc khác nhau nhưng cùng nghĩa.
+export async function judgeAnswer(key, { question = '', correct = '', answer = '' }) {
+  const prompt =
+`Học sinh tiểu học Việt Nam làm bài (tự gõ đáp án, không có sẵn lựa chọn).
+Câu hỏi: "${question}"
+Đáp án đúng (mẫu): "${correct}"
+Học sinh trả lời: "${answer}"
+
+Câu trả lời của học sinh có ĐÚNG về GIÁ TRỊ / NỘI DUNG không?
+- CHẤP NHẬN mọi cách diễn đạt/đọc khác nhau nhưng cùng nghĩa. Ví dụ: số 4 đọc "bốn" hay "tư" đều đúng; "nghìn"="ngàn"; "linh"="lẻ" (VD "năm trăm linh bảy"="năm trăm lẻ bảy"); "1/2"="một phần hai"="một nửa"; thiếu/thừa dấu cách, viết hoa/thường, thứ tự trình bày khác nhau; số viết bằng chữ hay bằng chữ số.
+- KHÔNG chấp nhận nếu SAI giá trị/nội dung (đọc/tính sai con số, sai ý).
+Trả về DUY NHẤT JSON: {"correct": true, "note": "giải thích RẤT ngắn bằng tiếng Việt (≤14 từ)"}
+Chỉ JSON.`
+  const out = await ask(key, [{ type: 'text', text: prompt }], 300)
+  return parseJSON(out)
+}
+
 // Sinh câu hỏi ôn tập cho các khái niệm (tự kiểm tra đáp án).
 export async function generateQuestions(key, { subject = 'Toán', grade = '', topic = '', concepts = [], count = 6 }) {
   const names = concepts.map((c) => (typeof c === 'string' ? c : c.name)).join(', ')

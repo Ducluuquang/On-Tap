@@ -98,6 +98,11 @@ export async function generateQuestions(payload) {
   return d.questions
 }
 
+// Nhờ AI chấm câu tự điền (hiểu các cách đọc/diễn đạt khác nhau nhưng cùng nghĩa).
+export async function judgeAnswer(payload) {
+  return callApi({ action: 'judge', payload })
+}
+
 export async function gradeImage(file) {
   const { b64, media } = await imageToBase64(file)
   return callApi({ action: 'grade', image: b64, media })
