@@ -14,6 +14,7 @@ export default function FallingGame({ questions, mem, title = 'Thả rơi', onFi
   const [tick, setTick] = useState(START_SEC)
   const [flash, setFlash] = useState(null)
   const [locked, setLocked] = useState(false)
+  const lockedRef = useRef(false) // đọc tại thời điểm hết giờ (tránh lỗi "đóng băng" giá trị cũ)
   const resultsRef = useRef({})
   const scoreRef = useRef(0)
   const doneRef = useRef(false)
@@ -55,7 +56,8 @@ export default function FallingGame({ questions, mem, title = 'Thả rơi', onFi
   }
 
   function resolve(picked) {
-    if (locked || doneRef.current) return
+    if (lockedRef.current || doneRef.current) return
+    lockedRef.current = true
     setLocked(true)
     activeTimer.current.step()
     clearInterval(tickRef.current); clearTimeout(timerRef.current)
@@ -81,6 +83,7 @@ export default function FallingGame({ questions, mem, title = 'Thả rơi', onFi
 
   useEffect(() => {
     if (!questions || !questions.length || doneRef.current) return undefined
+    lockedRef.current = false
     setLocked(false); setFlash(null); setTick(START_SEC)
     activeTimer.current.reset()
     if (!audioRef.current) {
