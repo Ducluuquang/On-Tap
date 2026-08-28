@@ -85,46 +85,83 @@ Chỉ JSON.`
   return parseJSON(out)
 }
 
+// Quy tắc đọc/viết số bằng lời cho ĐÚNG CHUẨN (tránh đề mơ hồ như "năm trăm sáu" = 506 hay 560?).
+const NUM_RULE =
+`- Khi ĐỌC/VIẾT số bằng lời: đọc ĐẦY ĐỦ, đúng chuẩn tiếng Việt. Chữ số 0 ở hàng chục phải đọc "linh"/"lẻ" (VD 506 = "năm trăm linh sáu", TUYỆT ĐỐI KHÔNG viết "năm trăm sáu"). Hàng chục khác 0 phải có "mươi" (VD 560 = "năm trăm sáu mươi"). Không đọc tắt gây hiểu nhầm giữa hai số khác nhau.`
+
+// Quy tắc ĐỘ KHÓ cho chế độ MASTER: bài nâng cao + kết hợp nhiều khái niệm/nhiều bước.
+const masterRule = (grade) =>
+`YÊU CẦU ĐỘ KHÓ (MASTER — luyện cho THÀNH THẠO):
+- Ra bài KHÓ HƠN mức cơ bản: mỗi câu cần NHIỀU BƯỚC tính hoặc KẾT HỢP từ 2 khái niệm/kỹ năng trở lên.
+- Đa dạng dạng bài: tính nhiều bước, so sánh, tìm thành phần chưa biết (tìm x, tìm số bị che), toán có lời văn/tình huống thực tế, suy luận. Tránh lặp lại một dạng.
+- VẪN nằm trong chương trình tiểu học lớp ${grade} — KHÔNG dùng kiến thức vượt cấp (đại số, lũy thừa/căn nâng cao…). Câu chữ dễ hiểu với học sinh tiểu học.
+- Tự giải lại TỪNG BƯỚC để đáp án CHẮC CHẮN đúng trước khi ghi ra.`
+
 // Soạn MỘT đợt câu hỏi (dùng cho chạy song song).
-async function genChunk(key, { subject, grade, topic, concepts, format, fast = false }, n, salt = '') {
+async function genChunk(key, { subject, grade, topic, concepts, format, fast = false, master = false }, n, salt = '') {
   const names = concepts.map((c) => (typeof c === 'string' ? c : c.name)).join(', ')
   const open = format === 'open'
+  const mrule = master ? '\n' + masterRule(grade) : ''
+  const kindOpen = master ? 'câu hỏi NÂNG CAO để học sinh TỰ ĐIỀN đáp án (KHÔNG có lựa chọn sẵn)' : 'câu hỏi để học sinh TỰ ĐIỀN đáp án (KHÔNG có lựa chọn sẵn)'
+  const kindChoice = master ? 'câu hỏi trắc nghiệm NÂNG CAO, KẾT HỢP nhiều khái niệm, mỗi câu 4 lựa chọn' : 'câu hỏi trắc nghiệm KHÁC NHAU cho học sinh ôn tập, mỗi câu 4 lựa chọn'
   const prompt = salt + (open
     ? `Môn ${subject}, lớp ${grade}, chủ đề "${topic}". Các khái niệm: ${names}.
-Tạo ${n} câu hỏi để học sinh TỰ ĐIỀN đáp án (KHÔNG có lựa chọn sẵn).
+Tạo ${n} ${kindOpen}.${mrule}
 QUY TẮC BẮT BUỘC:
 - Mỗi câu phải TỰ CHỨA đầy đủ dữ kiện và chỉ có MỘT đáp án đúng để con tự tính/viết ra.
 - TUYỆT ĐỐI KHÔNG dùng dạng "trong các ... sau", "phân số nào", "đáp án nào", "số nào", không liệt kê lựa chọn, không hỏi kiểu chọn 1 trong nhiều. Vì không hiển thị lựa chọn nên câu đó sẽ không trả lời được.
 - Câu TỐT: "Rút gọn phân số 6/8 về tối giản.", "Tính 1/5 + 2/5.", "Số 305 040 đọc là gì?", "So sánh 1/2 và 2/3 (điền dấu >, < hoặc =)."
 - Câu XẤU (cấm): "Phân số nào tối giản?", "Trong các phân số sau...".
+${NUM_RULE}
 Với mỗi câu, tự kiểm tra kỹ để đáp án chắc chắn đúng.
 Trả DUY NHẤT JSON:
 {"questions":[{"concept":"","q":"","answer":"","explain":""}]}
 "answer" là đáp án đúng viết ngắn gọn (số, phân số, hoặc cụm từ). "explain" giải thích ngắn gọn ≤20 từ. Tiếng Việt, chính xác. Chỉ JSON.`
     : `Môn ${subject}, lớp ${grade}, chủ đề "${topic}". Các khái niệm: ${names}.
-Tạo ${n} câu hỏi trắc nghiệm cho học sinh ôn tập, mỗi câu 4 lựa chọn.
-Với mỗi câu, tự kiểm tra kỹ để đáp án chắc chắn đúng.
+Tạo ${n} ${kindChoice}.${mrule}
 Trả DUY NHẤT JSON:
-{"questions":[{"concept":"","q":"","options":["","","",""],"answer":0,"explain":""}]}
-"answer" là chỉ số 0-3 của đáp án đúng. "explain" giải thích ngắn gọn ≤20 từ. Tiếng Việt, chính xác. Chỉ JSON.`)
-  const max = Math.min(4000, 700 + n * 260)
+{"questions":[{"concept":"","q":"","options":["","","",""],"answer":"","explain":""}]}
+QUY TẮC BẮT BUỘC:
+- "answer": GHI NGUYÊN VĂN giá trị đáp án đúng, phải TRÙNG KHÍT một trong 4 "options" (KHÔNG ghi số thứ tự 0-3).
+- 4 "options" phải KHÁC NHAU rõ ràng và CHỈ có ĐÚNG 1 đáp án đúng. Ba lựa chọn sai phải SAI GIÁ TRỊ thật sự.
+- Bài ĐỌC SỐ: các lựa chọn sai phải đọc SAI (sai chữ số/giá trị). TUYỆT ĐỐI không tạo lựa chọn chỉ khác CÁCH ĐỌC của đáp án đúng (thêm/bớt "không trăm", "tư"="bốn", "linh"="lẻ", "nghìn"="ngàn") — vì sẽ thành 2 đáp án cùng đúng.
+${NUM_RULE}
+- "explain" ≤20 từ, phải khớp với "answer". Tự tính lại để chắc chắn "answer" đúng.
+Tiếng Việt, chính xác. Chỉ JSON.`)
+  const max = Math.min(4000, (master ? 900 : 700) + n * (master ? 330 : 260))
   const out = await ask(key, [{ type: 'text', text: prompt }], max, { fast })
   return parseJSON(out).questions || []
 }
 
-// Sinh câu hỏi ôn tập — chia thành nhiều đợt CHẠY SONG SONG cho nhanh (vẫn dùng model chính xác cao).
+// Bỏ câu trùng nhau (các đợt song song có thể ra câu giống nhau).
+function dedupeByQ(list) {
+  const seen = new Set(); const out = []
+  for (const q of list || []) {
+    const k = String((q && q.q) || '').toLowerCase().replace(/\s+/g, ' ').trim()
+    if (!k || seen.has(k)) continue
+    seen.add(k); out.push(q)
+  }
+  return out
+}
+
+// Sinh câu hỏi ôn tập — chia thành nhiều đợt CHẠY SONG SONG cho nhanh.
 // format='open': câu TỰ ĐIỀN (mở, tự chứa) cho chế độ không trắc nghiệm.
 export async function generateQuestions(key, opts) {
-  const { subject = 'Toán', grade = '', topic = '', concepts = [], count = 6, format = 'choice', fast = false } = opts
-  const base = { subject, grade, topic, concepts, format, fast }
+  const { subject = 'Toán', grade = '', topic = '', concepts = [], count = 6, format = 'choice', fast = false, master = false } = opts
+  const base = { subject, grade, topic, concepts, format, fast, master }
   const CHUNK = 5
-  if (count <= CHUNK) return genChunk(key, base, count)
-  const sizes = []
-  for (let r = count; r > 0; r -= CHUNK) sizes.push(Math.min(CHUNK, r))
-  const parts = await Promise.all(
-    sizes.map((n, i) => genChunk(key, base, n, `(Đợt ${i + 1}: ra dạng bài đa dạng, tránh trùng lặp) `).catch(() => [])),
-  )
-  return parts.flat().slice(0, count)
+  let all
+  if (count <= CHUNK) {
+    all = await genChunk(key, base, count)
+  } else {
+    const sizes = []
+    for (let r = count; r > 0; r -= CHUNK) sizes.push(Math.min(CHUNK, r))
+    const parts = await Promise.all(
+      sizes.map((n, i) => genChunk(key, base, n, `(Đợt ${i + 1}: ra dạng bài đa dạng, tránh trùng lặp) `).catch(() => [])),
+    )
+    all = parts.flat()
+  }
+  return dedupeByQ(all).slice(0, count)
 }
 
 // Chấm một trang bài con ĐÃ LÀM (đọc chữ viết tay, kết luận đúng/sai, gán khái niệm).

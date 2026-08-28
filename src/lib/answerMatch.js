@@ -18,6 +18,8 @@ const SYN = [
 export function canon(s) {
   let t = stripD(norm(s)).replace(/[^a-z0-9/.,\s]/g, ' ').replace(/\s+/g, ' ').trim()
   for (const [re, to] of SYN) t = t.replace(re, to)
+  // Bỏ "số 0 đệm" khi đọc số: "hai triệu KHÔNG TRĂM năm mươi nghìn" = "hai triệu năm mươi nghìn".
+  t = t.replace(/\bkhong (tram|chuc|nghin|trieu|ti|ty|muoi)\b/g, ' ')
   return t.replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ').trim() // gộp "3 / 4" -> "3/4"
 }
 

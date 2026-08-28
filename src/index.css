@@ -16,6 +16,11 @@
   --dev:#E0A32F;  --dev-bg:#FBEFD6;  --dev-tx:#8A5B12;
   --strong:#17A08F; --strong-bg:#DDF0EC; --strong-tx:#0B5C55;
   --mastered:#2E9E6B; --mastered-bg:#DCF0E4; --mastered-tx:#1E7A4F;
+
+  /* Bí danh dùng chung (một số style cũ tham chiếu các biến này). */
+  --shadow:0 8px 20px rgba(20,33,46,.06);
+  --surface-2:#F4F9F8;
+  --good:#2E9E6B;
 }
 
 *{box-sizing:border-box}
@@ -408,3 +413,89 @@ body{
 .study-foot>div{flex:1;display:flex;flex-direction:column}
 .study-foot b{font-size:1.05rem;font-weight:800;color:var(--teal-dark)}
 .study-foot span{font-size:.76rem;color:var(--muted);margin-top:1px}
+
+/* ============================================================
+   BỔ SUNG: game mới + hiệu ứng Boss/Quick Fire + tab Master
+   ============================================================ */
+
+/* ===== Chip Master trong "Theo mức độ" ===== */
+.chip-master{border-color:#E7C77A;color:#8A5B12;background:linear-gradient(180deg,#FFF7E6,#FDEFCF)}
+.chip-master.on{background:linear-gradient(180deg,#E0A32F,#C9861A);border-color:#C9861A;color:#fff}
+.cr-master-note{margin:10px 0 0;background:#FFF7E6;border:1px solid #F0DBA6;border-radius:12px;padding:11px 14px;font-size:.85rem;color:#7A521A;line-height:1.5}
+.cr-master-note b{color:#8A5B12}
+
+/* ===== Game: Bắn bóng 🎯 ===== */
+.bl-q{font-size:1.15rem}
+.bl-arena{position:relative;height:330px;margin-top:2px;border-radius:16px;border:1px solid var(--border);overflow:hidden;
+  background:linear-gradient(180deg,#EAF4FF,#F4F9F8);
+  display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:6px;place-items:center;padding:10px}
+.bl-arena::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(circle at 18% 14%,rgba(91,124,240,.10),transparent 42%),radial-gradient(circle at 84% 82%,rgba(224,145,47,.10),transparent 42%)}
+.bl-reticle{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-size:1rem;opacity:.5;pointer-events:none;z-index:1}
+.balloon{position:relative;z-index:2;width:100%;max-width:150px;height:118px;border:0;cursor:pointer;font-family:inherit;
+  border-radius:50% 50% 48% 48%/54% 54% 46% 46%;
+  background:radial-gradient(circle at 34% 28%,rgba(255,255,255,.55),transparent 42%),var(--bl,#17a08f);
+  box-shadow:inset -6px -8px 14px rgba(0,0,0,.16),0 8px 16px rgba(20,33,46,.18);
+  display:grid;place-items:center;padding:6px;
+  animation:balloonFloat 3.6s ease-in-out infinite;transform-origin:center;will-change:transform}
+.balloon:active{filter:brightness(1.06)}
+.balloon-txt{color:#fff;font-weight:800;font-size:1.08rem;line-height:1.1;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,.28);padding:0 4px;word-break:break-word}
+.balloon-knot{position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid var(--bl,#17a08f)}
+.balloon-string{position:absolute;bottom:-26px;left:50%;width:2px;height:22px;background:rgba(20,33,46,.28);transform:translateX(-50%)}
+@keyframes balloonFloat{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-10px) rotate(2deg)}}
+/* trạng thái sau khi bắn */
+.balloon.hit{animation:balloonPop .5s ease forwards}
+.balloon.miss{animation:balloonMiss .5s ease forwards;background:radial-gradient(circle at 34% 28%,rgba(255,255,255,.5),transparent 42%),var(--weak)}
+.balloon.reveal{outline:3px solid var(--mastered);outline-offset:2px;animation:none}
+.balloon.fade{opacity:.35;animation:none}
+.balloon.hit .balloon-txt::after{content:" 🎯"}
+.balloon.miss .balloon-txt::after{content:" ✗"}
+@keyframes balloonPop{0%{transform:scale(1)}40%{transform:scale(1.28)}100%{transform:scale(.2);opacity:0}}
+@keyframes balloonMiss{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px) rotate(-6deg)}75%{transform:translateX(8px) rotate(6deg)}}
+
+/* ===== Game: Xếp sushi 🍣 ===== */
+.sushi-q{font-size:1.2rem}
+.sushi-arena{position:relative;height:210px;border-radius:16px;border:1px solid var(--border);overflow:hidden;
+  background:linear-gradient(180deg,#FFF6EC,#F4F9F8);display:flex;align-items:flex-end;justify-content:center;padding:8px}
+.sushi-arena::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(circle at 80% 16%,rgba(224,112,58,.08),transparent 45%)}
+.sushi-stack{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px;position:relative;z-index:2}
+.sushi-more{font-size:.78rem;font-weight:800;color:var(--weak-tx);background:#fff;border:1px solid var(--border);border-radius:999px;padding:2px 9px;margin-bottom:2px}
+.sushi-piece{font-size:2.1rem;line-height:1;filter:drop-shadow(0 3px 4px rgba(20,33,46,.18));animation:sushiDrop .45s cubic-bezier(.2,1.4,.5,1)}
+.sushi-plate{font-size:2.7rem;line-height:1;margin-top:-4px;filter:drop-shadow(0 4px 5px rgba(20,33,46,.2))}
+.sushi-stack.wobble{animation:sushiWobble .5s ease}
+@keyframes sushiDrop{0%{transform:translateY(-34px) scale(.6);opacity:0}100%{transform:translateY(0) scale(1);opacity:1}}
+@keyframes sushiWobble{0%,100%{transform:rotate(0)}20%{transform:rotate(-7deg)}45%{transform:rotate(6deg)}70%{transform:rotate(-4deg)}}
+.sushi-opt.correct{border-color:var(--mastered);background:var(--mastered-bg);color:var(--mastered-tx)}
+
+/* ===== Boss Battle: mặt Boss TO + smash + thông báo bị đánh ===== */
+.boss-stage{position:relative;display:flex;flex-direction:column;align-items:center;gap:12px;
+  background:linear-gradient(180deg,#fff,#FBF3F3);border:1px solid var(--border);border-radius:18px;padding:18px 16px 16px;box-shadow:var(--shadow);overflow:hidden}
+.boss-stage::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(circle at 50% 30%,rgba(214,75,75,.10),transparent 55%)}
+.boss-bigface{font-size:5.4rem;line-height:1;position:relative;z-index:1;filter:drop-shadow(0 6px 10px rgba(20,33,46,.18));animation:bossIdle 2.6s ease-in-out infinite;transform-origin:center}
+.boss-bigface.hit{animation:bossBigHit .5s ease}
+.boss-bigface.attack{animation:bossGloat .5s ease}
+@keyframes bossIdle{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-5px) scale(1.02)}}
+@keyframes bossBigHit{0%{transform:scale(1) rotate(0)}20%{transform:scale(1.3) rotate(-12deg)}45%{transform:scale(.86) rotate(9deg)}70%{transform:scale(1.12) rotate(-5deg)}100%{transform:scale(1) rotate(0)}}
+@keyframes bossGloat{0%,100%{transform:scale(1)}50%{transform:scale(1.14) rotate(4deg)}}
+.boss-smash{position:absolute;top:6px;left:50%;transform:translateX(-50%);font-weight:900;font-size:1.5rem;color:#d64b4b;
+  text-shadow:0 2px 0 #fff,0 0 10px rgba(214,75,75,.5);letter-spacing:.04em;pointer-events:none;animation:smashPop .55s ease forwards;z-index:3}
+@keyframes smashPop{0%{opacity:0;transform:translate(-50%,6px) scale(.5) rotate(-8deg)}30%{opacity:1;transform:translate(-50%,-6px) scale(1.25) rotate(6deg)}100%{opacity:0;transform:translate(-50%,-30px) scale(1) rotate(0)}}
+.boss-damage{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:4;white-space:nowrap;
+  background:var(--weak-tx);color:#fff;font-weight:700;font-size:.82rem;padding:7px 13px;border-radius:999px;box-shadow:0 8px 18px rgba(180,80,30,.4);animation:dmgIn .5s ease}
+@keyframes dmgIn{0%{opacity:0;transform:translate(-50%,-8px) scale(.8)}60%{transform:translate(-50%,0) scale(1.06)}100%{opacity:1;transform:translate(-50%,0) scale(1)}}
+.boss-stage .boss-hpwrap{width:100%;position:relative;z-index:1}
+.boss-stage .boss-hearts{font-size:.9rem;font-weight:700;color:var(--ink-soft);letter-spacing:1px;position:relative;z-index:1}
+
+/* ===== Quick Fire: hiệu ứng gấp gáp khi sắp hết giờ ===== */
+.screen.qf{position:relative}
+.qf-timer{transition:color .2s}
+.qf-timer.pulse-tick{animation:tickbump .5s ease}
+@keyframes tickbump{0%{transform:scale(1)}30%{transform:scale(1.3)}100%{transform:scale(1)}}
+.qf-bar.urgent span{background:linear-gradient(90deg,#f0894f,#d64b4b);animation:barpulse .7s ease-in-out infinite}
+@keyframes barpulse{0%,100%{opacity:1}50%{opacity:.6}}
+.qf-hurry{align-self:center;background:var(--weak-bg);color:var(--weak-tx);font-weight:800;font-size:.82rem;padding:4px 13px;border-radius:999px;border:1px solid #F1D3C4;animation:pop .3s ease}
+.qf-danger::after{content:"";position:absolute;inset:0;pointer-events:none;border-radius:26px;z-index:3;
+  animation:dangerGlow 1s ease-in-out infinite}
+@keyframes dangerGlow{0%,100%{box-shadow:inset 0 0 40px rgba(214,75,75,.06)}50%{box-shadow:inset 0 0 80px rgba(214,75,75,.30)}}

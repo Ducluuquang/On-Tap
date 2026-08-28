@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { loadMemory, saveMemory, applySession, addConcepts } from './lib/memory.js'
 import { buildReview } from './lib/mockAI.js'
 import { generateQuestions } from './lib/aiClient.js'
 import { loadAccount, saveAccount, loadSession, setSession as persistSession } from './lib/auth.js'
 import { loadStats, saveStats, addSeconds, setGoalMin } from './lib/stats.js'
 import { loadSettings, saveSettings } from './lib/settings.js'
+import { canon, localMatch } from './lib/answerMatch.js'
 
 import Auth from './screens/Auth.jsx'
 import Settings from './screens/Settings.jsx'
@@ -15,6 +16,8 @@ import TypedReview from './screens/TypedReview.jsx'
 import QuickFire from './screens/QuickFire.jsx'
 import BossBattle from './screens/BossBattle.jsx'
 import FallingGame from './screens/FallingGame.jsx'
+import BalloonGame from './screens/BalloonGame.jsx'
+import SushiGame from './screens/SushiGame.jsx'
 import Result from './screens/Result.jsx'
 import ParentCapture from './screens/ParentCapture.jsx'
 import ParentApprove from './screens/ParentApprove.jsx'
@@ -32,29 +35,47 @@ function GeneratingScreen() {
   )
 }
 
+// Trắc nghiệm: ô đúng dò theo GIÁ TRỊ đáp án (không tin số thứ tự máy ghi — tránh đánh dấu nhầm ô).
+// Bỏ câu có 2 lựa chọn trùng nghĩa (2 đáp án cùng đúng) và bỏ câu lặp trong buổi ôn.
 function normalizeQs(qs) {
   if (!Array.isArray(qs)) return []
-  return qs
-    .filter((q) => q && q.q && Array.isArray(q.options) && q.options.length === 4 &&
-      Number.isInteger(q.answer) && q.answer >= 0 && q.answer <= 3)
-    .map((q) => ({
-      concept: q.concept || 'Ôn tập',
-      q: q.q, options: q.options.map(String), answer: q.answer,
-      explain: q.explain || '', hint: q.hint || '',
-    }))
+  const out = []
+  const seenQ = new Set()
+  for (const q of qs) {
+    if (!q || !q.q || !Array.isArray(q.options) || q.options.length !== 4) continue
+    const options = q.options.map((o) => String(o).trim())
+    const canons = options.map(canon)
+    if (new Set(canons).size !== 4) continue // có lựa chọn trùng nghĩa -> bỏ câu
+    let idx = -1
+    if (typeof q.answer === 'number' && Number.isInteger(q.answer) && q.answer >= 0 && q.answer <= 3) {
+      idx = q.answer
+    } else {
+      // Dò ô đúng theo GIÁ TRỊ (khớp cả khi khác cách ghi: "7800" ~ "7 800", "1/2" ~ "1/2").
+      idx = options.findIndex((o) => localMatch(String(q.answer), o))
+    }
+    if (idx < 0 || idx > 3) continue // đáp án không nằm trong 4 lựa chọn -> bỏ câu
+    const key = canon(q.q)
+    if (!key || seenQ.has(key)) continue // câu lặp -> bỏ
+    seenQ.add(key)
+    out.push({ concept: q.concept || 'Ôn tập', q: q.q, options, answer: idx, explain: q.explain || '', hint: '' })
+  }
+  return out
 }
 
-// Câu TỰ ĐIỀN (mở): đáp án là chuỗi. Loại bỏ câu kiểu "trong các... sau" (cần danh sách lựa chọn).
+// Câu TỰ ĐIỀN (mở): đáp án là chuỗi. Loại câu "trong các... sau" (cần danh sách) và câu lặp.
 function normalizeOpen(qs) {
   if (!Array.isArray(qs)) return []
-  return qs
-    .filter((q) => q && q.q && q.answer !== undefined && String(q.answer).trim() !== '')
-    .filter((q) => !/trong (các|những)[^.?!]{0,40}(sau|dưới đây)/i.test(q.q))
-    .map((q) => ({
-      concept: q.concept || 'Ôn tập',
-      q: q.q, answer: String(q.answer).trim(),
-      explain: q.explain || '', hint: q.hint || '',
-    }))
+  const out = []
+  const seenQ = new Set()
+  for (const q of qs) {
+    if (!q || !q.q || q.answer === undefined || String(q.answer).trim() === '') continue
+    if (/trong (các|những)[^.?!]{0,40}(sau|dưới đây)/i.test(q.q)) continue
+    const key = canon(q.q)
+    if (!key || seenQ.has(key)) continue
+    seenQ.add(key)
+    out.push({ concept: q.concept || 'Ôn tập', q: q.q, answer: String(q.answer).trim(), explain: q.explain || '', hint: '' })
+  }
+  return out
 }
 
 export default function App() {
@@ -74,6 +95,8 @@ export default function App() {
   const [reviewMode, setReviewMode] = useState('quiz')
   const [reviewQuestions, setReviewQuestions] = useState(null)
   const [generating, setGenerating] = useState(false)
+  // Thời gian con CHỜ app soạn/nạp bài (giây) — sẽ được cộng vào thời gian học của buổi ôn.
+  const loadSecondsRef = useRef(0)
 
   useEffect(() => { saveMemory(mem) }, [mem])
   useEffect(() => { saveStats(stats) }, [stats])
@@ -122,42 +145,62 @@ export default function App() {
     setView(r === 'child' ? 'home' : 'dashboard')
   }
 
-  async function startReview({ title = 'Ôn tập', conceptNames, count = 10, mode = 'quiz' } = {}) {
+  async function startReview({ title = 'Ôn tập', conceptNames, count = 10, mode = 'quiz', master = false, masterText = '' } = {}) {
     // An toàn: nếu phụ huynh đã tắt trắc nghiệm thì mọi buổi ôn đều là tự điền.
     const m = settings.allowChoice ? mode : 'typed'
+    const viewFor = { typed: 'typed', falling: 'falling', quickfire: 'quickfire', boss: 'boss', balloon: 'balloon', sushi: 'sushi' }
     setReviewTitle(title)
     setReviewMode(m)
     setReviewQuestions(null)
     setGenerating(true)
-    setView(m === 'typed' ? 'typed' : m === 'falling' ? 'falling' : m === 'quickfire' ? 'quickfire' : m === 'boss' ? 'boss' : 'review')
+    setView(viewFor[m] || 'review')
+    // Bắt đầu bấm giờ CHỜ nạp bài (con vẫn đang "học" trong lúc đợi app soạn câu hỏi).
+    const loadT0 = (typeof performance !== 'undefined' ? performance.now() : Date.now())
     let names = conceptNames
     if (!names || !names.length) {
       names = [...mem].sort((a, b) => a.mastery - b.mastery).slice(0, 4).map((c) => c.name)
     }
-    // Lấy đúng MÔN + CHỦ ĐỀ của khái niệm đang ôn (không mặc định "Phân số" nữa),
-    // để câu hỏi ra đúng nội dung con đang học (số tự nhiên, hình học…).
-    const first = mem.find((c) => c.name === names[0])
-    const subject = first?.subject || 'Toán'
-    const topic = first?.topic || names[0] || 'Ôn tập'
+    // Master + chủ đề gõ tay: luyện đúng chủ đề con muốn "master" (không giới hạn trong bộ nhớ).
+    const mt = (masterText || '').trim()
+    let subject, topic, concepts
+    if (master && mt) {
+      subject = (mem.find((c) => c.name === names[0])?.subject) || 'Toán'
+      topic = mt
+      concepts = [mt]
+    } else {
+      // Lấy đúng MÔN + CHỦ ĐỀ của khái niệm đang ôn (không mặc định "Phân số" nữa),
+      // để câu hỏi ra đúng nội dung con đang học (số tự nhiên, hình học…).
+      const first = mem.find((c) => c.name === names[0])
+      subject = first?.subject || 'Toán'
+      topic = first?.topic || names[0] || 'Ôn tập'
+      concepts = names
+    }
     const isTyped = m === 'typed'
     let qs = []
     try {
-      const raw = await generateQuestions({ subject, grade: '4-5', topic, concepts: names, count, format: isTyped ? 'open' : 'choice', fast: true })
-      qs = isTyped ? normalizeOpen(raw) : normalizeQs(raw)
+      // Soạn dư vài câu để bù những câu bị loại (đáp án lỗi, trùng nghĩa, lặp).
+      const raw = await generateQuestions({ subject, grade: '4-5', topic, concepts, count: count + 3, format: isTyped ? 'open' : 'choice', master })
+      qs = (isTyped ? normalizeOpen(raw) : normalizeQs(raw)).slice(0, count)
     } catch { qs = [] }
-    if (!qs.length) qs = buildReview(mem, count, { openOnly: isTyped, conceptNames: names })
+    if (!qs.length) qs = buildReview(mem, count, { openOnly: isTyped, conceptNames: concepts })
+    // Chốt thời gian chờ nạp bài (giới hạn 180s để tránh trường hợp mạng treo cộng dồn bất thường).
+    loadSecondsRef.current = Math.min(180, ((typeof performance !== 'undefined' ? performance.now() : Date.now()) - loadT0) / 1000)
     setReviewQuestions(qs)
     setGenerating(false)
   }
 
   function handleFinish(summary, perConcept) {
-    if (summary.activeSeconds) setStats((s) => addSeconds(s, summary.activeSeconds))
+    // Thời gian học = thời gian CHỜ app nạp bài + thời gian con thực sự làm bài.
+    const loadSec = loadSecondsRef.current || 0
+    const studySeconds = Math.round((summary.activeSeconds || 0) + loadSec)
+    if (studySeconds >= 1) setStats((s) => addSeconds(s, studySeconds))
+    loadSecondsRef.current = 0 // đã cộng xong, tránh cộng trùng
     const deltas = Object.entries(perConcept).map(([key, r]) => {
       const old = mem.find((c) => c.id === key || c.name === key)
       return { id: key, name: r.label || (old ? old.name : key), before: old ? old.mastery : 55, after: r.mastery }
     })
     setMem(applySession(mem, perConcept))
-    setSession({ ...summary, deltas })
+    setSession({ ...summary, deltas, studySeconds })
     setStreak((s) => s + 1)
     setView('result')
   }
@@ -205,6 +248,10 @@ export default function App() {
       screen = genOrScreen(<QuickFire questions={reviewQuestions} mem={mem} title={reviewTitle} onFinish={handleFinish} onExit={() => setView('home')} />)
     } else if (view === 'boss') {
       screen = genOrScreen(<BossBattle questions={reviewQuestions} mem={mem} title={reviewTitle} onFinish={handleFinish} onExit={() => setView('home')} />)
+    } else if (view === 'balloon') {
+      screen = genOrScreen(<BalloonGame questions={reviewQuestions} mem={mem} title={reviewTitle} onFinish={handleFinish} onExit={() => setView('home')} />)
+    } else if (view === 'sushi') {
+      screen = genOrScreen(<SushiGame questions={reviewQuestions} mem={mem} title={reviewTitle} onFinish={handleFinish} onExit={() => setView('home')} />)
     } else if (view === 'capture') {
       screen = <ParentCapture onExtracted={onExtracted} onBack={() => setView('home')} />
     } else if (view === 'approve' && pending) {

@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { BackHeader } from '../components.jsx'
 import { nextMastery } from '../lib/memory.js'
 import { createActiveTimer } from '../lib/stats.js'
 import { CONCEPT_NAME } from '../data/content.js'
+import { audioCtx, playSmash, playHurt } from '../lib/sound.js'
 
 export default function BossBattle({ questions, mem, title = 'Boss Battle', onFinish, onExit }) {
   const total = questions ? questions.length : 0
@@ -12,11 +13,20 @@ export default function BossBattle({ questions, mem, title = 'Boss Battle', onFi
   const [resolved, setResolved] = useState(false)
   const [hp, setHp] = useState(maxHP)
   const [hearts, setHearts] = useState(3)
-  const [shake, setShake] = useState(null)
+  const [shake, setShake] = useState(null)     // 'boss' (đánh trúng Boss) | 'screen' (bị Boss đánh)
+  const [smashId, setSmashId] = useState(0)     // để phát lại hiệu ứng "SMASH!"
+  const [hurtNote, setHurtNote] = useState(false) // thông báo nhỏ "bị Boss đánh trúng"
   const [over, setOver] = useState(null)
   const [correct, setCorrect] = useState(0)
   const resultsRef = useRef({})
   const activeTimer = useRef(createActiveTimer())
+
+  // Dọn hiệu ứng rung sau mỗi câu.
+  useEffect(() => {
+    if (!shake) return undefined
+    const t = setTimeout(() => setShake(null), 520)
+    return () => clearTimeout(t)
+  }, [shake, smashId])
 
   if (!total) {
     return (
@@ -31,9 +41,13 @@ export default function BossBattle({ questions, mem, title = 'Boss Battle', onFi
   const label = CONCEPT_NAME[q.concept] || q.concept
   const isCorrect = picked === q.answer
 
+  // Mặt Boss đổi biểu cảm theo tình huống: bị đánh → choáng; đánh trúng con → đắc ý.
+  const bossFace = shake === 'boss' ? '😵' : shake === 'screen' ? '😈' : '👹'
+
   function choose(i) {
     if (resolved || over) return
     activeTimer.current.step()
+    audioCtx()
     setPicked(i); setResolved(true)
     const ok = i === q.answer
     const key = q.concept
@@ -46,16 +60,23 @@ export default function BossBattle({ questions, mem, title = 'Boss Battle', onFi
         mastery: nextMastery(prev.mastery, { correct: ok, usedHint: false }), label,
       },
     }
-    if (ok) { setHp((h) => Math.max(0, h - 1)); setCorrect((c) => c + 1); setShake('boss') }
-    else { setHearts((h) => Math.max(0, h - 1)); setShake('screen') }
-    setTimeout(() => setShake(null), 420)
+    if (ok) {
+      // ĐÚNG: nghe tiếng smash, mặt Boss rung mạnh, hiện "SMASH!".
+      playSmash()
+      setHp((h) => Math.max(0, h - 1)); setCorrect((c) => c + 1)
+      setShake('boss'); setSmashId((n) => n + 1); setHurtNote(false)
+    } else {
+      // SAI: màn hình rung + thông báo nhỏ "bị Boss đánh trúng".
+      playHurt()
+      setHearts((h) => Math.max(0, h - 1))
+      setShake('screen'); setHurtNote(true)
+    }
   }
 
-  function endGame(outcome) {
-    setOver(outcome)
-  }
+  function endGame(outcome) { setOver(outcome) }
 
   function next() {
+    setHurtNote(false)
     if (hearts <= 0) { endGame('lose'); return }
     if (hp <= 0) { endGame('win'); return }
     if (index + 1 >= total) { endGame(hp <= 0 ? 'win' : 'survive'); return }
@@ -74,7 +95,7 @@ export default function BossBattle({ questions, mem, title = 'Boss Battle', onFi
     return (
       <div className="screen center">
         <div className="boss-over">
-          <div className="boss-over-emo">{win ? '🏆' : '👾'}</div>
+          <div className="boss-over-emo">{win ? '🏆' : '👹'}</div>
           <h1>{win ? 'Hạ gục Boss!' : over === 'survive' ? 'Boss còn chút máu!' : 'Boss thắng ván này'}</h1>
           <p>{win ? 'Quá đỉnh! Con đánh bại Boss rồi.' : 'Gần rồi — ôn thêm chút là hạ được Boss thôi.'}</p>
           <div className="boss-over-stat">Đúng {correct}/{total} câu · còn {hearts} ❤️</div>
@@ -87,15 +108,18 @@ export default function BossBattle({ questions, mem, title = 'Boss Battle', onFi
   return (
     <div className={'screen boss-screen' + (shake === 'screen' ? ' shake' : '')}>
       <BackHeader title={title} onBack={onExit} />
-      <div className="boss">
-        <div className="boss-top">
-          <span className={'boss-face' + (shake === 'boss' ? ' hit' : '')}>👾</span>
-          <div className="boss-hpwrap">
-            <div className="boss-hp"><span style={{ width: (hp / maxHP) * 100 + '%' }} /></div>
-            <span className="boss-lbl">Boss còn {hp}/{maxHP} máu</span>
-          </div>
-          <span className="boss-hearts">{'❤️'.repeat(hearts)}{'🤍'.repeat(3 - hearts)}</span>
+
+      <div className="boss-stage">
+        {hurtNote && <div className="boss-damage" key={'d' + index}>💥 Bạn bị Boss đánh trúng! −1 ❤️</div>}
+        <div className={'boss-bigface' + (shake === 'boss' ? ' hit' : '') + (shake === 'screen' ? ' attack' : '')}>
+          {bossFace}
+          {shake === 'boss' && <span className="boss-smash" key={'s' + smashId}>SMASH!</span>}
         </div>
+        <div className="boss-hpwrap">
+          <div className="boss-hp"><span style={{ width: (hp / maxHP) * 100 + '%' }} /></div>
+          <span className="boss-lbl">Boss còn {hp}/{maxHP} máu</span>
+        </div>
+        <div className="boss-hearts">Máu của con: {'❤️'.repeat(hearts)}{'🤍'.repeat(3 - hearts)}</div>
       </div>
 
       <div className="qtag">{label}</div>

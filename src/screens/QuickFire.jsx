@@ -4,8 +4,10 @@ import { nextMastery } from '../lib/memory.js'
 import { fmt } from '../lib/num.js'
 import { createActiveTimer } from '../lib/stats.js'
 import { CONCEPT_NAME } from '../data/content.js'
+import { audioCtx, playTick, playHit, playMiss } from '../lib/sound.js'
 
 const DURATION = 60
+const LOW_AT = 10 // dưới mốc này bắt đầu "gấp gáp" (đổi màu, rung, tích tắc nhanh)
 
 export default function QuickFire({ questions, mem, title = 'Quick Fire', onFinish, onExit }) {
   const [index, setIndex] = useState(0)
@@ -16,6 +18,7 @@ export default function QuickFire({ questions, mem, title = 'Quick Fire', onFini
   const [pulse, setPulse] = useState(null)
   const [gain, setGain] = useState(null)
   const [locked, setLocked] = useState(false)
+  const [tickN, setTickN] = useState(0) // tăng mỗi giây để "nảy" số đồng hồ khi gấp gáp
   const resultsRef = useRef({})
   const scoreRef = useRef(0)
   const doneRef = useRef(false)
@@ -33,8 +36,14 @@ export default function QuickFire({ questions, mem, title = 'Quick Fire', onFini
 
   useEffect(() => {
     if (!questions || !questions.length) return undefined
+    audioCtx() // "đánh thức" âm thanh nếu đã có tương tác
+    let t = DURATION
     const id = setInterval(() => {
-      setTimeLeft((t) => { if (t <= 1) { clearInterval(id); finish(); return 0 } return t - 1 })
+      t -= 1
+      setTimeLeft(Math.max(0, t))
+      setTickN((n) => n + 1)
+      if (t <= 0) { clearInterval(id); finish(); return }
+      playTick(t <= LOW_AT) // tích tắc — nhanh & gấp hơn khi sắp hết giờ
     }, 1000)
     return () => clearInterval(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -59,6 +68,7 @@ export default function QuickFire({ questions, mem, title = 'Quick Fire', onFini
     const ok = i === q.answer
     setFlash({ i, ok })
     setPulse(ok ? 'ok' : 'no')
+    if (ok) playHit(); else playMiss()
     if (ok) {
       const newCombo = combo + 1
       const gained = 100 + (newCombo - 1) * 20
@@ -96,17 +106,23 @@ export default function QuickFire({ questions, mem, title = 'Quick Fire', onFini
     return c
   }
 
+  const low = timeLeft <= LOW_AT
+  const danger = timeLeft <= 5
+
   return (
-    <div className={'screen qf' + (pulse ? ' pulse-' + pulse : '')}>
+    <div className={'screen qf' + (pulse ? ' pulse-' + pulse : '') + (low ? ' qf-low' : '') + (danger ? ' qf-danger' : '')}>
       <BackHeader title={title} onBack={onExit} />
       <div className="qf-hud">
-        <div className={'qf-timer' + (timeLeft <= 10 ? ' low' : '')}>⏱ {timeLeft}</div>
+        <div className={'qf-timer' + (low ? ' low pulse-tick' : '')} key={low ? 'lt' + tickN : 'norm'}>
+          {low ? '⏰' : '⏱'} {timeLeft}{low ? 's' : ''}
+        </div>
         <div className="qf-scorebox">
           <div className="qf-score">{fmt(score)}</div>
           {combo >= 2 && <div className="qf-combo">🔥 x{combo}</div>}
         </div>
       </div>
-      <div className="qf-bar"><span style={{ width: (timeLeft / DURATION) * 100 + '%' }} /></div>
+      <div className={'qf-bar' + (low ? ' urgent' : '')}><span style={{ width: (timeLeft / DURATION) * 100 + '%' }} /></div>
+      {low && <div className="qf-hurry">⚡ Nhanh lên nào!</div>}
       <div className="qf-qwrap">
         {gain && <div className="gain-pop" key={gain.id}>+{gain.amt}</div>}
         <div className="qtag">{label}</div>

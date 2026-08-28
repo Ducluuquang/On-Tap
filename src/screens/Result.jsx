@@ -22,8 +22,13 @@ export default function Result({ session, onHome, onReport }) {
         <h1>Xong buổi ôn!</h1>
         <p className="result-msg">{msg}</p>
         {typeof session.score === 'number' && <div className="score-badge">⭐ {fmt(session.score)} điểm</div>}
-        {typeof session.activeSeconds === 'number' && session.activeSeconds >= 20 &&
-          <div className="score-badge">⏱ Học {Math.max(1, Math.round(session.activeSeconds / 60))} phút</div>}
+        {(() => {
+          // Ưu tiên tổng thời gian học (đã gồm thời gian chờ nạp bài); dự phòng activeSeconds.
+          const secs = typeof session.studySeconds === 'number' ? session.studySeconds : session.activeSeconds
+          return typeof secs === 'number' && secs >= 20
+            ? <div className="score-badge">⏱ Học {Math.max(1, Math.round(secs / 60))} phút</div>
+            : null
+        })()}
         <div className="streak-up">🔥 Chuỗi ngày +1</div>
       </div>
 

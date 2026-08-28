@@ -1,6 +1,7 @@
 // Thời gian học THẬT + mục tiêu mỗi ngày.
-// "Thời gian học" = giây con thực sự trả lời bài (mỗi câu tính tối đa 60s),
-// KHÔNG tính thời gian mở app đứng yên. Lưu theo từng ngày (YYYY-MM-DD).
+// "Thời gian học" = thời gian con CHỜ app soạn/nạp bài (lúc màn hình "Đang chuẩn bị…")
+//   + thời gian con thực sự trả lời bài (mỗi câu tính tối đa 60s).
+// KHÔNG tính thời gian mở app đứng yên giữa các câu. Lưu theo từng ngày (YYYY-MM-DD).
 
 const KEY = 'ontap.stats.v1'
 const DAY_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']

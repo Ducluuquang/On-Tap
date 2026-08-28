@@ -8,12 +8,13 @@ const TIMES = [
 ]
 const LEVELS = [
   { k: 'weak', l: 'Yếu nhất' }, { k: 'wrong', l: 'Hay sai' }, { k: 'new', l: 'Chưa ôn' },
-  { k: 'notmastered', l: 'Chưa thành thạo' }, { k: 'all', l: 'Tổng hợp' },
+  { k: 'notmastered', l: 'Chưa thành thạo' }, { k: 'all', l: 'Tổng hợp' }, { k: 'master', l: 'Master 🏆' },
 ]
 const COUNTS = [10, 15, 20]
 const ALL_MODES = [
   { k: 'falling', l: 'Thả rơi ⏱', choice: true }, { k: 'quiz', l: 'Trắc nghiệm', choice: true },
   { k: 'quickfire', l: 'Quick Fire ⏱', choice: true }, { k: 'boss', l: 'Boss Battle 👾', choice: true },
+  { k: 'balloon', l: 'Bắn bóng 🎯', choice: true }, { k: 'sushi', l: 'Xếp sushi 🍣', choice: true },
   { k: 'typed', l: 'Điền đáp án ✍️', choice: false },
 ]
 
@@ -25,10 +26,16 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true 
   const [count, setCount] = useState(10)
   const [mode, setMode] = useState(allowChoice ? 'falling' : 'typed')
 
+  const isMaster = level === 'master'
   const names = selectConcepts(mem, { time, level, text })
 
   function start() {
-    onStart({ title: describeSelection({ time, level, text }), conceptNames: names, count, mode })
+    onStart({
+      title: describeSelection({ time, level, text }),
+      conceptNames: names, count, mode,
+      master: isMaster,
+      masterText: isMaster ? text.trim() : '',
+    })
   }
 
   return (
@@ -48,20 +55,31 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true 
         <h3>Theo mức độ</h3>
         <div className="chips">
           {LEVELS.map((o) => (
-            <button key={o.k} className={'chip' + (level === o.k ? ' on' : '')} onClick={() => { setLevel(o.k); setText('') }}>{o.l}</button>
+            <button
+              key={o.k}
+              className={'chip' + (level === o.k ? ' on' : '') + (o.k === 'master' ? ' chip-master' : '')}
+              onClick={() => { setLevel(o.k); if (o.k !== 'master') setText('') }}
+            >{o.l}</button>
           ))}
         </div>
+        {isMaster && (
+          <p className="cr-master-note">🏆 <b>Master</b>: AI ra bài <b>nâng cao &amp; kết hợp nhiều bước</b> để con thật sự thành thạo chủ đề. Gõ chủ đề muốn master vào ô bên dưới.</p>
+        )}
       </div>
 
       <div className="cr-sec">
-        <h3>Hoặc gõ yêu cầu</h3>
+        <h3>Yêu cầu cụ thể</h3>
         <input
           className="cr-input"
-          placeholder="vd: ôn phần con hay sai, ôn topic yếu nhất…"
+          placeholder={isMaster ? 'Chủ đề muốn master, vd: nhân số có hai chữ số, bài toán tìm x…' : 'vd: ôn phần con hay sai, ôn topic yếu nhất…'}
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
-        <p className="cr-hint">Gõ yêu cầu sẽ ưu tiên hơn lựa chọn mức độ ở trên.</p>
+        <p className="cr-hint">
+          {isMaster
+            ? 'Gõ đúng chủ đề con muốn luyện thành thạo. Bỏ trống thì sẽ master phần con đang yếu nhất.'
+            : 'Gõ yêu cầu sẽ ưu tiên hơn lựa chọn mức độ ở trên.'}
+        </p>
       </div>
 
       <div className="cr-sec">
@@ -81,7 +99,11 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true 
 
       <div className="cr-preview">
         <b>{describeSelection({ time, level, text })}</b>
-        <span>{count} câu · {names.length ? names.join(', ') : 'tất cả khái niệm'}</span>
+        {isMaster ? (
+          <span>{count} câu <b>nâng cao</b> · {text.trim() || (names.length ? names.slice(0, 3).join(', ') : 'phần yếu nhất')}</span>
+        ) : (
+          <span>{count} câu · {names.length ? names.join(', ') : 'tất cả khái niệm'}</span>
+        )}
       </div>
 
       <button className="cta" onClick={start}>Bắt đầu ôn</button>
