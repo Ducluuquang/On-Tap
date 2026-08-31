@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Brand, StatusPill, MasteryBar, RewardTrack } from '../components.jsx'
 import { conceptStatusList } from '../lib/mockAI.js'
-import { last7, totalMinutes, todayMinutes, goalMetCount, dayReport } from '../lib/stats.js'
+import { last7, totalMinutes, todayMinutes, streakDays, dayReport } from '../lib/stats.js'
 
 const WD = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
 
@@ -57,7 +57,7 @@ export default function ParentDashboard({ mem, session, stats, onSettings, toast
   const pct = session ? Math.round((session.correct / session.total) * 100) : null
   const total = totalMinutes(stats)
   const todayM = todayMinutes(stats)
-  const met = goalMetCount(stats)
+  const streak = streakDays(stats) // DÙNG CHUNG với thẻ phần thưởng -> luôn khớp nhau
   const goalToday = todayM >= stats.goalMin
 
   // Ngày đang xem trong phần "Nhận xét": mặc định là ngày GẦN NHẤT có ôn bài.
@@ -94,7 +94,7 @@ export default function ParentDashboard({ mem, session, stats, onSettings, toast
         <StudyChart stats={stats} sel={selDay} onSel={setSelDay} />
         <div className="study-foot">
           <div><b>{hm(total)}</b><span>Tổng thời gian học</span></div>
-          <div><b>{met}/7</b><span>Ngày đạt (7 ngày gần đây)</span></div>
+          <div><b>{streak} ngày</b><span>Đạt mục tiêu liên tiếp</span></div>
         </div>
       </section>
 

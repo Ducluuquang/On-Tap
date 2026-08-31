@@ -101,13 +101,18 @@ export function totalMinutes(stats) {
 export function todayMinutes(stats) {
   return Math.round((stats.days[today()] || 0) / 60)
 }
+// Một NGÀY được coi là "đạt mục tiêu" — DÙNG CHUNG cho mọi nơi (biểu đồ, chuỗi, thống kê)
+// để không còn cảnh nơi ghi "đạt", nơi ghi "chưa". So sánh theo PHÚT ĐÃ LÀM TRÒN
+// (giống số hiển thị trên cột: 29,6 phút -> 30 phút -> đạt mốc 30).
+export function dayMet(sec, goalMin) { return Math.round((sec || 0) / 60) >= goalMin }
+
 // Số ngày đạt mục tiêu trong 7 ngày gần nhất.
 export function goalMetCount(stats) {
-  return last7(stats).filter((d) => d.min >= stats.goalMin).length
+  return last7(stats).filter((d) => dayMet(d.sec, stats.goalMin)).length
 }
 
 // ---- Chuỗi ngày ĐẠT MỤC TIÊU (streak) + phần thưởng ----
-function metOn(stats, d) { return (stats.days[isoDay(d)] || 0) / 60 >= stats.goalMin }
+function metOn(stats, d) { return dayMet(stats.days[isoDay(d)] || 0, stats.goalMin) }
 
 // Số ngày LIÊN TIẾP gần nhất con đạt mục tiêu (hôm nay chưa đạt thì đếm từ hôm qua).
 export function streakDays(stats) {
