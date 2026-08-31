@@ -463,14 +463,14 @@ body{
 
 /* ===== Game: Xếp sushi 🍣 ===== */
 .sushi-q{font-size:1.2rem}
-.sushi-arena{position:relative;height:260px;border-radius:16px;border:1px solid var(--border);overflow:hidden;
+.sushi-arena{position:relative;height:300px;border-radius:16px;border:1px solid var(--border);overflow:hidden;
   background:linear-gradient(180deg,#FFF6EC,#F4F9F8);display:flex;align-items:flex-end;justify-content:center;padding:8px}
 .sushi-arena::before{content:"";position:absolute;inset:0;pointer-events:none;
   background:radial-gradient(circle at 80% 16%,rgba(224,112,58,.08),transparent 45%)}
-.sushi-stack{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px;position:relative;z-index:2}
+.sushi-stack{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:0;position:relative;z-index:2}
 .sushi-more{font-size:.78rem;font-weight:800;color:var(--weak-tx);background:#fff;border:1px solid var(--border);border-radius:999px;padding:2px 9px;margin-bottom:2px}
-.sushi-piece{font-size:3.4rem;line-height:1;filter:drop-shadow(0 3px 4px rgba(20,33,46,.18));animation:sushiDrop .45s cubic-bezier(.2,1.4,.5,1)}
-.sushi-plate{font-size:4.8rem;line-height:1;margin-top:-6px;filter:drop-shadow(0 5px 6px rgba(20,33,46,.2))}
+.sushi-piece{font-size:1.9rem;line-height:.82;filter:drop-shadow(0 2px 3px rgba(20,33,46,.18));animation:sushiDrop .4s cubic-bezier(.2,1.4,.5,1)}
+.sushi-plate{font-size:2.9rem;line-height:1;margin-top:-2px;filter:drop-shadow(0 4px 5px rgba(20,33,46,.2))}
 .sushi-stack.wobble{animation:sushiWobble .5s ease}
 @keyframes sushiDrop{0%{transform:translateY(-34px) scale(.6);opacity:0}100%{transform:translateY(0) scale(1);opacity:1}}
 @keyframes sushiWobble{0%,100%{transform:rotate(0)}20%{transform:rotate(-7deg)}45%{transform:rotate(6deg)}70%{transform:rotate(-4deg)}}
@@ -507,3 +507,23 @@ body{
 .qf-danger::after{content:"";position:absolute;inset:0;pointer-events:none;border-radius:26px;z-index:3;
   animation:dangerGlow 1s ease-in-out infinite}
 @keyframes dangerGlow{0%,100%{box-shadow:inset 0 0 40px rgba(214,75,75,.06)}50%{box-shadow:inset 0 0 80px rgba(214,75,75,.30)}}
+
+/* ===== Đường đến phần thưởng (Child home) ===== */
+.reward{background:#fff;border:1px solid var(--border);border-radius:16px;padding:13px 15px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:9px}
+.reward-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:.84rem;font-weight:700}
+.reward-streak{color:#9A5A12}
+.reward-goal{color:var(--muted);font-weight:700;white-space:nowrap}
+.reward-track{position:relative;height:14px;border-radius:999px;margin:4px 22px 4px 2px;
+  background:repeating-linear-gradient(90deg,#D8E4E1 0 9px,transparent 9px 17px)}
+.reward-fill{position:absolute;left:0;top:0;height:100%;border-radius:999px;min-width:8px;transition:width .5s;
+  background:linear-gradient(90deg,#F2A54F,#E0703A)}
+.reward-flag{position:absolute;top:-9px;transform:translateX(-50%);font-size:1.02rem;pointer-events:none}
+.reward-gift{position:absolute;right:-22px;top:-8px;font-size:1.35rem}
+.reward-note{margin:0;font-size:.85rem;color:var(--ink-soft);line-height:1.45}
+
+/* Dropdown chọn chủ đề từ bản đồ kiến thức */
+.cr-select{width:100%;margin-top:8px;border:1.5px solid var(--border);border-radius:12px;padding:11px 13px;font-family:inherit;font-size:.95rem;color:var(--ink);background:#fff;cursor:pointer}
+.cr-select:focus{outline:none;border-color:var(--teal)}
+
+/* Cung tên (Bắn bóng) — thay cho khẩu súng cũ */
+.bl-bow{position:absolute;z-index:3;pointer-events:none;font-size:2.6rem;line-height:1;transition:transform .07s ease;filter:drop-shadow(0 3px 4px rgba(0,0,0,.22))}

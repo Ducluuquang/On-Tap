@@ -80,7 +80,7 @@ export default function ParentDashboard({ mem, session, stats, onSettings, toast
       </div>
 
       <section className="kmap">
-        <h3>Bản đồ kiến thức · Phân số</h3>
+        <h3>Bản đồ kiến thức</h3>
         {concepts.map((c) => (
           <div className="krow" key={c.id}>
             <div className="krow-top">

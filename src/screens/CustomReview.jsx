@@ -24,7 +24,7 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true 
   const [level, setLevel] = useState('weak')
   const [text, setText] = useState('')
   const [count, setCount] = useState(10)
-  const [mode, setMode] = useState(allowChoice ? 'falling' : 'typed')
+  const [mode, setMode] = useState(allowChoice ? 'quiz' : 'typed')
 
   const isMaster = level === 'master'
   const names = selectConcepts(mem, { time, level, text })
@@ -63,7 +63,7 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true 
           ))}
         </div>
         {isMaster && (
-          <p className="cr-master-note">🏆 <b>Master</b>: AI ra bài <b>nâng cao &amp; kết hợp nhiều bước</b> để con thật sự thành thạo chủ đề. Gõ chủ đề muốn master vào ô bên dưới.</p>
+          <p className="cr-master-note">🏆 <b>Master</b>: App ra bài <b>nâng cao &amp; kết hợp nhiều bước</b> để con thật sự thành thạo chủ đề. Gõ chủ đề, hoặc chọn từ danh sách bên dưới.</p>
         )}
       </div>
 
@@ -75,6 +75,16 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true 
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
+        {mem && mem.length > 0 && (
+          <select
+            className="cr-select"
+            value=""
+            onChange={(e) => { if (e.target.value) setText(e.target.value) }}
+          >
+            <option value="">— Hoặc chọn chủ đề từ bản đồ kiến thức —</option>
+            {mem.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+          </select>
+        )}
         <p className="cr-hint">
           {isMaster
             ? 'Gõ đúng chủ đề con muốn luyện thành thạo. Bỏ trống thì sẽ master phần con đang yếu nhất.'

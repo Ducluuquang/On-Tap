@@ -1,18 +1,42 @@
 import { Brand } from '../components.jsx'
+import { streakDays, nextReward, prevReward } from '../lib/stats.js'
 
-export default function ChildHome({ streak, onReview, onCapture }) {
+export default function ChildHome({ stats, onReview, onCapture }) {
+  const streak = stats ? streakDays(stats) : 0
+  const next = nextReward(streak)
+  const prev = prevReward(streak)
+  const remaining = Math.max(0, next - streak)
+  const pct = Math.max(4, Math.min(100, ((streak - prev) / (next - prev)) * 100))
+
   return (
     <div className="screen">
       <header className="topbar">
         <Brand />
-        <div className="streak" title="Chuỗi ngày ôn liên tục">
+        <div className="streak" title="Chuỗi ngày đạt mục tiêu">
           <span className="flame">🔥</span> {streak} ngày
         </div>
       </header>
 
       <section className="hello">
         <h1>Chào Minh!</h1>
-        <p>Hôm nay muốn làm gì nào?</p>
+      </section>
+
+      {/* Đường đến phần thưởng — mốc 7, 15, 30 ngày, rồi cứ 30 ngày một lần */}
+      <section className="reward" aria-label="Đường đến phần thưởng">
+        <div className="reward-head">
+          <span className="reward-streak">🔥 Chuỗi {streak} ngày đạt mục tiêu</span>
+          <span className="reward-goal">🎁 mốc {next} ngày</span>
+        </div>
+        <div className="reward-track">
+          <div className="reward-fill" style={{ width: pct + '%' }} />
+          <span className="reward-flag" style={{ left: pct + '%' }}>🔥</span>
+          <span className="reward-gift">🎁</span>
+        </div>
+        <p className="reward-note">
+          {remaining > 0
+            ? <>Cố thêm <b>{remaining}</b> ngày đạt mục tiêu nữa là con nhận phần thưởng! 🎁</>
+            : <>Tuyệt vời! Con vừa chạm mốc phần thưởng 🎁</>}
+        </p>
       </section>
 
       <section className="home-cards" aria-label="Chọn việc muốn làm">

@@ -89,8 +89,8 @@ export default function SushiGame({ questions, mem, title = 'Xếp sushi', onFin
     return c
   }
 
-  // Chỉ hiện tối đa 6 miếng trên cùng cho gọn; số còn lại đếm bằng số.
-  const shown = stack.slice(-6)
+  // Hiện tối đa 10 miếng trên cùng (10 miếng là đầy tháp); số còn lại đếm bằng số.
+  const shown = stack.slice(-10)
   const hidden = stack.length - shown.length
 
   return (

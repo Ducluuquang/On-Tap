@@ -14,6 +14,7 @@ export default function FallingGame({ questions, mem, title = 'Thả rơi', onFi
   const [tick, setTick] = useState(START_SEC)
   const [flash, setFlash] = useState(null)
   const [locked, setLocked] = useState(false)
+  const [fb, setFb] = useState(false) // hiện giải thích khi SAI, chờ bấm "Tiếp tục"
   const lockedRef = useRef(false) // đọc tại thời điểm hết giờ (tránh lỗi "đóng băng" giá trị cũ)
   const resultsRef = useRef({})
   const scoreRef = useRef(0)
@@ -55,6 +56,12 @@ export default function FallingGame({ questions, mem, title = 'Thả rơi', onFi
     onFinish({ total: Math.max(ans, 1), correct: corr, score: scoreRef.current, activeSeconds: activeTimer.current.get() }, rs)
   }
 
+  function advance() {
+    if (doneRef.current) return
+    if (index + 1 >= questions.length) { finish(); return }
+    setIndex(index + 1)
+  }
+
   function resolve(picked) {
     if (lockedRef.current || doneRef.current) return
     lockedRef.current = true
@@ -74,17 +81,15 @@ export default function FallingGame({ questions, mem, title = 'Thả rơi', onFi
         mastery: nextMastery(prev.mastery, { correct: ok, usedHint: false }), label: prev.label,
       },
     }
-    setTimeout(() => {
-      if (doneRef.current) return
-      if (index + 1 >= questions.length) { finish(); return }
-      setIndex(index + 1)
-    }, 750)
+    // Đúng: tự chạy tiếp. SAI: DỪNG LẠI giải thích cho con hiểu, chờ bấm "Tiếp tục".
+    if (ok) setTimeout(advance, 750)
+    else setFb(true)
   }
 
   useEffect(() => {
     if (!questions || !questions.length || doneRef.current) return undefined
     lockedRef.current = false
-    setLocked(false); setFlash(null); setTick(START_SEC)
+    setLocked(false); setFlash(null); setFb(false); setTick(START_SEC)
     activeTimer.current.reset()
     if (!audioRef.current) {
       try { audioRef.current = new (window.AudioContext || window.webkitAudioContext)() } catch { /* noop */ }
@@ -132,7 +137,16 @@ export default function FallingGame({ questions, mem, title = 'Thả rơi', onFi
         })}
         <div className="fall-floor" />
       </div>
-      <p className="qf-note">Chạm trúng đáp án đúng trước khi nó chạm đáy! ⏱</p>
+      {fb ? (
+        <div className="fb fb-no">
+          <b>Chưa đúng.</b>
+          <p>Đáp án đúng: <b>{q.options[q.answer]}</b></p>
+          {q.explain && <p>{q.explain}</p>}
+          <button className="cta" onClick={advance}>{index + 1 >= questions.length ? 'Xem kết quả' : 'Tiếp tục'}</button>
+        </div>
+      ) : (
+        <p className="qf-note">Chạm trúng đáp án đúng trước khi nó chạm đáy! ⏱</p>
+      )}
     </div>
   )
 }

@@ -22,6 +22,7 @@ export default function BalloonGame({ questions, mem, title = 'Bắn bóng', onF
   const [timeLeft, setTimeLeft] = useState(PER_SEC)
   const [shot, setShot] = useState(null)     // { i, ok } sau khi bắn
   const [gain, setGain] = useState(null)
+  const [fb, setFb] = useState(false)        // giải thích khi SAI, chờ "Tiếp tục"
   const [aimDeg, setAimDeg] = useState(0)    // góc nghiêng khẩu súng (0 = thẳng đứng)
   const [aiming, setAiming] = useState(false)
   const [arrow, setArrow] = useState(null)   // { dx, dy, deg } khi mũi tên đang bay
@@ -87,14 +88,18 @@ export default function BalloonGame({ questions, mem, title = 'Bắn bóng', onF
         gainId.current += 1; setGain({ amt: gained, id: gainId.current })
       } else { playMiss(); setCombo(0) }
       record(ok)
-      setTimeout(() => {
-        if (doneRef.current) return
-        if (index + 1 >= questions.length) { finish(); return }
-        setIndex(index + 1)
-      }, 850)
+      // Đúng: bay tiếp. SAI: DỪNG lại giải thích cho con hiểu, chờ bấm "Tiếp tục".
+      if (ok) setTimeout(advance, 850)
+      else setFb(true)
     }
     if (picked != null) setTimeout(resolve, 360) // đợi mũi tên bay tới
     else resolve()
+  }
+
+  function advance() {
+    if (doneRef.current) return
+    if (index + 1 >= questions.length) { finish(); return }
+    setIndex(index + 1)
   }
 
   // ---- Ngắm bằng cách kéo ----
@@ -102,8 +107,9 @@ export default function BalloonGame({ questions, mem, title = 'Bắn bóng', onF
     const arena = arenaRef.current
     if (!arena) return 0
     const r = arena.getBoundingClientRect()
-    const px = ((e.touches ? e.touches[0].clientX : e.clientX) - r.left) / r.width
-    const py = ((e.touches ? e.touches[0].clientY : e.clientY) - r.top) / r.height
+    const src = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e
+    const px = (src.clientX - r.left) / r.width
+    const py = (src.clientY - r.top) / r.height
     const ang = Math.atan2(py - CY / 100, px - CX / 100) // rad
     setAimDeg(ang * 180 / Math.PI + 90)
     return ang
@@ -128,7 +134,7 @@ export default function BalloonGame({ questions, mem, title = 'Bắn bóng', onF
   useEffect(() => {
     if (!questions || !questions.length || doneRef.current) return undefined
     lockedRef.current = false
-    setShot(null); setGain(null); setArrow(null); setAiming(false); setAimDeg(0); setTimeLeft(PER_SEC)
+    setShot(null); setGain(null); setArrow(null); setAiming(false); setAimDeg(0); setFb(false); setTimeLeft(PER_SEC)
     activeTimer.current.reset()
     audioCtx()
     let t = PER_SEC
@@ -202,14 +208,20 @@ export default function BalloonGame({ questions, mem, title = 'Bắn bóng', onF
         {/* Mũi tên đang bay */}
         {arrow && <div className="bl-arrow flying" style={{ left: CX + '%', top: CY + '%', '--dx': arrow.dx + 'px', '--dy': arrow.dy + 'px', '--adeg': arrow.deg + 'deg' }}>➤</div>}
 
-        {/* Khẩu súng/cung ở đáy */}
-        <div className="bl-cannon" style={{ left: CX + '%', top: CY + '%' }}>
-          <div className="bl-barrel" style={{ transform: `translateX(-50%) rotate(${aimDeg}deg)` }} />
-          <div className="bl-base" />
-        </div>
+        {/* Cung tên ở đáy — nghiêng & to lên khi đang kéo (ngắm) */}
+        <div className="bl-bow" style={{ left: CX + '%', top: CY + '%', transform: `translate(-50%,-50%) rotate(${aimDeg * 0.5}deg) scale(${aiming ? 1.18 : 1})` }}>🏹</div>
       </div>
 
-      <p className="qf-note">Kéo khẩu súng để ngắm, thả tay để bắn mũi tên vào quả bóng đúng! 🎯 (hoặc chạm thẳng vào bóng)</p>
+      {fb ? (
+        <div className="fb fb-no">
+          <b>Chưa đúng.</b>
+          <p>Đáp án đúng: <b>{q.options[q.answer]}</b></p>
+          {q.explain && <p>{q.explain}</p>}
+          <button className="cta" onClick={advance}>{index + 1 >= questions.length ? 'Xem kết quả' : 'Tiếp tục'}</button>
+        </div>
+      ) : (
+        <p className="qf-note">Kéo cung để ngắm, thả tay là bắn mũi tên vào quả bóng đúng! 🏹 (hoặc chạm thẳng vào bóng)</p>
+      )}
     </div>
   )
 }

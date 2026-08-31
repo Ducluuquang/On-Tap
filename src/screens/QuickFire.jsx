@@ -19,11 +19,14 @@ export default function QuickFire({ questions, mem, title = 'Quick Fire', onFini
   const [gain, setGain] = useState(null)
   const [locked, setLocked] = useState(false)
   const [tickN, setTickN] = useState(0) // tăng mỗi giây để "nảy" số đồng hồ khi gấp gáp
+  const [fb, setFb] = useState(false)   // SAI -> tạm dừng đồng hồ, giải thích, chờ "Tiếp tục"
   const resultsRef = useRef({})
   const scoreRef = useRef(0)
   const doneRef = useRef(false)
   const gainId = useRef(0)
   const activeTimer = useRef(createActiveTimer())
+  const timerRef = useRef(null)
+  const remainRef = useRef(DURATION)
 
   const finish = () => {
     if (doneRef.current) return
@@ -34,18 +37,25 @@ export default function QuickFire({ questions, mem, title = 'Quick Fire', onFini
     onFinish({ total: Math.max(ans, 1), correct: corr, score: scoreRef.current, activeSeconds: activeTimer.current.get() }, rs)
   }
 
+  function stopTimer() { clearInterval(timerRef.current) }
+  function startTimer() {
+    clearInterval(timerRef.current)
+    timerRef.current = setInterval(() => {
+      remainRef.current -= 1
+      const t = remainRef.current
+      setTimeLeft(Math.max(0, t))
+      setTickN((n) => n + 1)
+      if (t <= 0) { clearInterval(timerRef.current); finish(); return }
+      playTick(t <= LOW_AT) // tích tắc — nhanh & gấp hơn khi sắp hết giờ
+    }, 1000)
+  }
+
   useEffect(() => {
     if (!questions || !questions.length) return undefined
     audioCtx() // "đánh thức" âm thanh nếu đã có tương tác
-    let t = DURATION
-    const id = setInterval(() => {
-      t -= 1
-      setTimeLeft(Math.max(0, t))
-      setTickN((n) => n + 1)
-      if (t <= 0) { clearInterval(id); finish(); return }
-      playTick(t <= LOW_AT) // tích tắc — nhanh & gấp hơn khi sắp hết giờ
-    }, 1000)
-    return () => clearInterval(id)
+    remainRef.current = DURATION
+    startTimer()
+    return () => clearInterval(timerRef.current)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -91,13 +101,30 @@ export default function QuickFire({ questions, mem, title = 'Quick Fire', onFini
         mastery: nextMastery(prev.mastery, { correct: ok, usedHint: false }), label,
       },
     }
-    setTimeout(() => {
-      setPulse(null)
-      if (doneRef.current) return
-      if (index + 1 >= questions.length) { finish(); return }
-      activeTimer.current.reset()
-      setIndex(index + 1); setFlash(null); setLocked(false)
-    }, 480)
+    if (ok) {
+      // Đúng: giữ nhịp nhanh, tự chạy tiếp (đồng hồ vẫn chạy).
+      setTimeout(() => {
+        setPulse(null)
+        if (doneRef.current) return
+        if (index + 1 >= questions.length) { finish(); return }
+        activeTimer.current.reset()
+        setIndex(index + 1); setFlash(null); setLocked(false)
+      }, 480)
+    } else {
+      // SAI: DỪNG đồng hồ + giải thích cho con hiểu, chờ bấm "Tiếp tục".
+      stopTimer()
+      setTimeout(() => setPulse(null), 460)
+      setFb(true)
+    }
+  }
+
+  function continueFromFb() {
+    setFb(false); setFlash(null); setLocked(false); setPulse(null)
+    if (doneRef.current) return
+    if (index + 1 >= questions.length) { finish(); return }
+    activeTimer.current.reset()
+    setIndex(index + 1)
+    startTimer() // tiếp tục đồng hồ từ chỗ đang dừng
   }
 
   const optClass = (i) => {
@@ -133,7 +160,16 @@ export default function QuickFire({ questions, mem, title = 'Quick Fire', onFini
           <button key={i} className={optClass(i)} onClick={() => answer(i)} disabled={locked}>{o}</button>
         ))}
       </div>
-      <p className="qf-note">Đúng liên tiếp để nhân combo 🔥</p>
+      {fb ? (
+        <div className="fb fb-no">
+          <b>Chưa đúng.</b>
+          <p>Đáp án đúng: <b>{q.options[q.answer]}</b></p>
+          {q.explain && <p>{q.explain}</p>}
+          <button className="cta" onClick={continueFromFb}>{index + 1 >= questions.length ? 'Xem kết quả' : 'Tiếp tục'}</button>
+        </div>
+      ) : (
+        <p className="qf-note">Đúng liên tiếp để nhân combo 🔥</p>
+      )}
     </div>
   )
 }

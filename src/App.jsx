@@ -272,7 +272,7 @@ export default function App() {
     } else if (view === 'result') {
       screen = <Result session={session} onHome={() => setView('home')} onReport={() => switchRole('parent')} />
     } else {
-      screen = <ChildHome mem={mem} streak={streak}
+      screen = <ChildHome mem={mem} stats={stats}
         onReview={() => setView('custom')} onCapture={() => setView('capture')} />
     }
   } else {

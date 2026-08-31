@@ -63,6 +63,30 @@ export function goalMetCount(stats) {
   return last7(stats).filter((d) => d.min >= stats.goalMin).length
 }
 
+// ---- Chuỗi ngày ĐẠT MỤC TIÊU (streak) + phần thưởng ----
+function metOn(stats, d) { return (stats.days[isoDay(d)] || 0) / 60 >= stats.goalMin }
+
+// Số ngày LIÊN TIẾP gần nhất con đạt mục tiêu (hôm nay chưa đạt thì đếm từ hôm qua).
+export function streakDays(stats) {
+  let n = 0
+  const d = new Date()
+  if (!metOn(stats, d)) d.setDate(d.getDate() - 1)
+  while (metOn(stats, d)) { n++; d.setDate(d.getDate() - 1) }
+  return n
+}
+// Mốc thưởng kế tiếp: 7 → 15 → 30, sau đó cứ +30 ngày.
+export function nextReward(streak) {
+  for (const m of [7, 15, 30]) if (streak < m) return m
+  return Math.ceil((streak + 1) / 30) * 30
+}
+// Mốc thưởng ĐÃ đạt gần nhất (điểm bắt đầu của chặng hiện tại).
+export function prevReward(streak) {
+  if (streak < 7) return 0
+  if (streak < 15) return 7
+  if (streak < 30) return 15
+  return Math.floor(streak / 30) * 30
+}
+
 // Bộ đếm thời gian có tương tác: reset() khi hiện câu mới, step() khi con trả lời.
 // Mỗi câu cộng tối đa capPerStep giây (tránh tính giờ khi con bỏ đi mất).
 export function createActiveTimer(capPerStep = 60) {
