@@ -30,7 +30,9 @@ export function localMatch(typed, correct) {
   const a = canon(typed), b = canon(correct)
   if (!a) return false
   if (a === b) return true
-  const na = a.replace(/\s+/g, '').replace(',', '.'), nb = b.replace(/\s+/g, '').replace(',', '.')
+  // Bỏ dấu chấm ngăn cách hàng ngàn + khoảng trắng; dấu phẩy = thập phân (chuẩn VN).
+  const clean = (s) => s.replace(/[.\s]/g, '').replace(',', '.')
+  const na = clean(a), nb = clean(b)
   // Chỉ so giá trị khi CẢ HAI là số nguyên/thập phân thuần (không có dấu "/").
   if (/^-?\d+(\.\d+)?$/.test(na) && /^-?\d+(\.\d+)?$/.test(nb)) return Number(na) === Number(nb)
   return false

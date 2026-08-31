@@ -426,43 +426,51 @@ body{
 
 /* ===== Game: Bắn bóng 🎯 ===== */
 .bl-q{font-size:1.15rem}
-.bl-arena{position:relative;height:330px;margin-top:2px;border-radius:16px;border:1px solid var(--border);overflow:hidden;
-  background:linear-gradient(180deg,#EAF4FF,#F4F9F8);
-  display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:6px;place-items:center;padding:10px}
+.bl-arena{position:relative;height:360px;margin-top:2px;border-radius:16px;border:1px solid var(--border);overflow:hidden;
+  background:linear-gradient(180deg,#EAF4FF,#F4F9F8);touch-action:none;cursor:crosshair;user-select:none}
 .bl-arena::before{content:"";position:absolute;inset:0;pointer-events:none;
   background:radial-gradient(circle at 18% 14%,rgba(91,124,240,.10),transparent 42%),radial-gradient(circle at 84% 82%,rgba(224,145,47,.10),transparent 42%)}
-.bl-reticle{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-size:1rem;opacity:.5;pointer-events:none;z-index:1}
-.balloon{position:relative;z-index:2;width:100%;max-width:150px;height:118px;border:0;cursor:pointer;font-family:inherit;
+
+/* 4 quả bóng bay thành hàng ngang ở trên */
+.balloon2{position:absolute;z-index:2;transform:translate(-50%,-50%);width:22%;max-width:98px;aspect-ratio:.86;border:0;cursor:pointer;font-family:inherit;padding:4px;
   border-radius:50% 50% 48% 48%/54% 54% 46% 46%;
   background:radial-gradient(circle at 34% 28%,rgba(255,255,255,.55),transparent 42%),var(--bl,#17a08f);
-  box-shadow:inset -6px -8px 14px rgba(0,0,0,.16),0 8px 16px rgba(20,33,46,.18);
-  display:grid;place-items:center;padding:6px;
-  animation:balloonFloat 3.6s ease-in-out infinite;transform-origin:center;will-change:transform}
-.balloon:active{filter:brightness(1.06)}
-.balloon-txt{color:#fff;font-weight:800;font-size:1.08rem;line-height:1.1;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,.28);padding:0 4px;word-break:break-word}
+  box-shadow:inset -5px -7px 12px rgba(0,0,0,.16),0 8px 14px rgba(20,33,46,.18);
+  display:grid;place-items:center;animation:balloonBob2 3.6s ease-in-out infinite;transform-origin:center;will-change:transform}
+.balloon2 .balloon-txt{font-size:.96rem}
+.balloon-txt{color:#fff;font-weight:800;font-size:1.02rem;line-height:1.05;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,.28);padding:0 2px;word-break:break-word}
 .balloon-knot{position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid var(--bl,#17a08f)}
-.balloon-string{position:absolute;bottom:-26px;left:50%;width:2px;height:22px;background:rgba(20,33,46,.28);transform:translateX(-50%)}
-@keyframes balloonFloat{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-10px) rotate(2deg)}}
-/* trạng thái sau khi bắn */
-.balloon.hit{animation:balloonPop .5s ease forwards}
-.balloon.miss{animation:balloonMiss .5s ease forwards;background:radial-gradient(circle at 34% 28%,rgba(255,255,255,.5),transparent 42%),var(--weak)}
-.balloon.reveal{outline:3px solid var(--mastered);outline-offset:2px;animation:none}
-.balloon.fade{opacity:.35;animation:none}
-.balloon.hit .balloon-txt::after{content:" 🎯"}
-.balloon.miss .balloon-txt::after{content:" ✗"}
-@keyframes balloonPop{0%{transform:scale(1)}40%{transform:scale(1.28)}100%{transform:scale(.2);opacity:0}}
-@keyframes balloonMiss{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px) rotate(-6deg)}75%{transform:translateX(8px) rotate(6deg)}}
+.balloon-string{position:absolute;bottom:-24px;left:50%;width:2px;height:20px;background:rgba(20,33,46,.28);transform:translateX(-50%)}
+@keyframes balloonBob2{0%,100%{transform:translate(-50%,-50%) rotate(-2deg)}50%{transform:translate(-50%,-58%) rotate(2deg)}}
+.balloon2.hit{animation:balloonPop2 .5s ease forwards}
+.balloon2.miss{animation:balloonMiss2 .5s ease forwards;background:radial-gradient(circle at 34% 28%,rgba(255,255,255,.5),transparent 42%),var(--weak)}
+.balloon2.reveal{outline:3px solid var(--mastered);outline-offset:2px;animation:none}
+.balloon2.fade{opacity:.32;animation:none}
+.balloon2.hit .balloon-txt::after{content:" 🎯"}
+.balloon2.miss .balloon-txt::after{content:" ✗"}
+@keyframes balloonPop2{0%{transform:translate(-50%,-50%) scale(1)}40%{transform:translate(-50%,-50%) scale(1.28)}100%{transform:translate(-50%,-50%) scale(.2);opacity:0}}
+@keyframes balloonMiss2{0%,100%{transform:translate(-50%,-50%)}25%{transform:translate(-54%,-50%) rotate(-6deg)}75%{transform:translate(-46%,-50%) rotate(6deg)}}
+
+/* Khẩu súng ở đáy + đường ngắm + mũi tên */
+.bl-cannon{position:absolute;transform:translate(-50%,-6%);z-index:3;pointer-events:none;width:56px;height:44px}
+.bl-base{position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:52px;height:20px;border-radius:12px 12px 8px 8px;background:linear-gradient(180deg,#3a4a5a,#22303e);box-shadow:0 3px 6px rgba(0,0,0,.25)}
+.bl-barrel{position:absolute;left:50%;bottom:8px;width:15px;height:42px;border-radius:8px;background:linear-gradient(180deg,#7c8e9a,#43535f);transform-origin:50% 100%;box-shadow:inset -2px 0 3px rgba(0,0,0,.22)}
+.bl-aimline{position:absolute;z-index:2;width:3px;height:230px;border-radius:2px;pointer-events:none;transform-origin:50% 100%;
+  background:repeating-linear-gradient(180deg,rgba(224,112,58,.95) 0 8px,transparent 8px 16px)}
+.bl-arrow{position:absolute;z-index:4;font-size:1.5rem;color:var(--weak-tx);transform:translate(-50%,-50%);pointer-events:none}
+.bl-arrow.flying{animation:blArrowFly .34s ease-in forwards}
+@keyframes blArrowFly{from{transform:translate(-50%,-50%) rotate(var(--adeg))}to{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) rotate(var(--adeg))}}
 
 /* ===== Game: Xếp sushi 🍣 ===== */
 .sushi-q{font-size:1.2rem}
-.sushi-arena{position:relative;height:210px;border-radius:16px;border:1px solid var(--border);overflow:hidden;
+.sushi-arena{position:relative;height:260px;border-radius:16px;border:1px solid var(--border);overflow:hidden;
   background:linear-gradient(180deg,#FFF6EC,#F4F9F8);display:flex;align-items:flex-end;justify-content:center;padding:8px}
 .sushi-arena::before{content:"";position:absolute;inset:0;pointer-events:none;
   background:radial-gradient(circle at 80% 16%,rgba(224,112,58,.08),transparent 45%)}
 .sushi-stack{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px;position:relative;z-index:2}
 .sushi-more{font-size:.78rem;font-weight:800;color:var(--weak-tx);background:#fff;border:1px solid var(--border);border-radius:999px;padding:2px 9px;margin-bottom:2px}
-.sushi-piece{font-size:2.1rem;line-height:1;filter:drop-shadow(0 3px 4px rgba(20,33,46,.18));animation:sushiDrop .45s cubic-bezier(.2,1.4,.5,1)}
-.sushi-plate{font-size:2.7rem;line-height:1;margin-top:-4px;filter:drop-shadow(0 4px 5px rgba(20,33,46,.2))}
+.sushi-piece{font-size:3.4rem;line-height:1;filter:drop-shadow(0 3px 4px rgba(20,33,46,.18));animation:sushiDrop .45s cubic-bezier(.2,1.4,.5,1)}
+.sushi-plate{font-size:4.8rem;line-height:1;margin-top:-6px;filter:drop-shadow(0 5px 6px rgba(20,33,46,.2))}
 .sushi-stack.wobble{animation:sushiWobble .5s ease}
 @keyframes sushiDrop{0%{transform:translateY(-34px) scale(.6);opacity:0}100%{transform:translateY(0) scale(1);opacity:1}}
 @keyframes sushiWobble{0%,100%{transform:rotate(0)}20%{transform:rotate(-7deg)}45%{transform:rotate(6deg)}70%{transform:rotate(-4deg)}}

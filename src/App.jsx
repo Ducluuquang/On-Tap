@@ -6,6 +6,7 @@ import { loadAccount, saveAccount, loadSession, setSession as persistSession } f
 import { loadStats, saveStats, addSeconds, setGoalMin } from './lib/stats.js'
 import { loadSettings, saveSettings } from './lib/settings.js'
 import { canon, localMatch } from './lib/answerMatch.js'
+import { dotNumbers } from './lib/num.js'
 
 import Auth from './screens/Auth.jsx'
 import Settings from './screens/Settings.jsx'
@@ -35,29 +36,41 @@ function GeneratingScreen() {
   )
 }
 
+// Xáo trộn mảng (Fisher–Yates) — để vị trí đáp án đúng không cố định.
+function shuffled(arr) {
+  const a = arr.slice()
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[a[i], a[j]] = [a[j], a[i]] }
+  return a
+}
+
 // Trắc nghiệm: ô đúng dò theo GIÁ TRỊ đáp án (không tin số thứ tự máy ghi — tránh đánh dấu nhầm ô).
 // Bỏ câu có 2 lựa chọn trùng nghĩa (2 đáp án cùng đúng) và bỏ câu lặp trong buổi ôn.
+// XÁO vị trí 4 lựa chọn để đáp án đúng không luôn nằm 1 chỗ (bóng cam/ô số 1).
+// Chèn dấu chấm hàng ngàn cho số dài (1000000 -> 1.000.000) trong câu, lựa chọn, lời giải.
 function normalizeQs(qs) {
   if (!Array.isArray(qs)) return []
   const out = []
   const seenQ = new Set()
   for (const q of qs) {
     if (!q || !q.q || !Array.isArray(q.options) || q.options.length !== 4) continue
-    const options = q.options.map((o) => String(o).trim())
-    const canons = options.map(canon)
+    const rawOpts = q.options.map((o) => String(o).trim())
+    const canons = rawOpts.map(canon)
     if (new Set(canons).size !== 4) continue // có lựa chọn trùng nghĩa -> bỏ câu
     let idx = -1
     if (typeof q.answer === 'number' && Number.isInteger(q.answer) && q.answer >= 0 && q.answer <= 3) {
       idx = q.answer
     } else {
       // Dò ô đúng theo GIÁ TRỊ (khớp cả khi khác cách ghi: "7800" ~ "7 800", "1/2" ~ "1/2").
-      idx = options.findIndex((o) => localMatch(String(q.answer), o))
+      idx = rawOpts.findIndex((o) => localMatch(String(q.answer), o))
     }
     if (idx < 0 || idx > 3) continue // đáp án không nằm trong 4 lựa chọn -> bỏ câu
     const key = canon(q.q)
     if (!key || seenQ.has(key)) continue // câu lặp -> bỏ
     seenQ.add(key)
-    out.push({ concept: q.concept || 'Ôn tập', q: q.q, options, answer: idx, explain: q.explain || '', hint: '' })
+    const order = shuffled([0, 1, 2, 3])
+    const options = order.map((j) => dotNumbers(rawOpts[j]))
+    const answer = order.indexOf(idx)
+    out.push({ concept: q.concept || 'Ôn tập', q: dotNumbers(q.q), options, answer, explain: dotNumbers(q.explain || ''), hint: '' })
   }
   return out
 }
@@ -73,7 +86,7 @@ function normalizeOpen(qs) {
     const key = canon(q.q)
     if (!key || seenQ.has(key)) continue
     seenQ.add(key)
-    out.push({ concept: q.concept || 'Ôn tập', q: q.q, answer: String(q.answer).trim(), explain: q.explain || '', hint: '' })
+    out.push({ concept: q.concept || 'Ôn tập', q: dotNumbers(q.q), answer: dotNumbers(String(q.answer).trim()), explain: dotNumbers(q.explain || ''), hint: '' })
   }
   return out
 }

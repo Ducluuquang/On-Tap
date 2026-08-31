@@ -46,7 +46,10 @@ export function buildReview(mem, count = 6, { openOnly = false, conceptNames = n
   if (conceptNames && conceptNames.length) {
     const set = new Set(conceptNames.map((n) => String(n).toLowerCase()))
     const only = pool.filter((c) => set.has(c.name.toLowerCase()) || set.has(c.id))
-    if (only.length) pool = only
+    // Không có câu mẫu ĐÚNG chủ đề đang ôn (VD "số lớn hơn 6 chữ số") -> trả rỗng,
+    // thà báo "thử lại" còn hơn ra câu lạc đề (phân số) không liên quan.
+    if (!only.length) return []
+    pool = only
   }
   const ranked = pool.sort((a, b) => a.mastery - b.mastery)
   const picks = []

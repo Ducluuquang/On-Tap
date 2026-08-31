@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { BackHeader } from '../components.jsx'
 import { nextMastery } from '../lib/memory.js'
 import { fmt } from '../lib/num.js'
@@ -6,33 +6,35 @@ import { createActiveTimer } from '../lib/stats.js'
 import { CONCEPT_NAME } from '../data/content.js'
 import { audioCtx, playPop, playMiss } from '../lib/sound.js'
 
-// Bắn bóng 🎯 — 4 đáp án là 4 quả bóng đang bay lơ lửng. Chạm ("bắn") trúng bóng
-// mang đáp án ĐÚNG để ghi điểm. Đúng liên tiếp được cộng combo. Mỗi câu có 15 giây.
+// Bắn bóng 🎯 — 4 đáp án là 4 quả bóng bay THÀNH HÀNG NGANG ở trên.
+// Dưới màn hình có KHẨU SÚNG/CUNG: kéo để ngắm, thả ra thì mũi tên bay về quả bóng đang ngắm.
+// Ngắm trúng bóng có đáp án đúng để ghi điểm. Mỗi câu 15 giây.
 const PER_SEC = 15
-const COLORS = ['#e0703a', '#17a08f', '#5b7cf0', '#e0a32f'] // màu bóng theo vị trí
+const COLORS = ['#e0703a', '#17a08f', '#5b7cf0', '#e0a32f']
+const XS = [15, 38, 62, 85] // vị trí ngang (%) của 4 quả bóng
+const BY = 20               // vị trí dọc (%) của hàng bóng
+const CX = 50, CY = 88      // gốc khẩu súng (%)
 
 export default function BalloonGame({ questions, mem, title = 'Bắn bóng', onFinish, onExit }) {
   const [index, setIndex] = useState(0)
   const [score, setScore] = useState(0)
   const [combo, setCombo] = useState(0)
   const [timeLeft, setTimeLeft] = useState(PER_SEC)
-  const [shot, setShot] = useState(null) // { i, ok } khi đã bắn
+  const [shot, setShot] = useState(null)     // { i, ok } sau khi bắn
   const [gain, setGain] = useState(null)
-  const [locked, setLocked] = useState(false)
+  const [aimDeg, setAimDeg] = useState(0)    // góc nghiêng khẩu súng (0 = thẳng đứng)
+  const [aiming, setAiming] = useState(false)
+  const [arrow, setArrow] = useState(null)   // { dx, dy, deg } khi mũi tên đang bay
   const lockedRef = useRef(false)
   const resultsRef = useRef({})
   const scoreRef = useRef(0)
   const doneRef = useRef(false)
   const tickRef = useRef(null)
   const gainId = useRef(0)
+  const arenaRef = useRef(null)
   const activeTimer = useRef(createActiveTimer())
 
   const q = questions && questions[index]
-  // Xáo màu/độ trễ bay theo từng câu cho sinh động (đáp án đúng không cố định 1 chỗ).
-  const layout = useMemo(
-    () => [0, 1, 2, 3].map((i) => ({ color: COLORS[i % COLORS.length], delay: (i * 0.4).toFixed(2), dur: (3.4 + (i % 3) * 0.5).toFixed(2) })),
-    [index],
-  )
 
   function record(ok) {
     const key = q.concept
@@ -57,37 +59,78 @@ export default function BalloonGame({ questions, mem, title = 'Bắn bóng', onF
     onFinish({ total: Math.max(ans, 1), correct: corr, score: scoreRef.current, activeSeconds: activeTimer.current.get() }, rs)
   }
 
+  // Bắn vào quả bóng thứ `picked` (null = hết giờ).
   function shoot(picked) {
     if (lockedRef.current || doneRef.current) return
-    lockedRef.current = true; setLocked(true)
+    lockedRef.current = true
     activeTimer.current.step()
     clearInterval(tickRef.current)
-    const ok = picked != null && picked === q.answer
-    setShot({ i: picked, ok })
-    if (ok) {
-      playPop()
-      const newCombo = combo + 1
-      const gained = 100 + (newCombo - 1) * 20
-      setCombo(newCombo)
-      const ns = scoreRef.current + gained; scoreRef.current = ns; setScore(ns)
-      gainId.current += 1; setGain({ amt: gained, id: gainId.current })
-    } else {
-      playMiss(); setCombo(0)
+    setAiming(false)
+    // Cho mũi tên bay tới quả bóng đã ngắm (nếu có), rồi mới chấm.
+    if (picked != null) {
+      const arena = arenaRef.current
+      const w = arena ? arena.clientWidth : 320
+      const h = arena ? arena.clientHeight : 340
+      const dx = (XS[picked] - CX) / 100 * w
+      const dy = (BY - CY) / 100 * h
+      setArrow({ dx, dy, deg: Math.atan2(dy, dx) * 180 / Math.PI })
     }
-    record(ok)
-    setTimeout(() => {
-      if (doneRef.current) return
-      if (index + 1 >= questions.length) { finish(); return }
-      setIndex(index + 1)
-    }, 850)
+    const resolve = () => {
+      const ok = picked != null && picked === q.answer
+      setShot({ i: picked, ok })
+      if (ok) {
+        playPop()
+        const newCombo = combo + 1
+        const gained = 100 + (newCombo - 1) * 20
+        setCombo(newCombo)
+        const ns = scoreRef.current + gained; scoreRef.current = ns; setScore(ns)
+        gainId.current += 1; setGain({ amt: gained, id: gainId.current })
+      } else { playMiss(); setCombo(0) }
+      record(ok)
+      setTimeout(() => {
+        if (doneRef.current) return
+        if (index + 1 >= questions.length) { finish(); return }
+        setIndex(index + 1)
+      }, 850)
+    }
+    if (picked != null) setTimeout(resolve, 360) // đợi mũi tên bay tới
+    else resolve()
+  }
+
+  // ---- Ngắm bằng cách kéo ----
+  function aimFromEvent(e) {
+    const arena = arenaRef.current
+    if (!arena) return 0
+    const r = arena.getBoundingClientRect()
+    const px = ((e.touches ? e.touches[0].clientX : e.clientX) - r.left) / r.width
+    const py = ((e.touches ? e.touches[0].clientY : e.clientY) - r.top) / r.height
+    const ang = Math.atan2(py - CY / 100, px - CX / 100) // rad
+    setAimDeg(ang * 180 / Math.PI + 90)
+    return ang
+  }
+  function nearestBalloon(angRad) {
+    let best = 0, bestD = Infinity
+    XS.forEach((x, i) => {
+      let d = Math.abs(Math.atan2(BY / 100 - CY / 100, x / 100 - CX / 100) - angRad)
+      if (d > Math.PI) d = 2 * Math.PI - d
+      if (d < bestD) { bestD = d; best = i }
+    })
+    return best
+  }
+  function onDown(e) { if (lockedRef.current) return; setAiming(true); audioCtx(); aimFromEvent(e) }
+  function onMove(e) { if (!aiming || lockedRef.current) return; aimFromEvent(e) }
+  function onUp(e) {
+    if (!aiming || lockedRef.current) return
+    const ang = aimFromEvent(e)
+    shoot(nearestBalloon(ang))
   }
 
   useEffect(() => {
     if (!questions || !questions.length || doneRef.current) return undefined
     lockedRef.current = false
-    setLocked(false); setShot(null); setGain(null); setTimeLeft(PER_SEC)
+    setShot(null); setGain(null); setArrow(null); setAiming(false); setAimDeg(0); setTimeLeft(PER_SEC)
     activeTimer.current.reset()
-    audioCtx() // "đánh thức" âm thanh nếu đã có tương tác
+    audioCtx()
     let t = PER_SEC
     tickRef.current = setInterval(() => {
       t -= 1; setTimeLeft(Math.max(0, t))
@@ -126,13 +169,16 @@ export default function BalloonGame({ questions, mem, title = 'Bắn bóng', onF
         <h2 className="question bl-q">{q.q}</h2>
       </div>
 
-      <div className="bl-arena">
-        <div className="bl-reticle">🎯</div>
+      <div
+        className="bl-arena"
+        ref={arenaRef}
+        onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={(e) => aiming && onUp(e)}
+        onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
+      >
         {q.options.map((o, i) => {
-          const st = layout[i]
-          let cls = 'balloon'
+          let cls = 'balloon2'
           if (shot) {
-            if (i === q.answer) cls += shot.ok && shot.i === i ? ' hit' : ' reveal'
+            if (i === q.answer) cls += (shot.ok && shot.i === i) ? ' hit' : ' reveal'
             else if (i === shot.i) cls += ' miss'
             else cls += ' fade'
           }
@@ -140,9 +186,8 @@ export default function BalloonGame({ questions, mem, title = 'Bắn bóng', onF
             <button
               key={index + '-' + i}
               className={cls}
-              style={{ '--bl': st.color, animationDelay: st.delay + 's', animationDuration: st.dur + 's' }}
-              onClick={() => shoot(i)}
-              disabled={locked}
+              style={{ '--bl': COLORS[i], left: XS[i] + '%', top: BY + '%', animationDelay: (i * 0.3) + 's' }}
+              onClick={(e) => { e.stopPropagation(); if (!lockedRef.current) shoot(i) }}
             >
               <span className="balloon-txt">{o}</span>
               <span className="balloon-knot" />
@@ -150,9 +195,21 @@ export default function BalloonGame({ questions, mem, title = 'Bắn bóng', onF
             </button>
           )
         })}
+
+        {/* Đường ngắm */}
+        {aiming && !shot && <div className="bl-aimline" style={{ left: CX + '%', top: CY + '%', transform: `translate(-50%, -100%) rotate(${aimDeg}deg)` }} />}
+
+        {/* Mũi tên đang bay */}
+        {arrow && <div className="bl-arrow flying" style={{ left: CX + '%', top: CY + '%', '--dx': arrow.dx + 'px', '--dy': arrow.dy + 'px', '--adeg': arrow.deg + 'deg' }}>➤</div>}
+
+        {/* Khẩu súng/cung ở đáy */}
+        <div className="bl-cannon" style={{ left: CX + '%', top: CY + '%' }}>
+          <div className="bl-barrel" style={{ transform: `translateX(-50%) rotate(${aimDeg}deg)` }} />
+          <div className="bl-base" />
+        </div>
       </div>
 
-      <p className="qf-note">Chạm trúng quả bóng có đáp án đúng để bắn nổ! 🎯</p>
+      <p className="qf-note">Kéo khẩu súng để ngắm, thả tay để bắn mũi tên vào quả bóng đúng! 🎯 (hoặc chạm thẳng vào bóng)</p>
     </div>
   )
 }
