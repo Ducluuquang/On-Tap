@@ -149,15 +149,18 @@ function dedupeByQ(list) {
 export async function generateQuestions(key, opts) {
   const { subject = 'Toán', grade = '', topic = '', concepts = [], count = 6, format = 'choice', fast = false, master = false } = opts
   const base = { subject, grade, topic, concepts, format, fast, master }
+  // Mã đề NGẪU NHIÊN mỗi lần gọi -> mỗi buổi ôn ra bộ câu KHÁC nhau dù cùng nội dung.
+  const vary = Math.random().toString(36).slice(2, 7)
+  const freshRule = `(Mã đề ${vary}: hãy ra bộ câu hỏi MỚI và KHÁC các lần ôn trước — đổi số liệu, đổi ngữ cảnh, đổi cách hỏi; tránh trùng lặp) `
   const CHUNK = 5
   let all
   if (count <= CHUNK) {
-    all = await genChunk(key, base, count)
+    all = await genChunk(key, base, count, freshRule)
   } else {
     const sizes = []
     for (let r = count; r > 0; r -= CHUNK) sizes.push(Math.min(CHUNK, r))
     const parts = await Promise.all(
-      sizes.map((n, i) => genChunk(key, base, n, `(Đợt ${i + 1}: ra dạng bài đa dạng, tránh trùng lặp) `).catch(() => [])),
+      sizes.map((n, i) => genChunk(key, base, n, `${freshRule}(Đợt ${i + 1}: ra dạng bài đa dạng) `).catch(() => [])),
     )
     all = parts.flat()
   }

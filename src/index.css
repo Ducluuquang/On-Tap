@@ -340,7 +340,7 @@ body{
 .fall-q{font-size:1.15rem}
 .fall-area{position:relative;height:342px;margin-top:2px;overflow:hidden;border-radius:16px;border:1px solid var(--border);background:linear-gradient(180deg,#F4F9F8,#E6F0EE)}
 .fall-area::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 20% 12%,rgba(24,165,151,.10),transparent 45%),radial-gradient(circle at 82% 8%,rgba(224,145,47,.10),transparent 45%);pointer-events:none}
-.fall-chip{position:absolute;top:0;width:19%;min-height:50px;padding:9px 5px;border-radius:13px;border:0;cursor:pointer;font-family:inherit;font-weight:800;font-size:1.02rem;color:#fff;background:linear-gradient(180deg,#1fb3a3,var(--teal));box-shadow:0 6px 14px rgba(15,118,110,.30);display:grid;place-items:center;text-align:center;line-height:1.12;animation:fall 10s linear forwards;will-change:transform}
+.fall-chip{position:absolute;top:0;width:19%;min-height:50px;padding:9px 5px;border-radius:13px;border:0;cursor:pointer;font-family:inherit;font-weight:800;font-size:1.02rem;color:#fff;background:linear-gradient(180deg,#1fb3a3,var(--teal));box-shadow:0 6px 14px rgba(15,118,110,.30);display:grid;place-items:center;text-align:center;line-height:1.12;animation:fall 20s linear forwards;will-change:transform}
 .fall-chip:active{filter:brightness(1.08)}
 .fall-chip.correct{background:linear-gradient(180deg,#3ac07f,var(--mastered));box-shadow:0 0 0 3px var(--mastered-bg),0 6px 16px rgba(46,158,107,.4)}
 .fall-chip.wrong{background:linear-gradient(180deg,#e8875a,var(--weak));box-shadow:0 0 0 3px var(--weak-bg),0 6px 16px rgba(224,112,58,.4)}
@@ -401,14 +401,16 @@ body{
 .chart-plot{position:relative;height:132px;display:flex;align-items:flex-end;gap:8px}
 .chart-goal{position:absolute;left:0;right:0;border-top:2px dashed var(--amber);pointer-events:none}
 .chart-goal i{position:absolute;right:0;top:-8px;font-size:.62rem;font-style:normal;color:#9A6712;background:#fff;padding:0 5px;font-weight:700;border-radius:4px}
-.cbar{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px}
+.cbar{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;border:0;background:none;font-family:inherit;padding:0;cursor:pointer}
 .cbar-num{font-size:.66rem;font-weight:700;color:var(--ink-soft);line-height:1}
 .cbar-fill{width:72%;max-width:26px;border-radius:7px 7px 0 0;background:#C4D8D3;transition:height .5s}
 .cbar-fill.met{background:linear-gradient(180deg,#1fb3a3,var(--teal))}
 .cbar-fill.today{outline:2px solid var(--teal-dark);outline-offset:1px}
+.cbar.sel .cbar-fill{outline:2.5px solid var(--amber);outline-offset:2px;box-shadow:0 0 0 4px rgba(224,145,47,.14)}
 .chart-x{display:flex;gap:8px}
 .chart-x span{flex:1;text-align:center;font-size:.74rem;color:var(--muted);font-weight:600}
 .chart-x span.on{color:var(--teal-dark);font-weight:800}
+.chart-x span.sel{color:#9A6712;font-weight:800}
 .study-foot{display:flex;gap:10px;border-top:1px solid var(--line);padding-top:10px}
 .study-foot>div{flex:1;display:flex;flex-direction:column}
 .study-foot b{font-size:1.05rem;font-weight:800;color:var(--teal-dark)}
@@ -460,6 +462,8 @@ body{
 .bl-arrow{position:absolute;z-index:4;font-size:1.5rem;color:var(--weak-tx);transform:translate(-50%,-50%);pointer-events:none}
 .bl-arrow.flying{animation:blArrowFly .34s ease-in forwards}
 @keyframes blArrowFly{from{transform:translate(-50%,-50%) rotate(var(--adeg))}to{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) rotate(var(--adeg))}}
+/* Mũi tên NGẮM — chỉ đúng hướng sẽ bắn */
+.bl-aimarrow{position:absolute;z-index:4;font-size:1.75rem;line-height:1;color:var(--weak-tx);pointer-events:none;transition:transform .05s ease;filter:drop-shadow(0 2px 3px rgba(0,0,0,.28))}
 
 /* ===== Game: Xếp sushi 🍣 ===== */
 .sushi-q{font-size:1.2rem}
@@ -513,13 +517,29 @@ body{
 .reward-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:.84rem;font-weight:700}
 .reward-streak{color:#9A5A12}
 .reward-goal{color:var(--muted);font-weight:700;white-space:nowrap}
-.reward-track{position:relative;height:14px;border-radius:999px;margin:4px 22px 4px 2px;
-  background:repeating-linear-gradient(90deg,#D8E4E1 0 9px,transparent 9px 17px)}
-.reward-fill{position:absolute;left:0;top:0;height:100%;border-radius:999px;min-width:8px;transition:width .5s;
-  background:linear-gradient(90deg,#F2A54F,#E0703A)}
-.reward-flag{position:absolute;top:-9px;transform:translateX(-50%);font-size:1.02rem;pointer-events:none}
-.reward-gift{position:absolute;right:-22px;top:-8px;font-size:1.35rem}
+/* Vạch LIỀN: mỗi ô là 1 ngày — XANH = đã đạt, ĐỎ = còn thiếu */
+.reward-track{position:relative;display:flex;gap:3px;height:16px;margin:5px 26px 4px 2px}
+.reward-seg{flex:1;min-width:0;border-radius:4px;background:#EE9E97;transition:background .4s}
+.reward-seg.done{background:linear-gradient(180deg,#40c684,#2E9E6B)}
+.reward-track.bar{display:block;height:16px;border-radius:999px;background:#EE9E97;overflow:hidden}
+.reward-fill{position:absolute;left:0;top:0;height:100%;border-radius:999px;min-width:6px;transition:width .5s;
+  background:linear-gradient(90deg,#40c684,#2E9E6B)}
+.reward-gift{position:absolute;right:-24px;top:-6px;font-size:1.4rem}
 .reward-note{margin:0;font-size:.85rem;color:var(--ink-soft);line-height:1.45}
+
+/* ===== Nhận xét theo NGÀY (Phụ huynh) ===== */
+.daynote{background:#fff;border:1px solid var(--border);border-radius:16px;padding:13px 15px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:9px}
+.daynote-head{display:flex;align-items:center;gap:9px}
+.daynote-ic{font-size:1.1rem}
+.daynote .ai-label{font-weight:800;color:var(--ink);font-size:.95rem}
+.daynote-empty{margin:0;font-size:.88rem;color:var(--muted);line-height:1.45}
+.subj-block{border-top:1px dashed var(--border);padding-top:9px}
+.subj-block:first-of-type{border-top:0;padding-top:0}
+.subj-name{display:inline-block;font-weight:800;font-size:.82rem;color:var(--teal-dark);background:var(--teal-soft);border-radius:999px;padding:2px 11px;margin-bottom:5px}
+.subj-comment{margin:0 0 7px;font-size:.9rem;color:var(--ink-soft);line-height:1.45}
+.subj-bullets{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
+.subj-bullets li{font-size:.9rem;color:var(--ink);line-height:1.4}
+.subj-bullets b{color:var(--teal-dark)}
 
 /* Dropdown chọn chủ đề từ bản đồ kiến thức */
 .cr-select{width:100%;margin-top:8px;border:1.5px solid var(--border);border-radius:12px;padding:11px 13px;font-family:inherit;font-size:.95rem;color:var(--ink);background:#fff;cursor:pointer}

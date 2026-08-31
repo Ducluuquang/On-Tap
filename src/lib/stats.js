@@ -20,12 +20,30 @@ function seedDays() {
   return out
 }
 
+// Nhật ký mẫu theo NGÀY + theo MÔN (để phụ huynh bấm vào từng ngày là thấy chi tiết).
+function seedLog() {
+  const data = {
+    6: { reviewed: 10, correct: 8, wrong: 2, min: 18 },
+    5: { reviewed: 8, correct: 5, wrong: 3, min: 12 },
+    4: { reviewed: 12, correct: 11, wrong: 1, min: 22 },
+    2: { reviewed: 10, correct: 7, wrong: 3, min: 16 },
+    1: { reviewed: 14, correct: 12, wrong: 2, min: 25 },
+  }
+  const out = {}
+  for (const n of Object.keys(data)) {
+    const d = new Date(); d.setDate(d.getDate() - Number(n))
+    const v = data[n]
+    out[isoDay(d)] = { 'Toán': { reviewed: v.reviewed, correct: v.correct, wrong: v.wrong, sec: v.min * 60 } }
+  }
+  return out
+}
+
 export function loadStats() {
   try {
     const r = localStorage.getItem(KEY)
-    if (r) { const s = JSON.parse(r); return { goalMin: 15, days: {}, ...s } }
+    if (r) { const s = JSON.parse(r); return { goalMin: 15, days: {}, log: {}, ...s } }
   } catch { /* noop */ }
-  return { goalMin: 15, days: seedDays() }
+  return { goalMin: 15, days: seedDays(), log: seedLog() }
 }
 export function saveStats(s) {
   try { localStorage.setItem(KEY, JSON.stringify(s)) } catch { /* noop */ }
@@ -40,6 +58,31 @@ export function addSeconds(stats, sec) {
 }
 export function setGoalMin(stats, min) {
   return { ...stats, goalMin: Math.max(1, Math.round(min)) }
+}
+
+// Ghi một buổi ôn vào NHẬT KÝ theo NGÀY + theo MÔN (số câu ôn, đúng, sai, thời gian).
+export function addSession(stats, { subject = 'Toán', total = 0, correct = 0, sec = 0 } = {}) {
+  const t = today()
+  const log = { ...(stats.log || {}) }
+  const day = { ...(log[t] || {}) }
+  const prev = day[subject] || { reviewed: 0, correct: 0, wrong: 0, sec: 0 }
+  const tot = Math.max(0, Math.round(total))
+  const cor = Math.min(tot, Math.max(0, Math.round(correct)))
+  day[subject] = {
+    reviewed: prev.reviewed + tot,
+    correct: prev.correct + cor,
+    wrong: prev.wrong + (tot - cor),
+    sec: prev.sec + Math.max(0, Math.round(sec)),
+  }
+  log[t] = day
+  return { ...stats, log }
+}
+
+// Báo cáo của MỘT ngày: danh sách theo môn ([] nếu ngày đó chưa ôn).
+export function dayReport(stats, dayIso) {
+  const day = (stats.log || {})[dayIso]
+  if (!day) return []
+  return Object.keys(day).map((subject) => ({ subject, ...day[subject] }))
 }
 
 // 7 ngày gần nhất (kể cả hôm nay), cũ -> mới.

@@ -202,14 +202,17 @@ export default function BalloonGame({ questions, mem, title = 'Bắn bóng', onF
           )
         })}
 
-        {/* Đường ngắm */}
+        {/* Đường ngắm — cùng hướng với mũi tên sẽ bắn */}
         {aiming && !shot && <div className="bl-aimline" style={{ left: CX + '%', top: CY + '%', transform: `translate(-50%, -100%) rotate(${aimDeg}deg)` }} />}
 
         {/* Mũi tên đang bay */}
         {arrow && <div className="bl-arrow flying" style={{ left: CX + '%', top: CY + '%', '--dx': arrow.dx + 'px', '--dy': arrow.dy + 'px', '--adeg': arrow.deg + 'deg' }}>➤</div>}
 
-        {/* Cung tên ở đáy — nghiêng & to lên khi đang kéo (ngắm) */}
-        <div className="bl-bow" style={{ left: CX + '%', top: CY + '%', transform: `translate(-50%,-50%) rotate(${aimDeg * 0.5}deg) scale(${aiming ? 1.18 : 1})` }}>🏹</div>
+        {/* Mũi tên NGẮM — LUÔN chỉ đúng hướng sẽ bắn (đẩy ra khỏi cung, nằm trên đường ngắm) */}
+        {!shot && !arrow && <div className="bl-aimarrow" style={{ left: CX + '%', top: CY + '%', transform: `translate(-50%,-50%) rotate(${aimDeg - 90}deg) translateX(${aiming ? 34 : 24}px) scale(${aiming ? 1.3 : 1.05})` }}>➤</div>}
+
+        {/* Cây cung ở đáy — to lên khi đang kéo (ngắm) */}
+        <div className="bl-bow" style={{ left: CX + '%', top: CY + '%', transform: `translate(-50%,-50%) scale(${aiming ? 1.14 : 1})` }}>🏹</div>
       </div>
 
       {fb ? (

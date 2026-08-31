@@ -1,13 +1,32 @@
-import { Brand, StatusPill, MasteryBar } from '../components.jsx'
-import { conceptStatusList, parentSummary } from '../lib/mockAI.js'
-import { last7, totalMinutes, todayMinutes, goalMetCount } from '../lib/stats.js'
+import { useState } from 'react'
+import { Brand, StatusPill, MasteryBar, RewardTrack } from '../components.jsx'
+import { conceptStatusList } from '../lib/mockAI.js'
+import { last7, totalMinutes, todayMinutes, goalMetCount, dayReport } from '../lib/stats.js'
+
+const WD = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
 
 function hm(min) {
   const h = Math.floor(min / 60), m = min % 60
   return h ? `${h} giờ ${m} phút` : `${m} phút`
 }
 
-function StudyChart({ stats }) {
+function isoToday() { return new Date().toISOString().slice(0, 10) }
+function dayLabel(iso) {
+  const d = new Date(iso + 'T00:00:00')
+  const base = `${WD[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}`
+  return iso === isoToday() ? `${base} (hôm nay)` : base
+}
+function pctOf(r) { return r.reviewed ? Math.round((r.correct / r.reviewed) * 100) : 0 }
+function dayComment(r) {
+  if (!r.reviewed) return 'Chưa có dữ liệu.'
+  const p = pctOf(r)
+  if (p >= 85) return `Con làm rất tốt (${p}% đúng) — nắm chắc bài. 👏`
+  if (p >= 65) return `Con làm khá ổn (${p}% đúng), nên xem lại vài câu còn sai.`
+  if (p >= 40) return `Con đúng ${p}% — cần luyện thêm phần này.`
+  return `Con mới đúng ${p}% — nên ôn kỹ lại phần này cùng con.`
+}
+
+function StudyChart({ stats, sel, onSel }) {
   const days = last7(stats)
   const goal = stats.goalMin
   const maxV = Math.max(goal, ...days.map((d) => d.min), 1) * 1.2 // chừa chỗ cho số trên cột
@@ -16,15 +35,18 @@ function StudyChart({ stats }) {
       <div className="chart-plot">
         <div className="chart-goal" style={{ bottom: (goal / maxV) * 100 + '%' }}><i>Mục tiêu {goal}′</i></div>
         {days.map((d) => (
-          <div className="cbar" key={d.date} title={d.min + ' phút'}>
+          <button type="button" className={'cbar' + (d.date === sel ? ' sel' : '')} key={d.date}
+            onClick={() => onSel(d.date)} title="Bấm để xem nhận xét ngày này">
             {d.min > 0 && <span className="cbar-num">{d.min}</span>}
             <div className={'cbar-fill' + (d.min >= goal ? ' met' : '') + (d.isToday ? ' today' : '')}
               style={{ height: Math.max(d.min > 0 ? 4 : 0, (d.min / maxV) * 100) + '%' }} />
-          </div>
+          </button>
         ))}
       </div>
       <div className="chart-x">
-        {days.map((d) => <span key={d.date} className={d.isToday ? 'on' : ''}>{d.label}</span>)}
+        {days.map((d) => (
+          <span key={d.date} className={(d.isToday ? 'on' : '') + (d.date === sel ? ' sel' : '')}>{d.label}</span>
+        ))}
       </div>
     </div>
   )
@@ -33,11 +55,16 @@ function StudyChart({ stats }) {
 export default function ParentDashboard({ mem, session, stats, onSettings, toast }) {
   const concepts = conceptStatusList(mem)
   const pct = session ? Math.round((session.correct / session.total) * 100) : null
-  const summary = parentSummary(mem, session)
   const total = totalMinutes(stats)
   const todayM = todayMinutes(stats)
   const met = goalMetCount(stats)
   const goalToday = todayM >= stats.goalMin
+
+  // Ngày đang xem trong phần "Nhận xét": mặc định là ngày GẦN NHẤT có ôn bài.
+  const days7 = last7(stats)
+  const defaultDay = ([...days7].reverse().find((d) => dayReport(stats, d.date).length) || days7[days7.length - 1]).date
+  const [selDay, setSelDay] = useState(defaultDay)
+  const report = dayReport(stats, selDay)
 
   return (
     <div className="screen">
@@ -64,19 +91,38 @@ export default function ParentDashboard({ mem, session, stats, onSettings, toast
           <h3>Thời gian học (7 ngày)</h3>
           <span className={'goal-pill' + (goalToday ? ' met' : '')}>{goalToday ? '✓ Đạt mục tiêu hôm nay' : `Mục tiêu ${stats.goalMin}′/ngày`}</span>
         </div>
-        <StudyChart stats={stats} />
+        <StudyChart stats={stats} sel={selDay} onSel={setSelDay} />
         <div className="study-foot">
           <div><b>{hm(total)}</b><span>Tổng thời gian học</span></div>
-          <div><b>{met}/7</b><span>Ngày đạt mục tiêu</span></div>
+          <div><b>{met}/7</b><span>Ngày đạt (7 ngày gần đây)</span></div>
         </div>
       </section>
 
-      <div className="ai-summary">
-        <div className="ai-ic">✨</div>
-        <div>
-          <div className="ai-label">Nhận xét cho con</div>
-          <p>{summary}</p>
+      {/* Đường đến phần thưởng — DÙNG CHUNG với trang Con nên số ngày luôn khớp nhau */}
+      <RewardTrack stats={stats} />
+
+      {/* Nhận xét theo NGÀY: bấm cột ngày ở biểu đồ trên để xem chi tiết từng ngày */}
+      <div className="daynote">
+        <div className="daynote-head">
+          <span className="daynote-ic">📌</span>
+          <div className="ai-label">Nhận xét cho con · {dayLabel(selDay)}</div>
         </div>
+        {report.length === 0 ? (
+          <p className="daynote-empty">Ngày này con chưa ôn bài. Bấm một cột khác ở biểu đồ để xem ngày có học.</p>
+        ) : (
+          report.map((r) => (
+            <div className="subj-block" key={r.subject}>
+              <div className="subj-name">{r.subject}</div>
+              <p className="subj-comment">{dayComment(r)}</p>
+              <ul className="subj-bullets">
+                <li>Số câu ôn tập: <b>{r.reviewed}</b> câu</li>
+                <li>Làm đúng: <b>{r.correct}</b> câu</li>
+                <li>Làm sai: <b>{r.wrong}</b> câu</li>
+                <li>Thời gian ôn môn {r.subject}: <b>{Math.max(1, Math.round(r.sec / 60))}</b> phút</li>
+              </ul>
+            </div>
+          ))
+        )}
       </div>
 
       <section className="kmap">

@@ -3,10 +3,11 @@ import { loadMemory, saveMemory, applySession, addConcepts } from './lib/memory.
 import { buildReview } from './lib/mockAI.js'
 import { generateQuestions } from './lib/aiClient.js'
 import { loadAccount, saveAccount, loadSession, setSession as persistSession } from './lib/auth.js'
-import { loadStats, saveStats, addSeconds, setGoalMin } from './lib/stats.js'
+import { loadStats, saveStats, addSeconds, addSession, setGoalMin } from './lib/stats.js'
 import { loadSettings, saveSettings } from './lib/settings.js'
 import { canon, localMatch } from './lib/answerMatch.js'
 import { dotNumbers } from './lib/num.js'
+import { loadRecent, pushRecent } from './lib/recent.js'
 
 import Auth from './screens/Auth.jsx'
 import Settings from './screens/Settings.jsx'
@@ -43,11 +44,20 @@ function shuffled(arr) {
   return a
 }
 
+// Ưu tiên câu CHƯA gặp ở các lần ôn gần đây (đưa câu đã gặp xuống cuối),
+// nhờ đó các lần ôn khác nhau ra câu khác nhau dù cùng nội dung.
+function orderByFresh(out, recent) {
+  if (!recent || !recent.size) return out
+  const fresh = out.filter((o) => !recent.has(o._k))
+  const seen = out.filter((o) => recent.has(o._k))
+  return [...fresh, ...seen]
+}
+
 // Trắc nghiệm: ô đúng dò theo GIÁ TRỊ đáp án (không tin số thứ tự máy ghi — tránh đánh dấu nhầm ô).
 // Bỏ câu có 2 lựa chọn trùng nghĩa (2 đáp án cùng đúng) và bỏ câu lặp trong buổi ôn.
 // XÁO vị trí 4 lựa chọn để đáp án đúng không luôn nằm 1 chỗ (bóng cam/ô số 1).
 // Chèn dấu chấm hàng ngàn cho số dài (1000000 -> 1.000.000) trong câu, lựa chọn, lời giải.
-function normalizeQs(qs) {
+function normalizeQs(qs, recent = null) {
   if (!Array.isArray(qs)) return []
   const out = []
   const seenQ = new Set()
@@ -70,13 +80,13 @@ function normalizeQs(qs) {
     const order = shuffled([0, 1, 2, 3])
     const options = order.map((j) => dotNumbers(rawOpts[j]))
     const answer = order.indexOf(idx)
-    out.push({ concept: q.concept || 'Ôn tập', q: dotNumbers(q.q), options, answer, explain: dotNumbers(q.explain || ''), hint: '' })
+    out.push({ concept: q.concept || 'Ôn tập', q: dotNumbers(q.q), options, answer, explain: dotNumbers(q.explain || ''), hint: '', _k: key })
   }
-  return out
+  return orderByFresh(out, recent)
 }
 
 // Câu TỰ ĐIỀN (mở): đáp án là chuỗi. Loại câu "trong các... sau" (cần danh sách) và câu lặp.
-function normalizeOpen(qs) {
+function normalizeOpen(qs, recent = null) {
   if (!Array.isArray(qs)) return []
   const out = []
   const seenQ = new Set()
@@ -86,9 +96,9 @@ function normalizeOpen(qs) {
     const key = canon(q.q)
     if (!key || seenQ.has(key)) continue
     seenQ.add(key)
-    out.push({ concept: q.concept || 'Ôn tập', q: dotNumbers(q.q), answer: dotNumbers(String(q.answer).trim()), explain: dotNumbers(q.explain || ''), hint: '' })
+    out.push({ concept: q.concept || 'Ôn tập', q: dotNumbers(q.q), answer: dotNumbers(String(q.answer).trim()), explain: dotNumbers(q.explain || ''), hint: '', _k: key })
   }
-  return out
+  return orderByFresh(out, recent)
 }
 
 export default function App() {
@@ -110,6 +120,8 @@ export default function App() {
   const [generating, setGenerating] = useState(false)
   // Thời gian con CHỜ app soạn/nạp bài (giây) — sẽ được cộng vào thời gian học của buổi ôn.
   const loadSecondsRef = useRef(0)
+  // Môn của buổi ôn hiện tại — để ghi nhật ký theo môn cho phụ huynh xem.
+  const reviewSubjectRef = useRef('Toán')
 
   useEffect(() => { saveMemory(mem) }, [mem])
   useEffect(() => { saveStats(stats) }, [stats])
@@ -188,14 +200,28 @@ export default function App() {
       topic = first?.topic || names[0] || 'Ôn tập'
       concepts = names
     }
+    reviewSubjectRef.current = subject
     const isTyped = m === 'typed'
+    const fmt = isTyped ? 'open' : 'choice'
+    const recent = new Set(loadRecent()) // câu đã gặp gần đây -> ưu tiên câu mới
+    const norm = (arr) => (isTyped ? normalizeOpen(arr, recent) : normalizeQs(arr, recent))
     let qs = []
     try {
-      // Soạn dư vài câu để bù những câu bị loại (đáp án lỗi, trùng nghĩa, lặp).
-      const raw = await generateQuestions({ subject, grade: '4-5', topic, concepts, count: count + 3, format: isTyped ? 'open' : 'choice', master })
-      qs = (isTyped ? normalizeOpen(raw) : normalizeQs(raw)).slice(0, count)
+      // Soạn DƯ vài câu để bù câu bị loại (đáp án lỗi, trùng nghĩa, lặp) và để đủ 10 câu.
+      const raw = await generateQuestions({ subject, grade: '4-5', topic, concepts, count: count + 5, format: fmt, master })
+      let list = norm(raw)
+      // Chưa đủ số câu -> soạn BÙ MỘT lần nữa (chỉ khi thiếu, để tiết kiệm).
+      if (list.length < count && raw.length) {
+        try {
+          const raw2 = await generateQuestions({ subject, grade: '4-5', topic, concepts, count: (count - list.length) + 4, format: fmt, master })
+          list = norm([...raw, ...raw2])
+        } catch { /* giữ danh sách đã có */ }
+      }
+      qs = list.slice(0, count)
     } catch { qs = [] }
     if (!qs.length) qs = buildReview(mem, count, { openOnly: isTyped, conceptNames: concepts })
+    // Ghi nhớ các câu vừa dùng để lần ôn sau không lặp lại y hệt.
+    pushRecent(qs.map((q) => q._k).filter(Boolean))
     // Chốt thời gian chờ nạp bài (giới hạn 180s để tránh trường hợp mạng treo cộng dồn bất thường).
     loadSecondsRef.current = Math.min(180, ((typeof performance !== 'undefined' ? performance.now() : Date.now()) - loadT0) / 1000)
     setReviewQuestions(qs)
@@ -206,7 +232,13 @@ export default function App() {
     // Thời gian học = thời gian CHỜ app nạp bài + thời gian con thực sự làm bài.
     const loadSec = loadSecondsRef.current || 0
     const studySeconds = Math.round((summary.activeSeconds || 0) + loadSec)
-    if (studySeconds >= 1) setStats((s) => addSeconds(s, studySeconds))
+    // Cộng thời gian học + ghi NHẬT KÝ theo ngày/môn (số câu, đúng, sai, thời gian) cho phụ huynh.
+    setStats((s) => addSession(addSeconds(s, studySeconds), {
+      subject: reviewSubjectRef.current || 'Toán',
+      total: summary.total || 0,
+      correct: summary.correct || 0,
+      sec: studySeconds,
+    }))
     loadSecondsRef.current = 0 // đã cộng xong, tránh cộng trùng
     const deltas = Object.entries(perConcept).map(([key, r]) => {
       const old = mem.find((c) => c.id === key || c.name === key)

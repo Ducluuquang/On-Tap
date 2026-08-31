@@ -5,8 +5,8 @@ import { fmt } from '../lib/num.js'
 import { createActiveTimer } from '../lib/stats.js'
 import { CONCEPT_NAME } from '../data/content.js'
 
-const PER_Q = 10000 // 10 giây rơi
-const START_SEC = 10
+const PER_Q = 20000 // 20 giây rơi
+const START_SEC = 20
 
 export default function FallingGame({ questions, mem, title = 'Thả rơi', onFinish, onExit }) {
   const [index, setIndex] = useState(0)
