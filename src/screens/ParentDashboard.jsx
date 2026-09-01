@@ -52,9 +52,8 @@ function StudyChart({ stats, sel, onSel }) {
   )
 }
 
-export default function ParentDashboard({ mem, session, stats, onSettings, toast }) {
+export default function ParentDashboard({ mem, stats, onSettings, toast }) {
   const concepts = conceptStatusList(mem)
-  const pct = session ? Math.round((session.correct / session.total) * 100) : null
   const total = totalMinutes(stats)
   const todayM = todayMinutes(stats)
   const streak = streakDays(stats) // DÙNG CHUNG với thẻ phần thưởng -> luôn khớp nhau
@@ -78,13 +77,6 @@ export default function ParentDashboard({ mem, session, stats, onSettings, toast
         <h1>Hôm nay của Minh</h1>
         <p>Mở 10 giây là biết con học thế nào.</p>
       </section>
-
-      <div className="stat4">
-        <div className="stat"><div className="stat-v">{session ? 'Rồi' : 'Chưa'}</div><div className="stat-k">Đã ôn</div></div>
-        <div className="stat"><div className="stat-v">{session ? session.total : '—'}</div><div className="stat-k">Số câu</div></div>
-        <div className="stat"><div className="stat-v">{pct !== null ? pct + '%' : '—'}</div><div className="stat-k">Đúng</div></div>
-        <div className="stat"><div className="stat-v">{todayM}′</div><div className="stat-k">Học hôm nay</div></div>
-      </div>
 
       <section className="study">
         <div className="study-head">

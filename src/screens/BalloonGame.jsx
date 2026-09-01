@@ -214,10 +214,10 @@ export default function BalloonGame({ questions, mem, title = 'Bắn bóng', onF
         {/* Cây cung (KHÔNG có mũi tên) — to & xoay theo đúng hướng ngắm cho đỡ gượng */}
         <div className="bl-bow" style={{ left: CX + '%', top: CY + '%', transform: `translate(-50%,-50%) rotate(${aimDeg - 90}deg) scale(${aiming ? 1.12 : 1})` }} aria-hidden="true">
           <svg viewBox="0 0 44 66" width="52" height="74">
-            <path d="M31 6 Q5 33 31 60" fill="none" stroke="#7a4a22" strokeWidth="6.4" strokeLinecap="round" />
-            <path d="M31 6 Q5 33 31 60" fill="none" stroke="#b6823f" strokeWidth="2.6" strokeLinecap="round" />
-            <line x1="31" y1="7" x2="31" y2="59" stroke="#efe4c8" strokeWidth="2.2" />
-            <circle cx="18" cy="33" r="3.4" fill="#5e3c1a" />
+            <path d="M13 6 Q39 33 13 60" fill="none" stroke="#7a4a22" strokeWidth="6.4" strokeLinecap="round" />
+            <path d="M13 6 Q39 33 13 60" fill="none" stroke="#b6823f" strokeWidth="2.6" strokeLinecap="round" />
+            <line x1="13" y1="7" x2="13" y2="59" stroke="#efe4c8" strokeWidth="2.2" />
+            <circle cx="26" cy="33" r="3.4" fill="#5e3c1a" />
           </svg>
         </div>
       </div>
