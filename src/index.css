@@ -549,9 +549,13 @@ body{
 /* 6 game xếp 2 hàng (3 cột) */
 .chips-2row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .chips-2row .chip{width:100%;justify-content:center;text-align:center;padding-left:6px;padding-right:6px}
+/* 3 tab phong cách nằm gọn trên 1 hàng */
+.chips-3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.chips-3 .chip{width:100%;justify-content:center;text-align:center;padding:11px 4px;font-size:.86rem;white-space:nowrap}
 
 /* Băng chỉ dẫn cho dạng "Tìm lỗi sai" */
 .find-hint{background:#FFF3D6;color:#8a5a12;border:1px solid #F1D999;border-radius:12px;padding:8px 12px;font-size:.86rem;font-weight:800;margin:2px 0 10px}
+.q-multiline{white-space:pre-line}
 
 /* Dropdown chọn chủ đề từ bản đồ kiến thức */
 .cr-select{width:100%;margin-top:8px;border:1.5px solid var(--border);border-radius:12px;padding:11px 13px;font-family:inherit;font-size:.95rem;color:var(--ink);background:#fff;cursor:pointer}

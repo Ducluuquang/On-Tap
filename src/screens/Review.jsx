@@ -83,7 +83,7 @@ export default function Review({ questions, mem, title = 'Ôn tập hôm nay', h
 
       {hint && <div className="find-hint">{hint}</div>}
       <div className="qtag">{label}</div>
-      <h2 className="question">{q.q}</h2>
+      <h2 className={'question' + (hint ? ' q-multiline' : '')}>{q.q}</h2>
 
       <div className="opts">
         {q.options.map((o, i) => (

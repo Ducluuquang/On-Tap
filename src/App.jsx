@@ -60,6 +60,18 @@ function shuffled(arr) {
   return a
 }
 
+// "Tìm lỗi sai" — dựng từ câu trắc nghiệm CHUẨN: đáp án đúng GIỮ NGUYÊN (do model chính xác chọn),
+// cho "một bạn trả lời" bằng MỘT lựa chọn SAI có sẵn (chắc chắn sai vì khác đáp án đúng).
+// Nhờ vậy KHÔNG BAO GIỜ chấm nhầm hay bịa lỗi không có thật.
+function toFindError(qs) {
+  return qs.map((q) => {
+    if (!Array.isArray(q.options) || q.options.length !== 4 || typeof q.answer !== 'number') return q
+    const wrongs = [0, 1, 2, 3].filter((i) => i !== q.answer)
+    const student = q.options[wrongs[Math.floor(Math.random() * wrongs.length)]]
+    return { ...q, q: `${q.q}\nMột bạn trả lời: “${student}”. Bạn ấy SAI rồi — đáp án ĐÚNG là gì?` }
+  })
+}
+
 // Ưu tiên câu CHƯA gặp ở các lần ôn gần đây (đưa câu đã gặp xuống cuối),
 // nhờ đó các lần ôn khác nhau ra câu khác nhau dù cùng nội dung.
 function orderByFresh(out, recent) {
@@ -223,7 +235,9 @@ export default function App() {
     }
     reviewSubjectRef.current = subject
     const isTyped = m === 'typed'
-    const fmt = isTyped ? 'open' : (m === 'finderror' ? 'finderror' : 'choice')
+    // "Tìm lỗi sai" dùng CHÍNH câu trắc nghiệm chuẩn (đáp án do model chính xác chọn),
+    // rồi dựng phần "một bạn trả lời sai" ở client -> không bao giờ chấm nhầm.
+    const fmt = isTyped ? 'open' : 'choice'
     const recent = new Set(loadRecent()) // câu đã gặp gần đây -> ưu tiên câu mới
     const norm = (arr) => (isTyped ? normalizeOpen(arr, recent) : normalizeQs(arr, recent))
     let qs = []
@@ -258,6 +272,8 @@ export default function App() {
       const base = qs.slice()
       for (let i = 0; qs.length < count; i++) qs = qs.concat([{ ...base[i % base.length] }])
     }
+    // "Tìm lỗi sai": dựng phần "một bạn trả lời sai" (giữ nguyên đáp án đúng đã có).
+    if (m === 'finderror') qs = toFindError(qs)
     // Chốt thời gian chờ nạp bài (giới hạn 180s để tránh trường hợp mạng treo cộng dồn bất thường).
     loadSecondsRef.current = Math.min(180, ((typeof performance !== 'undefined' ? performance.now() : Date.now()) - loadT0) / 1000)
     setReviewQuestions(qs)
@@ -341,7 +357,7 @@ export default function App() {
     } else if (view === 'mario') {
       screen = genOrScreen(<MarioGame questions={reviewQuestions} mem={mem} title={reviewTitle} onFinish={handleFinish} onExit={() => setView('home')} />)
     } else if (view === 'finderror') {
-      screen = genOrScreen(<Review questions={reviewQuestions} mem={mem} title={reviewTitle} hint="🔎 Đề đã bị làm SAI — con tìm đáp án ĐÚNG nhé!" onFinish={handleFinish} onExit={() => setView('home')} />)
+      screen = genOrScreen(<Review questions={reviewQuestions} mem={mem} title={reviewTitle} hint="🔎 Tìm lỗi sai — một bạn trả lời SAI, con chọn đáp án ĐÚNG nhé!" onFinish={handleFinish} onExit={() => setView('home')} />)
     } else if (view === 'capture') {
       screen = <ParentCapture onExtracted={onExtracted} onBack={() => setView('home')} />
     } else if (view === 'approve' && pending) {

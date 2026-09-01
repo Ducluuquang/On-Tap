@@ -101,27 +101,13 @@ const masterRule = (grade) =>
 async function genChunk(key, { subject, grade, topic, concepts, format, fast = false, master = false }, n, salt = '') {
   const names = concepts.map((c) => (typeof c === 'string' ? c : c.name)).join(', ')
   const open = format === 'open'
-  const finderr = format === 'finderror' // dạng "Tìm lỗi sai" (trắc nghiệm, có bài giải SAI)
   const mrule = master ? '\n' + masterRule(grade) : ''
   // BẮT BUỘC đúng chủ đề: tránh lạc đề (đang ôn phép chia lại ra phép nhân, ôn số tự nhiên lại ra phân số…).
   const topicRule =
 `QUAN TRỌNG — ĐÚNG CHỦ ĐỀ: CHỈ ra câu luyện đúng các khái niệm đang ôn: ${names} (thuộc chủ đề "${topic}"). TUYỆT ĐỐI KHÔNG ra câu thuộc khái niệm/dạng KHÁC. Ví dụ: đang ôn "ước lượng thương / phép chia" thì KHÔNG hỏi phép nhân hay cách đọc số; đang ôn "số tự nhiên" thì KHÔNG hỏi phân số. Mỗi câu phải trực tiếp luyện đúng các khái niệm trên.`
   const kindOpen = master ? 'câu hỏi NÂNG CAO để học sinh TỰ ĐIỀN đáp án (KHÔNG có lựa chọn sẵn)' : 'câu hỏi để học sinh TỰ ĐIỀN đáp án (KHÔNG có lựa chọn sẵn)'
   const kindChoice = master ? 'câu hỏi trắc nghiệm NÂNG CAO, KẾT HỢP nhiều khái niệm, mỗi câu 4 lựa chọn' : 'câu hỏi trắc nghiệm KHÁC NHAU cho học sinh ôn tập, mỗi câu 4 lựa chọn'
-  const finderrBody =
-`Môn ${subject}, lớp ${grade}, chủ đề "${topic}". Các khái niệm: ${names}.
-Tạo ${n} câu dạng "TÌM LỖI SAI": nêu một bài đã được một bạn nhỏ GIẢI/ĐỌC SAI, rồi hỏi để học sinh tìm ra ĐÁP ÁN ĐÚNG. Mỗi câu 4 lựa chọn.${mrule}
-${topicRule}
-QUY TẮC BẮT BUỘC:
-- "q": nêu rõ bài toán KÈM kết quả SAI của bạn nhỏ, rồi hỏi kết quả/đáp án ĐÚNG. Ví dụ: "Bạn Lan tính 24 × 3 = 62. Kết quả đúng là bao nhiêu?"; "Bạn Nam đọc số 305 040 là 'ba trăm năm nghìn không trăm bốn mươi'. Cách đọc ĐÚNG là gì?".
-- "answer": GHI NGUYÊN VĂN đáp án ĐÚNG, phải TRÙNG KHÍT một trong 4 "options" (KHÔNG ghi số thứ tự).
-- 4 "options" KHÁC NHAU rõ ràng, CHỈ 1 đúng; NÊN có một lựa chọn chính là KẾT QUẢ SAI ở đề để con nhận diện.
-${NUM_RULE}
-- "explain" ≤25 từ: chỉ ra bạn nhỏ sai ở đâu và vì sao. Tự tính lại để "answer" chắc chắn đúng.
-Trả DUY NHẤT JSON:
-{"questions":[{"concept":"","q":"","options":["","","",""],"answer":"","explain":""}]}
-Tiếng Việt, chính xác. Chỉ JSON.`
-  const prompt = salt + (finderr ? finderrBody : open
+  const prompt = salt + (open
     ? `Môn ${subject}, lớp ${grade}, chủ đề "${topic}". Các khái niệm: ${names}.
 Tạo ${n} ${kindOpen}.${mrule}
 ${topicRule}

@@ -14,7 +14,7 @@ const COUNTS = [10, 15, 20, 25]
 // Phong cách học tập: cách con TRẢ LỜI.
 const STYLES = [
   { k: 'quiz', l: 'Trắc nghiệm', choice: true },
-  { k: 'typed', l: 'Tự điền đáp án ✍️', choice: false },
+  { k: 'typed', l: 'Điền đáp án ✍️', choice: false },
   { k: 'finderror', l: 'Tìm lỗi sai 🔎', choice: true },
 ]
 // 6 game vui (đều dạng trắc nghiệm) — xếp 2 hàng.
@@ -98,7 +98,7 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true 
       </div>
 
       <div className="cr-sec">
-        <h3>Chọn số câu hỏi và phong cách học tập</h3>
+        <h3>Chọn số câu hỏi</h3>
         <div className="chips">
           {COUNTS.map((n) => (
             <button key={n} className={'chip' + (count === n ? ' on' : '')} onClick={() => setCount(n)}>{n} câu</button>
@@ -106,7 +106,7 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true 
         </div>
 
         <p className="cr-sub">Phong cách học tập</p>
-        <div className="chips">
+        <div className={'chips' + (styles.length === 3 ? ' chips-3' : '')}>
           {styles.map((o) => (
             <button key={o.k} className={'chip' + (mode === o.k ? ' on' : '')} onClick={() => setMode(o.k)}>{o.l}</button>
           ))}
