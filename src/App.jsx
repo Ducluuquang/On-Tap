@@ -37,6 +37,21 @@ function GeneratingScreen() {
   )
 }
 
+// Soạn bài thất bại (mạng chậm/bận) — cho con bấm "Thử lại" thay vì đứng hình.
+function GenErrorScreen({ onRetry, onHome }) {
+  return (
+    <div className="screen center">
+      <div className="reading">
+        <div className="gen-fail-ic">😅</div>
+        <h2>Chưa soạn được câu hỏi</h2>
+        <p>Mạng hơi chậm hoặc đang bận. Con bấm “Thử lại” nhé — thường lần sau là được.</p>
+        <button className="cta" onClick={onRetry}>🔄 Thử lại</button>
+        <button className="cta small ghost" onClick={onHome}>Về trang chủ</button>
+      </div>
+    </div>
+  )
+}
+
 // Xáo trộn mảng (Fisher–Yates) — để vị trí đáp án đúng không cố định.
 function shuffled(arr) {
   const a = arr.slice()
@@ -118,10 +133,12 @@ export default function App() {
   const [reviewMode, setReviewMode] = useState('quiz')
   const [reviewQuestions, setReviewQuestions] = useState(null)
   const [generating, setGenerating] = useState(false)
+  const [genError, setGenError] = useState(false) // soạn bài thất bại -> hiện nút "Thử lại"
   // Thời gian con CHỜ app soạn/nạp bài (giây) — sẽ được cộng vào thời gian học của buổi ôn.
   const loadSecondsRef = useRef(0)
   // Môn của buổi ôn hiện tại — để ghi nhật ký theo môn cho phụ huynh xem.
   const reviewSubjectRef = useRef('Toán')
+  const lastReviewRef = useRef(null) // yêu cầu ôn gần nhất — để bấm "Thử lại"
 
   useEffect(() => { saveMemory(mem) }, [mem])
   useEffect(() => { saveStats(stats) }, [stats])
@@ -170,13 +187,16 @@ export default function App() {
     setView(r === 'child' ? 'home' : 'dashboard')
   }
 
-  async function startReview({ title = 'Ôn tập', conceptNames, count = 10, mode = 'quiz', master = false, masterText = '' } = {}) {
+  async function startReview(opts = {}) {
+    const { title = 'Ôn tập', conceptNames, count = 10, mode = 'quiz', master = false, masterText = '' } = opts
+    lastReviewRef.current = opts // để nút "Thử lại" soạn lại đúng yêu cầu này
     // An toàn: nếu phụ huynh đã tắt trắc nghiệm thì mọi buổi ôn đều là tự điền.
     const m = settings.allowChoice ? mode : 'typed'
     const viewFor = { typed: 'typed', falling: 'falling', quickfire: 'quickfire', boss: 'boss', balloon: 'balloon', sushi: 'sushi' }
     setReviewTitle(title)
     setReviewMode(m)
     setReviewQuestions(null)
+    setGenError(false)
     setGenerating(true)
     setView(viewFor[m] || 'review')
     // Bắt đầu bấm giờ CHỜ nạp bài (con vẫn đang "học" trong lúc đợi app soạn câu hỏi).
@@ -209,21 +229,25 @@ export default function App() {
     try {
       let raw = []
       let list = []
-      // Gọi tối đa 3 lượt (1 chính + 2 bù) để CHẮC CHẮN đủ số câu đã chọn (10/15/20),
-      // nhưng dừng ngay khi đủ để tiết kiệm credit.
-      for (let round = 0; round < 3 && list.length < count; round++) {
-        const ask = round === 0 ? count + 5 : (count - list.length) + 4
-        let batch = []
-        try {
-          batch = await generateQuestions({ subject, grade: '4-5', topic, concepts, count: ask, format: fmt, master })
-        } catch { batch = [] }
-        if (!batch.length) break
+      // Soạn bài bằng model NHANH (fast), tối đa 2 lượt (1 chính + 1 bù) cho NHANH & đỡ lỗi.
+      for (let round = 0; round < 2 && list.length < count; round++) {
+        const ask = round === 0 ? count + 3 : (count - list.length) + 3
+        // generateQuestions đã tự bắt lỗi nên không ném ra ngoài.
+        const batch = await generateQuestions({ subject, grade: '4-5', topic, concepts, count: ask, format: fmt, master, fast: true })
+        if (!batch || !batch.length) break
         raw = raw.concat(batch)
         list = norm(raw) // chuẩn hoá + khử trùng trên TOÀN BỘ các lượt đã gộp
       }
       qs = list.slice(0, count)
     } catch { qs = [] }
     if (!qs.length) qs = buildReview(mem, count, { openOnly: isTyped, conceptNames: concepts })
+    // Không soạn được câu nào -> hiện màn hình "Thử lại" thân thiện (không đứng hình, không báo lỗi cụt).
+    if (!qs.length) {
+      loadSecondsRef.current = 0
+      setGenError(true)
+      setGenerating(false)
+      return
+    }
     // Ghi nhớ các câu (bản gốc, chưa vá) để lần sau không lặp lại y hệt.
     pushRecent(qs.map((q) => q._k).filter(Boolean))
     // BẢO ĐẢM ĐỦ SỐ CÂU: chọn 10 luôn có 10 câu. Nếu vì mạng/đề hẹp mà vẫn thiếu,
@@ -270,7 +294,12 @@ export default function App() {
     setPending(null)
     setView(role === 'child' ? 'home' : 'dashboard')
   }
-  const genOrScreen = (node) => (generating || !reviewQuestions) ? <GeneratingScreen /> : node
+  const retryReview = () => { if (lastReviewRef.current) startReview(lastReviewRef.current) }
+  const goHomeFromError = () => { setGenError(false); setView('home') }
+  const genOrScreen = (node) => {
+    if (genError) return <GenErrorScreen onRetry={retryReview} onHome={goHomeFromError} />
+    return (generating || !reviewQuestions) ? <GeneratingScreen /> : node
+  }
   const homeView = role === 'child' ? 'home' : 'dashboard'
 
   if (!authed) {

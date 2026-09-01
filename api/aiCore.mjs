@@ -152,7 +152,8 @@ function dedupeByQ(list) {
 // Sinh câu hỏi ôn tập — chia thành nhiều đợt CHẠY SONG SONG cho nhanh.
 // format='open': câu TỰ ĐIỀN (mở, tự chứa) cho chế độ không trắc nghiệm.
 export async function generateQuestions(key, opts) {
-  const { subject = 'Toán', grade = '', topic = '', concepts = [], count = 6, format = 'choice', fast = false, master = false } = opts
+  // fast=true (mặc định): dùng model NHANH (haiku) để soạn bài — nhanh hơn nhiều, đỡ lỗi quá giờ.
+  const { subject = 'Toán', grade = '', topic = '', concepts = [], count = 6, format = 'choice', fast = true, master = false } = opts
   const base = { subject, grade, topic, concepts, format, fast, master }
   // Mã đề NGẪU NHIÊN mỗi lần gọi -> mỗi buổi ôn ra bộ câu KHÁC nhau dù cùng nội dung.
   const vary = Math.random().toString(36).slice(2, 7)
@@ -160,7 +161,8 @@ export async function generateQuestions(key, opts) {
   const CHUNK = 5
   let all
   if (count <= CHUNK) {
-    all = await genChunk(key, base, count, freshRule)
+    // Có bắt lỗi để KHÔNG bao giờ ném ra ngoài (tránh cả buổi ôn bị "Chưa soạn được câu hỏi").
+    all = await genChunk(key, base, count, freshRule).catch(() => [])
   } else {
     const sizes = []
     for (let r = count; r > 0; r -= CHUNK) sizes.push(Math.min(CHUNK, r))
