@@ -5,7 +5,7 @@ import { createActiveTimer } from '../lib/stats.js'
 import { CONCEPT_NAME } from '../data/content.js'
 
 // Trắc nghiệm để HỌC: có giải thích. Sai là sai — không cho thử lại.
-export default function Review({ questions, mem, title = 'Ôn tập hôm nay', onFinish, onExit }) {
+export default function Review({ questions, mem, title = 'Ôn tập hôm nay', hint = '', onFinish, onExit }) {
   const [index, setIndex] = useState(0)
   const [picked, setPicked] = useState(null)
   const [resolved, setResolved] = useState(false)
@@ -81,6 +81,7 @@ export default function Review({ questions, mem, title = 'Ôn tập hôm nay', o
         <span className="qcount">{index + 1}/{questions.length}</span>
       </div>
 
+      {hint && <div className="find-hint">{hint}</div>}
       <div className="qtag">{label}</div>
       <h2 className="question">{q.q}</h2>
 

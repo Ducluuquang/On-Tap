@@ -20,6 +20,7 @@ import BossBattle from './screens/BossBattle.jsx'
 import FallingGame from './screens/FallingGame.jsx'
 import BalloonGame from './screens/BalloonGame.jsx'
 import SushiGame from './screens/SushiGame.jsx'
+import MarioGame from './screens/MarioGame.jsx'
 import Result from './screens/Result.jsx'
 import ParentCapture from './screens/ParentCapture.jsx'
 import ParentApprove from './screens/ParentApprove.jsx'
@@ -192,7 +193,7 @@ export default function App() {
     lastReviewRef.current = opts // để nút "Thử lại" soạn lại đúng yêu cầu này
     // An toàn: nếu phụ huynh đã tắt trắc nghiệm thì mọi buổi ôn đều là tự điền.
     const m = settings.allowChoice ? mode : 'typed'
-    const viewFor = { typed: 'typed', falling: 'falling', quickfire: 'quickfire', boss: 'boss', balloon: 'balloon', sushi: 'sushi' }
+    const viewFor = { typed: 'typed', falling: 'falling', quickfire: 'quickfire', boss: 'boss', balloon: 'balloon', sushi: 'sushi', finderror: 'finderror', mario: 'mario' }
     setReviewTitle(title)
     setReviewMode(m)
     setReviewQuestions(null)
@@ -222,7 +223,7 @@ export default function App() {
     }
     reviewSubjectRef.current = subject
     const isTyped = m === 'typed'
-    const fmt = isTyped ? 'open' : 'choice'
+    const fmt = isTyped ? 'open' : (m === 'finderror' ? 'finderror' : 'choice')
     const recent = new Set(loadRecent()) // câu đã gặp gần đây -> ưu tiên câu mới
     const norm = (arr) => (isTyped ? normalizeOpen(arr, recent) : normalizeQs(arr, recent))
     let qs = []
@@ -336,6 +337,10 @@ export default function App() {
       screen = genOrScreen(<BalloonGame questions={reviewQuestions} mem={mem} title={reviewTitle} onFinish={handleFinish} onExit={() => setView('home')} />)
     } else if (view === 'sushi') {
       screen = genOrScreen(<SushiGame questions={reviewQuestions} mem={mem} title={reviewTitle} onFinish={handleFinish} onExit={() => setView('home')} />)
+    } else if (view === 'mario') {
+      screen = genOrScreen(<MarioGame questions={reviewQuestions} mem={mem} title={reviewTitle} onFinish={handleFinish} onExit={() => setView('home')} />)
+    } else if (view === 'finderror') {
+      screen = genOrScreen(<Review questions={reviewQuestions} mem={mem} title={reviewTitle} hint="🔎 Đề đã bị làm SAI — con tìm đáp án ĐÚNG nhé!" onFinish={handleFinish} onExit={() => setView('home')} />)
     } else if (view === 'capture') {
       screen = <ParentCapture onExtracted={onExtracted} onBack={() => setView('home')} />
     } else if (view === 'approve' && pending) {

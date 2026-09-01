@@ -544,6 +544,15 @@ body{
 .subj-bullets li{font-size:.9rem;color:var(--ink);line-height:1.4}
 .subj-bullets b{color:var(--teal-dark)}
 
+/* Tiêu đề nhỏ trong phần chọn số câu / phong cách */
+.cr-sub{margin:13px 0 6px;font-size:.78rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+/* 6 game xếp 2 hàng (3 cột) */
+.chips-2row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.chips-2row .chip{width:100%;justify-content:center;text-align:center;padding-left:6px;padding-right:6px}
+
+/* Băng chỉ dẫn cho dạng "Tìm lỗi sai" */
+.find-hint{background:#FFF3D6;color:#8a5a12;border:1px solid #F1D999;border-radius:12px;padding:8px 12px;font-size:.86rem;font-weight:800;margin:2px 0 10px}
+
 /* Dropdown chọn chủ đề từ bản đồ kiến thức */
 .cr-select{width:100%;margin-top:8px;border:1.5px solid var(--border);border-radius:12px;padding:11px 13px;font-family:inherit;font-size:.95rem;color:var(--ink);background:#fff;cursor:pointer}
 .cr-select:focus{outline:none;border-color:var(--teal)}
@@ -551,3 +560,23 @@ body{
 /* Cung tên (Bắn bóng) — thay cho khẩu súng cũ */
 .bl-bow{position:absolute;z-index:3;pointer-events:none;line-height:0;transition:transform .07s ease;filter:drop-shadow(0 3px 4px rgba(0,0,0,.24))}
 .bl-bow svg{display:block}
+
+/* ===== Game: Mario nhảy 🍄 ===== */
+.mario-q{font-size:1.12rem}
+.mario-arena{position:relative;height:342px;margin-top:2px;border-radius:16px;border:1px solid var(--border);overflow:hidden;cursor:pointer;
+  background:linear-gradient(180deg,#Dff1ff 0%,#EAF7FF 55%,#Dcefdc 100%)}
+.mario-arena::before{content:"";position:absolute;left:0;right:0;top:0;height:60%;pointer-events:none;
+  background:radial-gradient(circle at 18% 24%,rgba(255,255,255,.7),transparent 40%),radial-gradient(circle at 74% 16%,rgba(255,255,255,.6),transparent 38%)}
+.mario-block{position:absolute;top:13%;transform:translateX(-50%);width:21%;min-height:52px;padding:8px 4px;border:0;border-radius:12px;cursor:pointer;font-family:inherit;font-weight:800;font-size:1rem;color:#5a3a10;z-index:2;
+  background:linear-gradient(180deg,#FBC94B,#E8A62E);box-shadow:0 5px 0 #b9791c,0 8px 14px rgba(0,0,0,.18);display:grid;place-items:center;text-align:center;line-height:1.1}
+.mario-block-txt{pointer-events:none}
+.mario-block.aim{box-shadow:0 0 0 3px #7bd88f,0 5px 0 #b9791c,0 9px 16px rgba(0,0,0,.22);transform:translateX(-50%) translateY(-3px)}
+.mario-block.hit{background:linear-gradient(180deg,#5fd08a,#2E9E6B);color:#fff;box-shadow:0 0 0 3px var(--mastered-bg),0 6px 14px rgba(46,158,107,.4);animation:mBump .32s ease}
+.mario-block.reveal{background:linear-gradient(180deg,#5fd08a,#2E9E6B);color:#fff}
+.mario-block.miss{background:linear-gradient(180deg,#ef8f6a,#d64b4b);color:#fff;box-shadow:0 0 0 3px var(--weak-bg),0 6px 14px rgba(214,75,75,.35)}
+.mario-block.fade{opacity:.5}
+@keyframes mBump{0%{transform:translateX(-50%) translateY(0)}40%{transform:translateX(-50%) translateY(-9px)}100%{transform:translateX(-50%) translateY(0)}}
+.mario-ground{position:absolute;left:0;right:0;bottom:0;height:24px;z-index:1;background:repeating-linear-gradient(90deg,#8a5a2b 0 16px,#7a4a22 16px 32px);border-top:4px solid #6fae53}
+.mario-hero{position:absolute;bottom:26px;transform:translateX(-50%);font-size:2.2rem;line-height:1;z-index:3;pointer-events:none;filter:drop-shadow(0 3px 3px rgba(0,0,0,.28))}
+.mario-hero.jump{animation:mJump .5s ease}
+@keyframes mJump{0%{bottom:26px}44%{bottom:196px}56%{bottom:196px}100%{bottom:26px}}

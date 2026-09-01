@@ -10,16 +10,21 @@ const LEVELS = [
   { k: 'weak', l: 'Yếu nhất' }, { k: 'wrong', l: 'Hay sai' }, { k: 'new', l: 'Chưa ôn' },
   { k: 'notmastered', l: 'Chưa thành thạo' }, { k: 'all', l: 'Tổng hợp' }, { k: 'master', l: 'Master 🏆' },
 ]
-const COUNTS = [10, 15, 20]
-const ALL_MODES = [
-  { k: 'falling', l: 'Thả rơi ⏱', choice: true }, { k: 'quiz', l: 'Trắc nghiệm', choice: true },
-  { k: 'quickfire', l: 'Quick Fire ⏱', choice: true }, { k: 'boss', l: 'Boss Battle 👾', choice: true },
-  { k: 'balloon', l: 'Bắn bóng 🎯', choice: true }, { k: 'sushi', l: 'Xếp sushi 🍣', choice: true },
-  { k: 'typed', l: 'Điền đáp án ✍️', choice: false },
+const COUNTS = [10, 15, 20, 25]
+// Phong cách học tập: cách con TRẢ LỜI.
+const STYLES = [
+  { k: 'quiz', l: 'Trắc nghiệm', choice: true },
+  { k: 'typed', l: 'Tự điền đáp án ✍️', choice: false },
+  { k: 'finderror', l: 'Tìm lỗi sai 🔎', choice: true },
+]
+// 6 game vui (đều dạng trắc nghiệm) — xếp 2 hàng.
+const GAMES = [
+  { k: 'falling', l: 'Thả rơi ⏱' }, { k: 'balloon', l: 'Bắn bóng 🎯' }, { k: 'sushi', l: 'Xếp sushi 🍣' },
+  { k: 'boss', l: 'Boss Battle 👾' }, { k: 'quickfire', l: 'Quick Fire ⏱' }, { k: 'mario', l: 'Mario nhảy 🍄' },
 ]
 
 export default function CustomReview({ mem, onStart, onBack, allowChoice = true }) {
-  const modes = allowChoice ? ALL_MODES : ALL_MODES.filter((m) => !m.choice)
+  const styles = allowChoice ? STYLES : STYLES.filter((m) => !m.choice)
   const [time, setTime] = useState('all')
   const [level, setLevel] = useState('weak')
   const [text, setText] = useState('')
@@ -93,17 +98,30 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true 
       </div>
 
       <div className="cr-sec">
-        <h3>Số câu &amp; kiểu chơi</h3>
+        <h3>Chọn số câu hỏi và phong cách học tập</h3>
         <div className="chips">
           {COUNTS.map((n) => (
             <button key={n} className={'chip' + (count === n ? ' on' : '')} onClick={() => setCount(n)}>{n} câu</button>
           ))}
         </div>
-        <div className="chips" style={{ marginTop: '10px' }}>
-          {modes.map((o) => (
+
+        <p className="cr-sub">Phong cách học tập</p>
+        <div className="chips">
+          {styles.map((o) => (
             <button key={o.k} className={'chip' + (mode === o.k ? ' on' : '')} onClick={() => setMode(o.k)}>{o.l}</button>
           ))}
         </div>
+
+        {allowChoice && (
+          <>
+            <p className="cr-sub">Games</p>
+            <div className="chips chips-2row">
+              {GAMES.map((o) => (
+                <button key={o.k} className={'chip' + (mode === o.k ? ' on' : '')} onClick={() => setMode(o.k)}>{o.l}</button>
+              ))}
+            </div>
+          </>
+        )}
         {!allowChoice && <p className="cr-hint">Phụ huynh đã tắt trắc nghiệm — con tự nghĩ và điền đáp án ✍️</p>}
       </div>
 
