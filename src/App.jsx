@@ -207,21 +207,31 @@ export default function App() {
     const norm = (arr) => (isTyped ? normalizeOpen(arr, recent) : normalizeQs(arr, recent))
     let qs = []
     try {
-      // Soạn DƯ vài câu để bù câu bị loại (đáp án lỗi, trùng nghĩa, lặp) và để đủ 10 câu.
-      const raw = await generateQuestions({ subject, grade: '4-5', topic, concepts, count: count + 5, format: fmt, master })
-      let list = norm(raw)
-      // Chưa đủ số câu -> soạn BÙ MỘT lần nữa (chỉ khi thiếu, để tiết kiệm).
-      if (list.length < count && raw.length) {
+      let raw = []
+      let list = []
+      // Gọi tối đa 3 lượt (1 chính + 2 bù) để CHẮC CHẮN đủ số câu đã chọn (10/15/20),
+      // nhưng dừng ngay khi đủ để tiết kiệm credit.
+      for (let round = 0; round < 3 && list.length < count; round++) {
+        const ask = round === 0 ? count + 5 : (count - list.length) + 4
+        let batch = []
         try {
-          const raw2 = await generateQuestions({ subject, grade: '4-5', topic, concepts, count: (count - list.length) + 4, format: fmt, master })
-          list = norm([...raw, ...raw2])
-        } catch { /* giữ danh sách đã có */ }
+          batch = await generateQuestions({ subject, grade: '4-5', topic, concepts, count: ask, format: fmt, master })
+        } catch { batch = [] }
+        if (!batch.length) break
+        raw = raw.concat(batch)
+        list = norm(raw) // chuẩn hoá + khử trùng trên TOÀN BỘ các lượt đã gộp
       }
       qs = list.slice(0, count)
     } catch { qs = [] }
     if (!qs.length) qs = buildReview(mem, count, { openOnly: isTyped, conceptNames: concepts })
-    // Ghi nhớ các câu vừa dùng để lần ôn sau không lặp lại y hệt.
+    // Ghi nhớ các câu (bản gốc, chưa vá) để lần sau không lặp lại y hệt.
     pushRecent(qs.map((q) => q._k).filter(Boolean))
+    // BẢO ĐẢM ĐỦ SỐ CÂU: chọn 10 luôn có 10 câu. Nếu vì mạng/đề hẹp mà vẫn thiếu,
+    // vá thêm bằng câu đã có (rất hiếm khi xảy ra khi mạng ổn định).
+    if (qs.length && qs.length < count) {
+      const base = qs.slice()
+      for (let i = 0; qs.length < count; i++) qs = qs.concat([{ ...base[i % base.length] }])
+    }
     // Chốt thời gian chờ nạp bài (giới hạn 180s để tránh trường hợp mạng treo cộng dồn bất thường).
     loadSecondsRef.current = Math.min(180, ((typeof performance !== 'undefined' ? performance.now() : Date.now()) - loadT0) / 1000)
     setReviewQuestions(qs)

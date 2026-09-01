@@ -7,19 +7,35 @@ function daysSince(dateStr) {
 
 const TIME_WINDOW = { week: 7, month: 30, two: 60, three: 90, all: Infinity }
 
+// Các từ khoá chỉ MỨC ĐỘ (không phải tên chủ đề). Nếu ô text chỉ chứa những từ này
+// thì mới coi text là "bộ lọc mức độ"; ngược lại text là TÊN CHỦ ĐỀ cụ thể.
+const LEVEL_KW = /hay sai|sai nhiều|sai đi sai|chưa ôn|chưa học|mới học|chưa làm|chưa thành thạo|chưa đạt|chưa vững|phần yếu|yếu nhất|\byếu\b/
+
 export function selectConcepts(mem, { time = 'all', level = 'all', text = '' } = {}) {
   let list = [...mem]
 
   // Master: chọn theo yếu-nhất, và KHÔNG coi ô text là bộ lọc (text = chủ đề muốn master).
   const effLevel = level === 'master' ? 'weak' : level
-  const effText = level === 'master' ? '' : text
+  const rawText = level === 'master' ? '' : (text || '').trim()
+  const t = rawText.toLowerCase()
+
+  // 0) Nếu ô text là một CHỦ ĐỀ cụ thể (không phải từ khoá mức độ) -> ƯU TIÊN đúng chủ đề đó,
+  //    KHÔNG rơi về "phần yếu nhất". Đây là chỗ trước đây bị bỏ sót khiến câu hỏi lạc đề.
+  if (rawText && !LEVEL_KW.test(t)) {
+    const matched = mem.filter((c) => {
+      const n = (c.name || '').toLowerCase()
+      return n === t || n.includes(t) || t.includes(n)
+    })
+    if (matched.length) return matched.slice(0, 5).map((c) => c.name)
+    // Không khớp khái niệm nào trong bản đồ -> coi text là chủ đề mới, luyện đúng chủ đề đó.
+    return [rawText]
+  }
 
   // 1) Lọc theo thời gian đã học
   const win = TIME_WINDOW[time] ?? Infinity
   if (win !== Infinity) list = list.filter((c) => daysSince(c.learnedOn) <= win)
 
   // 2) Lọc theo mức độ / theo câu gõ tay
-  const t = (effText || '').toLowerCase()
   const wantWrong = effLevel === 'wrong' || /hay sai|sai đi sai|sai nhiều|\bsai\b/.test(t)
   const wantNew = effLevel === 'new' || /chưa ôn|chưa học|mới học|chưa làm/.test(t)
   const wantNotMastered = effLevel === 'notmastered' || /chưa thành thạo|chưa đạt|chưa vững|100/.test(t)
