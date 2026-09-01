@@ -166,13 +166,15 @@ function dedupeByQ(list) {
 // Sinh câu hỏi ôn tập — chia thành nhiều đợt CHẠY SONG SONG cho nhanh.
 // format='open': câu TỰ ĐIỀN (mở, tự chứa) cho chế độ không trắc nghiệm.
 export async function generateQuestions(key, opts) {
-  // fast=true (mặc định): dùng model NHANH (haiku) để soạn bài — nhanh hơn nhiều, đỡ lỗi quá giờ.
-  const { subject = 'Toán', grade = '', topic = '', concepts = [], count = 6, format = 'choice', fast = true, master = false } = opts
+  // fast=false (mặc định): dùng model CHÍNH XÁC để soạn bài (độ tin cậy là ưu tiên số 1).
+  // Tăng tốc bằng cách chia NHỎ và chạy SONG SONG nhiều đợt — nhanh mà KHÔNG giảm chính xác.
+  const { subject = 'Toán', grade = '', topic = '', concepts = [], count = 6, format = 'choice', fast = false, master = false } = opts
   const base = { subject, grade, topic, concepts, format, fast, master }
   // Mã đề NGẪU NHIÊN mỗi lần gọi -> mỗi buổi ôn ra bộ câu KHÁC nhau dù cùng nội dung.
   const vary = Math.random().toString(36).slice(2, 7)
   const freshRule = `(Mã đề ${vary}: hãy ra bộ câu hỏi MỚI và KHÁC các lần ôn trước — đổi số liệu, đổi ngữ cảnh, đổi cách hỏi; tránh trùng lặp) `
-  const CHUNK = 5
+  // Đợt nhỏ (3-4 câu) chạy song song -> mỗi đợt xong nhanh, tổng thời gian ngắn hơn nhiều so với 1 đợt lớn.
+  const CHUNK = count <= 12 ? 3 : 4
   let all
   if (count <= CHUNK) {
     // Có bắt lỗi để KHÔNG bao giờ ném ra ngoài (tránh cả buổi ôn bị "Chưa soạn được câu hỏi").

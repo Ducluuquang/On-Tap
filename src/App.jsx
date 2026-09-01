@@ -230,11 +230,12 @@ export default function App() {
     try {
       let raw = []
       let list = []
-      // Soạn bài bằng model NHANH (fast), tối đa 2 lượt (1 chính + 1 bù) cho NHANH & đỡ lỗi.
+      // Soạn bài bằng model CHÍNH XÁC (không dùng fast) — độ tin cậy là ưu tiên số 1.
+      // Nhanh nhờ generateQuestions chạy nhiều đợt nhỏ SONG SONG; ở đây tối đa 2 lượt (1 chính + 1 bù).
       for (let round = 0; round < 2 && list.length < count; round++) {
         const ask = round === 0 ? count + 3 : (count - list.length) + 3
         // generateQuestions đã tự bắt lỗi nên không ném ra ngoài.
-        const batch = await generateQuestions({ subject, grade: '4-5', topic, concepts, count: ask, format: fmt, master, fast: true })
+        const batch = await generateQuestions({ subject, grade: '4-5', topic, concepts, count: ask, format: fmt, master })
         if (!batch || !batch.length) break
         raw = raw.concat(batch)
         list = norm(raw) // chuẩn hoá + khử trùng trên TOÀN BỘ các lượt đã gộp
