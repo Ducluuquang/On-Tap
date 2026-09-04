@@ -53,6 +53,20 @@ function GenErrorScreen({ onRetry, onHome }) {
   )
 }
 
+// Kiểu bài không áp dụng cho môn học hiện tại (VD "Tìm lỗi sai" chưa dùng cho Toán).
+function NotApplicScreen({ onBack }) {
+  return (
+    <div className="screen center">
+      <div className="reading">
+        <div className="gen-fail-ic">🚧</div>
+        <h2>Trò chơi này không áp dụng cho môn học hiện tại</h2>
+        <p>“Tìm lỗi sai” sẽ dùng cho các môn như Tiếng Anh, Lịch sử… Môn Toán chưa có nhé.</p>
+        <button className="cta" onClick={onBack}>Chọn kiểu khác</button>
+      </div>
+    </div>
+  )
+}
+
 // Xáo trộn mảng (Fisher–Yates) — để vị trí đáp án đúng không cố định.
 function shuffled(arr) {
   const a = arr.slice()
@@ -147,6 +161,7 @@ export default function App() {
   const [reviewQuestions, setReviewQuestions] = useState(null)
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState(false) // soạn bài thất bại -> hiện nút "Thử lại"
+  const [notApplic, setNotApplic] = useState(false) // kiểu bài không áp dụng cho môn hiện tại
   // Thời gian con CHỜ app soạn/nạp bài (giây) — sẽ được cộng vào thời gian học của buổi ôn.
   const loadSecondsRef = useRef(0)
   // Môn của buổi ôn hiện tại — để ghi nhật ký theo môn cho phụ huynh xem.
@@ -190,6 +205,10 @@ export default function App() {
     const acc = { ...account, email }
     saveAccount(acc); setAccount(acc)
   }
+  function setParentPin(pin) {
+    const acc = { ...account, pin: String(pin) }
+    saveAccount(acc); setAccount(acc)
+  }
   function logout() {
     persistSession(false); setAuthed(false)
     setRole('child'); setView('home')
@@ -210,6 +229,7 @@ export default function App() {
     setReviewMode(m)
     setReviewQuestions(null)
     setGenError(false)
+    setNotApplic(false)
     setGenerating(true)
     setView(viewFor[m] || 'review')
     // Bắt đầu bấm giờ CHỜ nạp bài (con vẫn đang "học" trong lúc đợi app soạn câu hỏi).
@@ -234,6 +254,12 @@ export default function App() {
       concepts = names
     }
     reviewSubjectRef.current = subject
+    // "Tìm lỗi sai" chưa hợp với Toán -> báo không áp dụng (để dành cho Tiếng Anh, Lịch sử… sau này).
+    if (m === 'finderror' && subject === 'Toán') {
+      setGenerating(false)
+      setNotApplic(true)
+      return
+    }
     const isTyped = m === 'typed'
     // "Tìm lỗi sai" dùng CHÍNH câu trắc nghiệm chuẩn (đáp án do model chính xác chọn),
     // rồi dựng phần "một bạn trả lời sai" ở client -> không bao giờ chấm nhầm.
@@ -315,6 +341,7 @@ export default function App() {
   const retryReview = () => { if (lastReviewRef.current) startReview(lastReviewRef.current) }
   const goHomeFromError = () => { setGenError(false); setView('home') }
   const genOrScreen = (node) => {
+    if (notApplic) return <NotApplicScreen onBack={() => { setNotApplic(false); setView('custom') }} />
     if (genError) return <GenErrorScreen onRetry={retryReview} onHome={goHomeFromError} />
     return (generating || !reviewQuestions) ? <GeneratingScreen /> : node
   }
@@ -333,7 +360,7 @@ export default function App() {
   let screen = null
   if (view === 'settings') {
     screen = <Settings account={account} settings={settings} stats={stats}
-      onChangePassword={changePassword} onSaveEmail={saveEmail}
+      onChangePassword={changePassword} onSaveEmail={saveEmail} onSetPin={setParentPin}
       onSetGoal={(min) => setStats((s) => setGoalMin(s, min))}
       onToggleChoice={(v) => setSettings((s) => ({ ...s, allowChoice: v }))}
       onBack={() => setView(homeView)} />

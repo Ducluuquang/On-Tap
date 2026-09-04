@@ -43,12 +43,21 @@ body{
 
 /* Phone frame */
 .phone{
-  width:100%;max-width:430px;
+  width:100%;max-width:430px;position:relative;
   background:linear-gradient(180deg,#FBFDFC,#F4F9F8);
   border-radius:26px;border:1px solid var(--border);
   box-shadow:0 30px 70px rgba(20,33,46,.13);
   overflow:hidden;
 }
+/* Modal nhỏ (mã PIN phụ huynh) */
+.modal-back{position:absolute;inset:0;z-index:60;background:rgba(20,33,46,.45);display:flex;align-items:center;justify-content:center;padding:22px}
+.modal{width:100%;max-width:320px;background:#fff;border-radius:18px;padding:18px;box-shadow:0 18px 44px rgba(20,33,46,.3);display:flex;flex-direction:column;gap:10px;text-align:center}
+.modal h3{margin:0;font-size:1.1rem}
+.modal .cr-hint{margin:0}
+.pin-in{text-align:center;font-size:1.5rem;letter-spacing:.3em;max-width:120px;align-self:center}
+.linkbtn{align-self:center;background:none;border:0;color:var(--teal-dark);font-family:inherit;font-weight:700;font-size:.86rem;cursor:pointer;padding:2px 0;text-decoration:underline}
+.modal-btns{display:flex;gap:10px;margin-top:4px}
+.modal-btns .cta{flex:1;margin:0}
 .screen{padding:20px 20px 26px;display:flex;flex-direction:column;gap:16px;min-height:640px}
 .screen.center{justify-content:center;align-items:center;text-align:center}
 

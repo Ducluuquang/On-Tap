@@ -107,10 +107,11 @@ export default function SushiGame({ questions, mem, title = 'Xếp sushi', onFin
       <div className="sushi-arena">
         {gain && <div className="gain-pop" key={gain.id}>+{gain.amt}</div>}
         <div className={'sushi-stack' + (wobble ? ' wobble' : '')}>
-          {hidden > 0 && <span className="sushi-more">+{hidden}</span>}
-          {shown.map((p, i) => (
-            <span className="sushi-piece" key={stack.length - shown.length + i}>{p}</span>
+          {/* Miếng MỚI NHẤT ở TRÊN CÙNG (rơi chồng lên tháp); miếng cũ ở dưới, gần đĩa. */}
+          {shown.slice().reverse().map((p, i) => (
+            <span className="sushi-piece" key={stack.length - 1 - i}>{p}</span>
           ))}
+          {hidden > 0 && <span className="sushi-more">+{hidden} miếng</span>}
           <span className="sushi-plate">🍽️</span>
         </div>
       </div>
