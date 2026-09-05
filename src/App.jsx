@@ -67,6 +67,21 @@ function NotApplicScreen({ onBack }) {
   )
 }
 
+// Chưa có cơ sở để ra đề: chưa có bài học nào và cũng chưa gõ chủ đề muốn ôn.
+function NoBasisScreen({ onCapture, onBack }) {
+  return (
+    <div className="screen center">
+      <div className="reading">
+        <div className="gen-fail-ic">📚</div>
+        <h2>Chưa có bài học để ôn</h2>
+        <p>Đề ôn tập dựa trên bài con ĐÃ HỌC. Con hãy chụp/thêm bài học trước, hoặc gõ chủ đề muốn ôn ở ô “Yêu cầu cụ thể”.</p>
+        <button className="cta" onClick={onCapture}>📸 Thêm bài học</button>
+        <button className="cta small ghost" onClick={onBack}>Quay lại chọn</button>
+      </div>
+    </div>
+  )
+}
+
 // Xáo trộn mảng (Fisher–Yates) — để vị trí đáp án đúng không cố định.
 function shuffled(arr) {
   const a = arr.slice()
@@ -162,6 +177,7 @@ export default function App() {
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState(false) // soạn bài thất bại -> hiện nút "Thử lại"
   const [notApplic, setNotApplic] = useState(false) // kiểu bài không áp dụng cho môn hiện tại
+  const [noBasis, setNoBasis] = useState(false) // chưa có bài học/chủ đề -> không ra đề
   // Thời gian con CHỜ app soạn/nạp bài (giây) — sẽ được cộng vào thời gian học của buổi ôn.
   const loadSecondsRef = useRef(0)
   // Môn của buổi ôn hiện tại — để ghi nhật ký theo môn cho phụ huynh xem.
@@ -237,6 +253,7 @@ export default function App() {
     setReviewQuestions(null)
     setGenError(false)
     setNotApplic(false)
+    setNoBasis(false)
     setGenerating(true)
     setView(viewFor[m] || 'review')
     // Bắt đầu bấm giờ CHỜ nạp bài (con vẫn đang "học" trong lúc đợi app soạn câu hỏi).
@@ -260,10 +277,12 @@ export default function App() {
       topic = first?.topic || names[0] || 'Ôn tập'
       concepts = names
     }
-    // Bản thật bắt đầu trống: chưa có khái niệm nào -> ôn tổng hợp chung để vẫn dùng được.
+    // KHÔNG bịa đề: đề ôn tập phải DỰA TRÊN bài con đã học (chụp/thêm) hoặc chủ đề anh gõ.
+    // Chưa có cơ sở nào -> báo để thêm bài học, tuyệt đối không tự tạo đề vu vơ.
     if (!concepts || !concepts.length) {
-      topic = (topic && topic !== 'Ôn tập') ? topic : 'Ôn tập tổng hợp Toán lớp 4-5'
-      concepts = [topic]
+      setGenerating(false)
+      setNoBasis(true)
+      return
     }
     reviewSubjectRef.current = subject
     // "Tìm lỗi sai" chưa hợp với Toán -> báo không áp dụng (để dành cho Tiếng Anh, Lịch sử… sau này).
@@ -349,6 +368,7 @@ export default function App() {
   const retryReview = () => { if (lastReviewRef.current) startReview(lastReviewRef.current) }
   const goHomeFromError = () => { setGenError(false); setView('home') }
   const genOrScreen = (node) => {
+    if (noBasis) return <NoBasisScreen onCapture={() => { setNoBasis(false); setView('capture') }} onBack={() => { setNoBasis(false); setView('custom') }} />
     if (notApplic) return <NotApplicScreen onBack={() => { setNotApplic(false); setView('custom') }} />
     if (genError) return <GenErrorScreen onRetry={retryReview} onHome={goHomeFromError} />
     return (generating || !reviewQuestions) ? <GeneratingScreen /> : node

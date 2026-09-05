@@ -47,6 +47,10 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true 
     <div className="screen">
       <BackHeader title="Bắt đầu ôn" onBack={onBack} />
 
+      {(!mem || mem.length === 0) && (
+        <div className="find-hint">📚 Chưa có bài học nào. Gõ chủ đề muốn ôn ở ô “Yêu cầu cụ thể” bên dưới, hoặc quay lại “Thêm bài học hôm nay”.</div>
+      )}
+
       <div className="cr-sec">
         <h3>Theo thời gian đã học</h3>
         <div className="chips">
