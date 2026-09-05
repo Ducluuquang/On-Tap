@@ -54,6 +54,8 @@ function StudyChart({ stats, sel, onSel }) {
 
 export default function ParentDashboard({ mem, stats, onSettings, toast }) {
   const concepts = conceptStatusList(mem)
+  const subjects = [...new Set((mem || []).map((c) => c.subject).filter(Boolean))]
+  const kmapTitle = subjects.length === 1 ? `Bản đồ kiến thức môn ${subjects[0]}` : 'Bản đồ kiến thức'
   const total = totalMinutes(stats)
   const todayM = todayMinutes(stats)
   const streak = streakDays(stats) // DÙNG CHUNG với thẻ phần thưởng -> luôn khớp nhau
@@ -118,7 +120,8 @@ export default function ParentDashboard({ mem, stats, onSettings, toast }) {
       </div>
 
       <section className="kmap">
-        <h3>Bản đồ kiến thức</h3>
+        <h3>{kmapTitle}</h3>
+        {concepts.length === 0 && <p className="cr-hint">Chưa có dữ liệu. Con chụp/thêm bài học để bắt đầu ghi bản đồ kiến thức.</p>}
         {concepts.map((c) => (
           <div className="krow" key={c.id}>
             <div className="krow-top">
@@ -136,7 +139,7 @@ export default function ParentDashboard({ mem, stats, onSettings, toast }) {
       <button className="cta" onClick={onSettings}>⚙️ Mục tiêu &amp; bật/tắt trắc nghiệm</button>
 
       <footer className="foot">
-        Bản demo · Số liệu minh hoạ. Bản thật cập nhật theo kết quả ôn thực tế của con.
+        Số liệu cập nhật theo kết quả ôn thực tế của con.
       </footer>
     </div>
   )

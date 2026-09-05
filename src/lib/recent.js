@@ -2,8 +2,12 @@
 // để những lần ôn sau ưu tiên câu MỚI, tránh lặp lại y hệt các lần trước.
 // Chỉ lưu chuỗi rút gọn của câu hỏi, không lưu đáp án — rất nhẹ.
 
-const KEY = 'ontap.recentq.v1'
+const KEY = 'ontap.recentq.v2'
 const CAP = 80 // nhớ tối đa 80 câu gần nhất
+
+export function resetRecent() {
+  try { localStorage.removeItem(KEY) } catch { /* noop */ }
+}
 
 export function loadRecent() {
   try {

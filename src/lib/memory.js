@@ -4,7 +4,8 @@
 
 import { CONCEPTS } from '../data/content.js'
 
-const KEY = 'ontap.memory.v1'
+// v2: bỏ dữ liệu DEMO cũ — bắt đầu THẬT từ số 0 (bản đồ kiến thức trống, tự tích luỹ theo bài con học).
+const KEY = 'ontap.memory.v2'
 
 export function statusOf(m) {
   if (m >= 90) return 'mastered'
@@ -50,7 +51,7 @@ export function loadMemory() {
     const raw = localStorage.getItem(KEY)
     if (raw) return JSON.parse(raw)
   } catch (e) { /* bỏ qua */ }
-  return seed()
+  return [] // BẢN THẬT: bắt đầu trống, không còn khái niệm demo
 }
 
 export function saveMemory(mem) {
@@ -59,7 +60,7 @@ export function saveMemory(mem) {
 
 export function resetMemory() {
   try { localStorage.removeItem(KEY) } catch (e) { /* bỏ qua */ }
-  return seed()
+  return []
 }
 
 // Cập nhật mastery sau một câu trả lời.

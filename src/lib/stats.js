@@ -3,7 +3,8 @@
 //   + thời gian con thực sự trả lời bài (mỗi câu tính tối đa 60s).
 // KHÔNG tính thời gian mở app đứng yên giữa các câu. Lưu theo từng ngày (YYYY-MM-DD).
 
-const KEY = 'ontap.stats.v1'
+// v2: bỏ số liệu DEMO — báo cáo THẬT tính từ 0, tự tích luỹ theo buổi ôn thật của con.
+const KEY = 'ontap.stats.v2'
 const DAY_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
 
 function isoDay(d) { return d.toISOString().slice(0, 10) }
@@ -43,7 +44,10 @@ export function loadStats() {
     const r = localStorage.getItem(KEY)
     if (r) { const s = JSON.parse(r); return { goalMin: 15, days: {}, log: {}, ...s } }
   } catch { /* noop */ }
-  return { goalMin: 15, days: seedDays(), log: seedLog() }
+  return { goalMin: 15, days: {}, log: {} } // BẢN THẬT: bắt đầu trống
+}
+export function resetStats() {
+  try { localStorage.removeItem(KEY) } catch { /* noop */ }
 }
 export function saveStats(s) {
   try { localStorage.setItem(KEY, JSON.stringify(s)) } catch { /* noop */ }

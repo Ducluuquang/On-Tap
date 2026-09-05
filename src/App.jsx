@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
-import { loadMemory, saveMemory, applySession, addConcepts } from './lib/memory.js'
+import { loadMemory, saveMemory, applySession, addConcepts, resetMemory } from './lib/memory.js'
 import { buildReview } from './lib/mockAI.js'
 import { generateQuestions } from './lib/aiClient.js'
 import { loadAccount, saveAccount, loadSession, setSession as persistSession } from './lib/auth.js'
-import { loadStats, saveStats, addSeconds, addSession, setGoalMin } from './lib/stats.js'
+import { loadStats, saveStats, addSeconds, addSession, setGoalMin, resetStats } from './lib/stats.js'
 import { loadSettings, saveSettings } from './lib/settings.js'
 import { canon, localMatch } from './lib/answerMatch.js'
 import { dotNumbers } from './lib/num.js'
-import { loadRecent, pushRecent } from './lib/recent.js'
+import { loadRecent, pushRecent, resetRecent } from './lib/recent.js'
 
 import Auth from './screens/Auth.jsx'
 import Settings from './screens/Settings.jsx'
@@ -209,6 +209,13 @@ export default function App() {
     const acc = { ...account, pin: String(pin) }
     saveAccount(acc); setAccount(acc)
   }
+  // Xoá toàn bộ dữ liệu học tập (bản đồ kiến thức, báo cáo, thời gian học, lịch sử câu hỏi) — làm lại từ đầu.
+  function resetLearningData() {
+    resetMemory(); resetStats(); resetRecent()
+    setMem([]); setStats(loadStats()); setSession(null)
+    setToast('Đã xoá dữ liệu học tập — bắt đầu lại từ đầu ✓')
+    setView(role === 'child' ? 'home' : 'dashboard')
+  }
   function logout() {
     persistSession(false); setAuthed(false)
     setRole('child'); setView('home')
@@ -253,6 +260,11 @@ export default function App() {
       topic = first?.topic || names[0] || 'Ôn tập'
       concepts = names
     }
+    // Bản thật bắt đầu trống: chưa có khái niệm nào -> ôn tổng hợp chung để vẫn dùng được.
+    if (!concepts || !concepts.length) {
+      topic = (topic && topic !== 'Ôn tập') ? topic : 'Ôn tập tổng hợp Toán lớp 4-5'
+      concepts = [topic]
+    }
     reviewSubjectRef.current = subject
     // "Tìm lỗi sai" chưa hợp với Toán -> báo không áp dụng (để dành cho Tiếng Anh, Lịch sử… sau này).
     if (m === 'finderror' && subject === 'Toán') {
@@ -271,8 +283,9 @@ export default function App() {
       let raw = []
       let list = []
       // Soạn bài bằng model CHÍNH XÁC (không dùng fast) — độ tin cậy là ưu tiên số 1.
-      // Nhanh nhờ generateQuestions chạy nhiều đợt nhỏ SONG SONG; ở đây tối đa 2 lượt (1 chính + 1 bù).
-      for (let round = 0; round < 2 && list.length < count; round++) {
+      // Nhanh nhờ generateQuestions chạy nhiều đợt nhỏ SONG SONG. Tối đa 3 lượt để gom đủ câu
+      // KHÁC NHAU (KHÔNG lặp lại). Thiếu thì thà ít câu chứ KHÔNG nhân bản câu -> hết trùng.
+      for (let round = 0; round < 3 && list.length < count; round++) {
         const ask = round === 0 ? count + 3 : (count - list.length) + 3
         // generateQuestions đã tự bắt lỗi nên không ném ra ngoài.
         const batch = await generateQuestions({ subject, grade: '4-5', topic, concepts, count: ask, format: fmt, master })
@@ -290,14 +303,9 @@ export default function App() {
       setGenerating(false)
       return
     }
-    // Ghi nhớ các câu (bản gốc, chưa vá) để lần sau không lặp lại y hệt.
+    // Ghi nhớ các câu đã dùng để lần sau không lặp lại y hệt.
     pushRecent(qs.map((q) => q._k).filter(Boolean))
-    // BẢO ĐẢM ĐỦ SỐ CÂU: chọn 10 luôn có 10 câu. Nếu vì mạng/đề hẹp mà vẫn thiếu,
-    // vá thêm bằng câu đã có (rất hiếm khi xảy ra khi mạng ổn định).
-    if (qs.length && qs.length < count) {
-      const base = qs.slice()
-      for (let i = 0; qs.length < count; i++) qs = qs.concat([{ ...base[i % base.length] }])
-    }
+    // KHÔNG nhân bản câu để "cho đủ" nữa — thà ít câu chứ tuyệt đối không để TRÙNG câu hỏi.
     // "Tìm lỗi sai": dựng phần "một bạn trả lời sai" (giữ nguyên đáp án đúng đã có).
     if (m === 'finderror') qs = toFindError(qs)
     // Chốt thời gian chờ nạp bài (giới hạn 180s để tránh trường hợp mạng treo cộng dồn bất thường).
@@ -360,7 +368,7 @@ export default function App() {
   let screen = null
   if (view === 'settings') {
     screen = <Settings account={account} settings={settings} stats={stats}
-      onChangePassword={changePassword} onSaveEmail={saveEmail} onSetPin={setParentPin}
+      onChangePassword={changePassword} onSaveEmail={saveEmail} onSetPin={setParentPin} onResetData={resetLearningData}
       onSetGoal={(min) => setStats((s) => setGoalMin(s, min))}
       onToggleChoice={(v) => setSettings((s) => ({ ...s, allowChoice: v }))}
       onBack={() => setView(homeView)} />

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { BackHeader } from '../components.jsx'
 
-export default function Settings({ account, settings, stats, onChangePassword, onSaveEmail, onSetPin, onSetGoal, onToggleChoice, onBack }) {
+export default function Settings({ account, settings, stats, onChangePassword, onSaveEmail, onSetPin, onResetData, onSetGoal, onToggleChoice, onBack }) {
+  const [confirmReset, setConfirmReset] = useState(false)
   const [cur, setCur] = useState('')
   const [np, setNp] = useState('')
   const [np2, setNp2] = useState('')
@@ -100,6 +101,23 @@ export default function Settings({ account, settings, stats, onChangePassword, o
           </span>
         </label>
       </section>
+
+      {onResetData && (
+        <section className="set-sec">
+          <h3>Dữ liệu học tập</h3>
+          {!confirmReset ? (
+            <button className="cta small ghost" onClick={() => setConfirmReset(true)}>🗑️ Xoá hết dữ liệu &amp; làm lại từ đầu</button>
+          ) : (
+            <>
+              <p className="cr-hint">Xoá toàn bộ bản đồ kiến thức, báo cáo, thời gian học của con và bắt đầu lại từ số 0. Không hoàn tác được.</p>
+              <div className="modal-btns">
+                <button className="cta small ghost" onClick={() => setConfirmReset(false)}>Huỷ</button>
+                <button className="cta small danger" onClick={() => { setConfirmReset(false); onResetData() }}>Xoá &amp; làm lại</button>
+              </div>
+            </>
+          )}
+        </section>
+      )}
 
       {pinStep && (
         <div className="modal-back" onClick={closePin}>

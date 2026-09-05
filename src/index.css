@@ -189,6 +189,7 @@ body{
 .gen-fail-ic{font-size:2.8rem;line-height:1}
 .reading .cta{margin-top:6px;min-width:190px}
 .cta.ghost{background:#fff;color:var(--ink-soft);border:1.5px solid var(--border);box-shadow:none}
+.cta.danger{background:#d64b4b;color:#fff;border:0;box-shadow:none}
 .spinner{width:46px;height:46px;border-radius:50%;border:4px solid var(--teal-soft);border-top-color:var(--teal);animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
@@ -220,7 +221,7 @@ body{
 .attention{background:var(--weak-bg);border:1px solid #F1D3C4;border-radius:14px;padding:13px 16px;display:flex;flex-direction:column;gap:2px}
 .attention b{color:var(--weak-tx);font-size:.9rem}
 .attention span{font-size:.88rem;color:var(--ink-soft)}
-.kmap h3{margin:2px 0 4px;font-size:.76rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.kmap h3{margin:2px 0 4px;font-size:.82rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);font-weight:800}
 .krow{padding:11px 0;border-top:1px solid var(--line)}
 .krow:first-of-type{border-top:0}
 .krow-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
@@ -230,7 +231,7 @@ body{
 
 /* Custom review builder */
 .cr-sec{margin-bottom:4px}
-.cr-sec h3{margin:0 0 9px;font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.cr-sec h3{margin:0 0 9px;font-size:.82rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);font-weight:800}
 .cr-input{width:100%;border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;font-family:inherit;font-size:.98rem;color:var(--ink);background:#fff}
 .cr-input:focus{outline:none;border-color:var(--teal)}
 .cr-hint{margin:6px 0 0;font-size:.8rem;color:var(--muted)}
@@ -378,7 +379,7 @@ body{
 
 /* ===== Cài đặt ===== */
 .set-sec{display:flex;flex-direction:column;gap:9px;background:#fff;border:1px solid var(--border);border-radius:14px;padding:15px 16px;box-shadow:0 6px 16px rgba(20,33,46,.04)}
-.set-sec h3{margin:0;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.set-sec h3{margin:0;font-size:.82rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);font-weight:800}
 .set-row{display:flex;align-items:center;justify-content:space-between;font-size:.95rem}
 .set-row span{color:var(--muted)}
 .ok-msg{background:var(--mastered-bg);color:var(--mastered-tx);border:1px solid #C7E6D3;border-radius:10px;padding:9px 13px;font-size:.86rem;font-weight:600}
