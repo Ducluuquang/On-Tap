@@ -157,12 +157,14 @@ body{
 .pill-developing{background:var(--dev-bg);color:var(--dev-tx)}
 .pill-strong{background:var(--strong-bg);color:var(--strong-tx)}
 .pill-mastered{background:var(--mastered-bg);color:var(--mastered-tx)}
+.pill-new{background:#E7EDF6;color:#41618f}
 .mbar{flex:1;height:9px;background:var(--line);border-radius:999px;overflow:hidden}
 .mbar-fill{display:block;height:100%;border-radius:999px;transition:width .4s}
 .fill-weak{background:var(--weak)}
 .fill-developing{background:var(--dev)}
 .fill-strong{background:var(--strong)}
 .fill-mastered{background:var(--mastered)}
+.fill-new{background:#9db4d4}
 
 /* Parent: capture */
 .para{margin:0;color:var(--ink-soft);font-size:.96rem}

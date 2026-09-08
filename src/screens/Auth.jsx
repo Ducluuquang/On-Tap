@@ -90,6 +90,9 @@ export default function Auth({ account, onRegister, onLogin, onReset }) {
         {err && <div className="err">{err}</div>}
         <button className="cta" onClick={submit}>{isReg ? 'Tạo tài khoản & vào học' : 'Đăng nhập'}</button>
         {!isReg && <button className="linkbtn" onClick={() => { setScreen('forgot'); setErr(''); setNp(''); setNp2('') }}>Quên mật khẩu?</button>}
+        {isReg && (
+          <p className="auth-note">📱 Sắp có trên <b>App Store</b> &amp; <b>Google Play</b>. Khi phát hành, bấm link đăng ký sẽ tự đưa sang tải app. Hiện anh/chị dùng ngay trên web — có thể “Thêm vào màn hình chính” để dùng như một app.</p>
+        )}
       </div>
     </div>
   )

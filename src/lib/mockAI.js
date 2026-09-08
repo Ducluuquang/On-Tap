@@ -82,7 +82,8 @@ export function parentSummary(mem, lastSession) {
 export function conceptStatusList(mem) {
   return [...mem]
     .sort((a, b) => b.mastery - a.mastery)
-    .map((c) => ({ ...c, status: statusOf(c.mastery) }))
+    // Chưa ôn lần nào -> "Mới" (0%); ôn rồi thì tính theo ngưỡng thành thạo.
+    .map((c) => ({ ...c, status: (c.reviews || 0) === 0 ? 'new' : statusOf(c.mastery) }))
 }
 
 export const TOTAL_QUESTIONS = QUESTIONS.length

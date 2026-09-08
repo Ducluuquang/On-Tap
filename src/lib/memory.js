@@ -19,6 +19,16 @@ export const STATUS_LABEL = {
   strong: 'Vững',
   developing: 'Đang lên',
   weak: 'Cần ôn',
+  new: 'Mới', // vừa thêm, chưa ôn lần nào -> chưa có dữ liệu thành thạo
+}
+
+// Danh sách "từ nối" bỏ qua khi so hai tên khái niệm (để nhận ra 2 tên CÙNG NGHĨA khác cách viết).
+const STOP_WORDS = new Set(['cua', 'mot', 'voi', 'va', 'cac', 'nhung', 'cho', 'la', 'trong', 'de', 'khi', 'theo', 've', 'nhu', 'den'])
+// "Khoá khái niệm" = tập hợp từ có nghĩa (bỏ dấu, bỏ từ nối), sắp xếp -> 2 tên cùng nghĩa cho ra cùng khoá.
+export function conceptKey(name) {
+  const noMarks = String(name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd')
+  const words = noMarks.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter((w) => w && !STOP_WORDS.has(w))
+  return [...new Set(words)].sort().join(' ')
 }
 
 // Trạng thái khởi tạo: giả lập con đã học mấy khái niệm này rồi, mức độ khác nhau.
@@ -107,19 +117,20 @@ function slug(s) {
 export function addConcepts(mem, concepts) {
   const today = new Date().toISOString().slice(0, 10)
   const out = mem.map((c) => ({ ...c }))
-  const idx = new Map(out.map((c, i) => [c.name.toLowerCase(), i]))
+  const idx = new Map(out.map((c, i) => [conceptKey(c.name), i]))
   for (const c of concepts) {
     const name = (c.name || '').trim()
     if (!name) continue
-    const key = name.toLowerCase()
+    const key = conceptKey(name)
     if (idx.has(key)) {
+      // Đã có khái niệm CÙNG NGHĨA (dù viết khác) -> chỉ cập nhật, KHÔNG thêm trùng vào bản đồ.
       const i = idx.get(key)
       out[i] = { ...out[i], learnedOn: today, newToday: true }
     } else {
       const nc = {
         id: c.id || slug(name), name, difficulty: c.difficulty || 'Cơ bản',
         subject: c.subject || 'Toán', topic: c.topic || '',
-        mastery: 50, reviews: 0, correct: 0, wrong: 0,
+        mastery: 0, reviews: 0, correct: 0, wrong: 0, // MỚI: chưa ôn -> 0% (không "cho" 50% ảo)
         learnedOn: today, newToday: true, learnedInApp: true,
       }
       out.push(nc)
@@ -133,18 +144,18 @@ export function addConcepts(mem, concepts) {
 export function recordErrors(mem, conceptNames) {
   const today = new Date().toISOString().slice(0, 10)
   const out = mem.map((c) => ({ ...c }))
-  const idx = new Map(out.map((c, i) => [c.name.toLowerCase(), i]))
+  const idx = new Map(out.map((c, i) => [conceptKey(c.name), i]))
   for (const raw of conceptNames) {
     const name = (raw || '').trim()
     if (!name) continue
-    const key = name.toLowerCase()
+    const key = conceptKey(name)
     if (idx.has(key)) {
       const i = idx.get(key)
-      out[i] = { ...out[i], mastery: Math.max(0, out[i].mastery - 8), wrong: (out[i].wrong || 0) + 1, newToday: true, lastReviewed: today }
+      out[i] = { ...out[i], mastery: Math.max(0, out[i].mastery - 8), wrong: (out[i].wrong || 0) + 1, reviews: (out[i].reviews || 0) + 1, newToday: true, lastReviewed: today }
     } else {
       out.push({
         id: slug(name), name, difficulty: 'Cơ bản', subject: 'Toán', topic: '',
-        mastery: 40, reviews: 0, correct: 0, wrong: 1, newToday: true, learnedInApp: true,
+        mastery: 30, reviews: 1, correct: 0, wrong: 1, newToday: true, learnedInApp: true,
       })
       idx.set(key, out.length - 1)
     }
