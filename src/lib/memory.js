@@ -7,11 +7,11 @@ import { CONCEPTS } from '../data/content.js'
 // v2: bỏ dữ liệu DEMO cũ — bắt đầu THẬT từ số 0 (bản đồ kiến thức trống, tự tích luỹ theo bài con học).
 const KEY = 'ontap.memory.v2'
 
+// 3 mức (chốt Sep 2026): Thành thạo (~100%) → Vững (80%) → Cần ôn (dưới 80%).
 export function statusOf(m) {
-  if (m >= 90) return 'mastered'
-  if (m >= 80) return 'strong'
-  if (m >= 60) return 'developing'
-  return 'weak'
+  if (m >= 90) return 'mastered' // Thành thạo: đạt ~100% (7 câu trắc nghiệm hoặc 5 câu tự gõ đúng)
+  if (m >= 80) return 'strong'   // Vững: từ 80%
+  return 'weak'                  // Cần ôn: dưới 80%
 }
 
 export const STATUS_LABEL = {
@@ -73,14 +73,15 @@ export function resetMemory() {
   return []
 }
 
-// Cập nhật độ thành thạo sau MỘT câu trả lời.
-// - ĐÚNG: tự gõ đáp án (+9), trắc nghiệm/game có sẵn lựa chọn (+4, vì dễ hơn — coi như "có gợi ý").
-// - SAI: GIỮ NGUYÊN điểm (không tụt) — theo yêu cầu của phụ huynh.
-// Cộng dồn, tối đa 100. Ví dụ (tự gõ, từ 0): 7 câu đúng -> 63% (Đang lên), 10 câu đúng -> 90% (Thành thạo).
+// Cập nhật độ thành thạo sau MỘT câu trả lời (chốt Sep 2026).
+// - ĐÚNG trắc nghiệm/game (có sẵn lựa chọn): +14  -> 7 câu đúng = 98% ≈ Thành thạo.
+// - ĐÚNG tự gõ đáp án (khó hơn, không gợi ý):  +20  -> 5 câu đúng = 100% Thành thạo.
+// - SAI: GIỮ NGUYÊN điểm (không trừ) — theo yêu cầu của phụ huynh.
+// Cộng dồn qua NHIỀU lần ôn, tối đa 100. Vững = 80%, Cần ôn = dưới 80%.
 export function nextMastery(m, { correct, choice = false } = {}) {
   const v = m || 0
-  if (!correct) return v // SAI -> giữ nguyên
-  return Math.min(100, Math.round(v + (choice ? 4 : 9)))
+  if (!correct) return v // SAI -> giữ nguyên (không trừ điểm)
+  return Math.min(100, Math.round(v + (choice ? 14 : 20)))
 }
 
 // Ôn xong: cập nhật một concept trong bộ nhớ với kết quả buổi ôn.

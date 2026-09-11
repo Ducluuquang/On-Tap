@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { loadMemory, saveMemory, applySession, addConcepts, resetMemory } from './lib/memory.js'
+import { loadMemory, saveMemory, applySession, addConcepts, resetMemory, conceptKey } from './lib/memory.js'
 import { buildReview } from './lib/mockAI.js'
 import { generateQuestions } from './lib/aiClient.js'
 import { loadAccount, saveAccount, loadSession, setSession as persistSession } from './lib/auth.js'
@@ -156,6 +156,29 @@ function normalizeOpen(qs, recent = null) {
     out.push({ concept: q.concept || 'Ôn tập', q: dotNumbers(q.q), answer: dotNumbers(String(q.answer).trim()), explain: dotNumbers(q.explain || ''), hint: '', _k: key })
   }
   return orderByFresh(out, recent)
+}
+
+// CỘNG DỒN QUA NHIỀU LẦN ÔN: gán nhãn "concept" của mỗi câu về ĐÚNG tên khái niệm trong bộ nhớ
+// (khớp theo nghĩa bằng conceptKey), để điểm thành thạo cộng dồn vào đúng khái niệm ở mọi lần học —
+// không bị lệch nhãn (AI ghi tên hơi khác) rồi tính lại từ đầu mỗi lần.
+function remapConcept(qs, memList, askedConcepts) {
+  const byKey = new Map()
+  // Ưu tiên khớp về khái niệm ĐÃ CÓ trong bộ nhớ (để cộng dồn vào lịch sử cũ).
+  for (const c of memList || []) {
+    const k = conceptKey(c.name)
+    if (k && !byKey.has(k)) byKey.set(k, c.name)
+  }
+  // Thêm các khái niệm đang ôn (VD chủ đề gõ tay "master") nếu chưa có trong bộ nhớ.
+  for (const name of askedConcepts || []) {
+    const k = conceptKey(name)
+    if (k && !byKey.has(k)) byKey.set(k, name)
+  }
+  const fallback = (askedConcepts && askedConcepts[0]) || 'Ôn tập'
+  return qs.map((q) => {
+    const k = conceptKey(q.concept || '')
+    const mapped = (k && byKey.get(k)) || fallback
+    return { ...q, concept: mapped }
+  })
 }
 
 export default function App() {
@@ -330,6 +353,9 @@ export default function App() {
       setGenerating(false)
       return
     }
+    // Gán nhãn khái niệm của từng câu về ĐÚNG khái niệm trong bộ nhớ (khớp theo nghĩa)
+    // -> điểm thành thạo CỘNG DỒN vào đúng khái niệm qua các lần ôn khác nhau.
+    qs = remapConcept(qs, mem, concepts)
     // Ghi nhớ các câu đã dùng để lần sau không lặp lại y hệt.
     pushRecent(qs.map((q) => q._k).filter(Boolean))
     // KHÔNG nhân bản câu để "cho đủ" nữa — thà ít câu chứ tuyệt đối không để TRÙNG câu hỏi.
