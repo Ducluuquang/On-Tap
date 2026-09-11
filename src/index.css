@@ -327,6 +327,8 @@ body{
 .auth-lbl{font-size:.76rem;font-weight:700;color:var(--muted);letter-spacing:.04em;margin-top:2px}
 .auth-in{width:100%;border:1.5px solid var(--border);border-radius:12px;padding:13px 15px;font-family:inherit;font-size:1rem;color:var(--ink);background:#fff}
 .auth-in:focus{outline:none;border-color:var(--teal)}
+select.auth-in{appearance:auto;cursor:pointer}
+.auth-grouplbl{font-weight:800;color:var(--teal-dark);font-size:.9rem;margin:12px 0 0;padding-top:10px;border-top:1px solid var(--border)}
 .auth .cta{margin-top:12px}
 .auth .err{margin-top:2px}
 

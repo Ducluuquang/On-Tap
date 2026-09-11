@@ -52,7 +52,7 @@ export default function MarioGame({ questions, mem, title = 'Mario nhảy', onFi
       ...resultsRef.current,
       [key]: {
         correct: prev.correct + (ok ? 1 : 0), wrong: prev.wrong + (ok ? 0 : 1),
-        mastery: nextMastery(prev.mastery, { correct: ok, usedHint: false }), label: prev.label,
+        mastery: nextMastery(prev.mastery, { correct: ok, choice: true }), label: prev.label,
       },
     }
   }

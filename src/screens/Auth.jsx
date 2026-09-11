@@ -5,6 +5,11 @@ export default function Auth({ account, onRegister, onLogin, onReset }) {
   const [screen, setScreen] = useState('main') // main | forgot
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
+  const [parentName, setParentName] = useState('')
+  const [stName, setStName] = useState('')
+  const [grade, setGrade] = useState('')
+  const [school, setSchool] = useState('')
+  const [schoolType, setSchoolType] = useState('')
   const [u, setU] = useState('')
   const [p, setP] = useState('')
   const [np, setNp] = useState('')
@@ -15,9 +20,15 @@ export default function Auth({ account, onRegister, onLogin, onReset }) {
     setErr('')
     if (isReg) {
       const ph = phone.replace(/\s+/g, '')
+      // Tất cả thông tin đều BẮT BUỘC.
+      if (!parentName.trim()) { setErr('Nhập tên phụ huynh.'); return }
       if (!/^\d{8,12}$/.test(ph)) { setErr('Số điện thoại chưa hợp lệ (chỉ chữ số, 8–12 số).'); return }
-      if (email.trim() && !/^\S+@\S+\.\S+$/.test(email.trim())) { setErr('Email chưa hợp lệ.'); return }
-      onRegister(ph, email.trim())
+      if (!/^\S+@\S+\.\S+$/.test(email.trim())) { setErr('Nhập email hợp lệ (dùng để nhận mã đăng nhập & đặt lại mật khẩu).'); return }
+      if (!stName.trim()) { setErr('Nhập tên học sinh.'); return }
+      if (!grade) { setErr('Chọn lớp của học sinh.'); return }
+      if (!school.trim()) { setErr('Nhập tên trường.'); return }
+      if (!schoolType) { setErr('Chọn hệ trường (công lập / tư thục / quốc tế).'); return }
+      onRegister({ phone: ph, email: email.trim(), parentName: parentName.trim(), studentName: stName.trim(), grade, school: school.trim(), schoolType })
     } else if (!onLogin(u.trim(), p)) {
       setErr('Sai tên đăng nhập hoặc mật khẩu.')
     }
@@ -67,13 +78,38 @@ export default function Auth({ account, onRegister, onLogin, onReset }) {
 
         {isReg ? (
           <>
-            <p className="auth-sub">Dùng chung cho cả con và bố mẹ. Tên đăng nhập &amp; mật khẩu mặc định là <b>số điện thoại</b> (đổi được sau).</p>
+            <p className="auth-sub">Điền thông tin phụ huynh và học sinh. Tên đăng nhập &amp; mật khẩu mặc định là <b>số điện thoại</b> (đổi được sau).</p>
+
+            <div className="auth-grouplbl">Phụ huynh</div>
+            <label className="auth-lbl">Tên phụ huynh</label>
+            <input className="auth-in" placeholder="VD: Nguyễn Văn A"
+              value={parentName} onChange={(e) => setParentName(e.target.value)} />
             <label className="auth-lbl">Số điện thoại</label>
             <input className="auth-in" inputMode="numeric" placeholder="VD: 0912345678"
-              value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
-            <label className="auth-lbl">Email <span className="lbl-opt">(để đặt lại mật khẩu khi quên)</span></label>
+              value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <label className="auth-lbl">Email</label>
             <input className="auth-in" type="email" placeholder="email@vidu.com"
-              value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+              value={email} onChange={(e) => setEmail(e.target.value)} />
+
+            <div className="auth-grouplbl">Học sinh</div>
+            <label className="auth-lbl">Tên học sinh</label>
+            <input className="auth-in" placeholder="VD: Nguyễn Văn Minh"
+              value={stName} onChange={(e) => setStName(e.target.value)} />
+            <label className="auth-lbl">Lớp</label>
+            <select className="auth-in" value={grade} onChange={(e) => setGrade(e.target.value)}>
+              <option value="">— Chọn lớp —</option>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((g) => <option key={g} value={'Lớp ' + g}>Lớp {g}</option>)}
+            </select>
+            <label className="auth-lbl">Trường</label>
+            <input className="auth-in" placeholder="VD: Tiểu học Kim Đồng"
+              value={school} onChange={(e) => setSchool(e.target.value)} />
+            <label className="auth-lbl">Hệ trường</label>
+            <select className="auth-in" value={schoolType} onChange={(e) => setSchoolType(e.target.value)}>
+              <option value="">— Chọn hệ —</option>
+              <option value="Công lập">Công lập</option>
+              <option value="Tư thục">Tư thục</option>
+              <option value="Quốc tế">Quốc tế</option>
+            </select>
           </>
         ) : (
           <>

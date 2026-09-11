@@ -78,7 +78,7 @@ export default function FallingGame({ questions, mem, title = 'Thả rơi', onFi
       ...resultsRef.current,
       [key]: {
         correct: prev.correct + (ok ? 1 : 0), wrong: prev.wrong + (ok ? 0 : 1),
-        mastery: nextMastery(prev.mastery, { correct: ok, usedHint: false }), label: prev.label,
+        mastery: nextMastery(prev.mastery, { correct: ok, choice: true }), label: prev.label,
       },
     }
     // Đúng: tự chạy tiếp. SAI: DỪNG LẠI giải thích cho con hiểu, chờ bấm "Tiếp tục".

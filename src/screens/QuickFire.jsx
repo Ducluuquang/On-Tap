@@ -98,7 +98,7 @@ export default function QuickFire({ questions, mem, title = 'Quick Fire', onFini
       ...resultsRef.current,
       [key]: {
         correct: prev.correct + (ok ? 1 : 0), wrong: prev.wrong + (ok ? 0 : 1),
-        mastery: nextMastery(prev.mastery, { correct: ok, usedHint: false }), label,
+        mastery: nextMastery(prev.mastery, { correct: ok, choice: true }), label,
       },
     }
     if (ok) {

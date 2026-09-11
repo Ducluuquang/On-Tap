@@ -51,7 +51,7 @@ export default function Review({ questions, mem, title = 'Ôn tập hôm nay', h
     const updated = {
       correct: cur.correct + (isCorrect ? 1 : 0),
       wrong: cur.wrong + (isCorrect ? 0 : 1),
-      mastery: nextMastery(cur.mastery, { correct: isCorrect, usedHint: false }),
+      mastery: nextMastery(cur.mastery, { correct: isCorrect, choice: true }),
       label,
     }
     const newResults = { ...results, [key]: updated }

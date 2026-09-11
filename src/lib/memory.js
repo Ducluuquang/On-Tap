@@ -73,12 +73,14 @@ export function resetMemory() {
   return []
 }
 
-// Cập nhật mastery sau một câu trả lời.
-export function nextMastery(m, { correct, usedHint }) {
-  let v = m
-  if (correct) v += usedHint ? 4 : 9
-  else v -= 6
-  return Math.max(0, Math.min(100, Math.round(v)))
+// Cập nhật độ thành thạo sau MỘT câu trả lời.
+// - ĐÚNG: tự gõ đáp án (+9), trắc nghiệm/game có sẵn lựa chọn (+4, vì dễ hơn — coi như "có gợi ý").
+// - SAI: GIỮ NGUYÊN điểm (không tụt) — theo yêu cầu của phụ huynh.
+// Cộng dồn, tối đa 100. Ví dụ (tự gõ, từ 0): 7 câu đúng -> 63% (Đang lên), 10 câu đúng -> 90% (Thành thạo).
+export function nextMastery(m, { correct, choice = false } = {}) {
+  const v = m || 0
+  if (!correct) return v // SAI -> giữ nguyên
+  return Math.min(100, Math.round(v + (choice ? 4 : 9)))
 }
 
 // Ôn xong: cập nhật một concept trong bộ nhớ với kết quả buổi ôn.

@@ -161,15 +161,20 @@ export async function generateQuestions(key, opts) {
   const freshRule = `(Mã đề ${vary}: hãy ra bộ câu hỏi MỚI và KHÁC các lần ôn trước — đổi số liệu, đổi ngữ cảnh, đổi cách hỏi; tránh trùng lặp) `
   // Đợt nhỏ (3-4 câu) chạy song song -> mỗi đợt xong nhanh, tổng thời gian ngắn hơn nhiều so với 1 đợt lớn.
   const CHUNK = count <= 12 ? 3 : 4
+  // Mỗi đợt TỰ THỬ LẠI 1 lần nếu lỗi/rỗng — mạng mobile chập chờn hay làm HỤT câu (1,2,5,7 câu).
+  const genOne = async (n, salt) => {
+    let r = await genChunk(key, base, n, salt).catch(() => [])
+    if (!r || !r.length) r = await genChunk(key, base, n, salt).catch(() => [])
+    return r || []
+  }
   let all
   if (count <= CHUNK) {
-    // Có bắt lỗi để KHÔNG bao giờ ném ra ngoài (tránh cả buổi ôn bị "Chưa soạn được câu hỏi").
-    all = await genChunk(key, base, count, freshRule).catch(() => [])
+    all = await genOne(count, freshRule)
   } else {
     const sizes = []
     for (let r = count; r > 0; r -= CHUNK) sizes.push(Math.min(CHUNK, r))
     const parts = await Promise.all(
-      sizes.map((n, i) => genChunk(key, base, n, `${freshRule}(Đợt ${i + 1}: ra dạng bài đa dạng) `).catch(() => [])),
+      sizes.map((n, i) => genOne(n, `${freshRule}(Đợt ${i + 1}: ra dạng bài đa dạng) `)),
     )
     all = parts.flat()
   }

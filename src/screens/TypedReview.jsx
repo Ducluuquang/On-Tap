@@ -68,7 +68,7 @@ export default function TypedReview({ questions, mem, title = 'Điền đáp án
     const updated = {
       correct: cur.correct + (ok ? 1 : 0),
       wrong: cur.wrong + (ok ? 0 : 1),
-      mastery: nextMastery(cur.mastery, { correct: ok, usedHint: false }),
+      mastery: nextMastery(cur.mastery, { correct: ok, choice: false }),
       label,
     }
     const newResults = { ...results, [key]: updated }

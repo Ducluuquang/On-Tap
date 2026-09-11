@@ -194,8 +194,14 @@ export default function App() {
   }, [toast])
 
   // ---- Đăng nhập / tài khoản ----
-  function handleRegister(phone, email) {
-    const acc = { username: phone, password: phone, email: email || '' }
+  function handleRegister(profile) {
+    // Tương thích cũ: nếu ai đó gọi (phone, email) như trước.
+    const pr = typeof profile === 'string' ? { phone: profile, email: arguments[1] } : (profile || {})
+    const acc = {
+      username: pr.phone, password: pr.phone, email: pr.email || '',
+      parentName: pr.parentName || '',
+      student: { name: pr.studentName || '', grade: pr.grade || '', school: pr.school || '', schoolType: pr.schoolType || '' },
+    }
     saveAccount(acc); setAccount(acc)
     persistSession(true); setAuthed(true)
   }
@@ -302,15 +308,17 @@ export default function App() {
       let raw = []
       let list = []
       // Soạn bài bằng model CHÍNH XÁC (không dùng fast) — độ tin cậy là ưu tiên số 1.
-      // Nhanh nhờ generateQuestions chạy nhiều đợt nhỏ SONG SONG. Tối đa 3 lượt để gom đủ câu
+      // Nhanh nhờ generateQuestions chạy nhiều đợt nhỏ SONG SONG. Tối đa 4 lượt để gom đủ câu
       // KHÁC NHAU (KHÔNG lặp lại). Thiếu thì thà ít câu chứ KHÔNG nhân bản câu -> hết trùng.
-      for (let round = 0; round < 3 && list.length < count; round++) {
+      for (let round = 0; round < 4 && list.length < count; round++) {
         const ask = round === 0 ? count + 3 : (count - list.length) + 3
         // generateQuestions đã tự bắt lỗi nên không ném ra ngoài.
         const batch = await generateQuestions({ subject, grade: '4-5', topic, concepts, count: ask, format: fmt, master })
-        if (!batch || !batch.length) break
-        raw = raw.concat(batch)
-        list = norm(raw) // chuẩn hoá + khử trùng trên TOÀN BỘ các lượt đã gộp
+        // KHÔNG dừng khi một lượt rỗng (mạng chập chờn) — thử tiếp lượt sau để đủ số câu đã chọn.
+        if (batch && batch.length) {
+          raw = raw.concat(batch)
+          list = norm(raw) // chuẩn hoá + khử trùng trên TOÀN BỘ các lượt đã gộp
+        }
       }
       qs = list.slice(0, count)
     } catch { qs = [] }
