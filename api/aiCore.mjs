@@ -89,6 +89,38 @@ Chỉ JSON.`
 const NUM_RULE =
 `- Khi ĐỌC/VIẾT số bằng lời: đọc ĐẦY ĐỦ, đúng chuẩn tiếng Việt. Chữ số 0 ở hàng chục phải đọc "linh"/"lẻ" (VD 506 = "năm trăm linh sáu", TUYỆT ĐỐI KHÔNG viết "năm trăm sáu"). Hàng chục khác 0 phải có "mươi" (VD 560 = "năm trăm sáu mươi"). Không đọc tắt gây hiểu nhầm giữa hai số khác nhau.`
 
+// Chuẩn hoá tên môn về khoá (bản gọn phía máy chủ, KHỚP với src/lib/subjects.js).
+export function subjKey(subject) {
+  const n = String(subject || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').trim()
+  if (n === 'toan' || /(^|\s)(toan|math|mathematics|so hoc)(\s|$)/.test(n)) return 'toan'
+  if (/tieng anh|english|anh van|anh ngu/.test(n)) return 'tieng-anh'
+  if (/tieng viet|vietnamese|ngu van|chinh ta|tap doc|luyen tu va cau|tap lam van/.test(n)) return 'tieng-viet'
+  return 'default'
+}
+
+// Quy tắc RA ĐỀ RIÊNG theo môn (giữ độ chính xác đặc thù từng môn).
+// Toán, Tiếng Việt, Tiếng Anh có quy tắc kỹ; mọi môn khác dùng khung CHUNG.
+export function subjectRules(subject, grade) {
+  const k = subjKey(subject)
+  if (k === 'toan') {
+    return NUM_RULE + `
+- Toán: tự giải lại TỪNG BƯỚC để đáp án CHẮC CHẮN đúng; chỉ 1 đáp án đúng; số liệu hợp lớp ${grade}.`
+  }
+  if (k === 'tieng-viet') {
+    return `- Tiếng Việt: hỏi về chính tả, nghĩa của từ, từ loại (danh/động/tính từ), dấu câu, hoặc đọc-hiểu ngắn.
+- Chính tả và ngữ pháp phải CHUẨN tiếng Việt; mỗi câu chỉ 1 đáp án đúng rõ ràng, tránh nhiều đáp án cùng đúng.
+- Ngữ liệu trong sáng, phù hợp học sinh tiểu học lớp ${grade}.`
+  }
+  if (k === 'tieng-anh') {
+    return `- Tiếng Anh (học sinh tiểu học Việt Nam): từ vựng, ngữ pháp cơ bản, mẫu câu, chính tả.
+- Câu hỏi và các đáp án viết bằng TIẾNG ANH; phần "explain" có thể giải thích ngắn bằng tiếng Việt.
+- Từ vựng/ngữ pháp đúng CHUẨN; chỉ 1 đáp án đúng; độ khó hợp lớp ${grade}.`
+  }
+  // Khung CHUNG cho mọi môn khác (Khoa học, Lịch sử, Địa lý…).
+  return `- Bám SÁT nội dung/khái niệm đang ôn; mỗi câu chỉ có 1 đáp án đúng, rõ ràng, không mơ hồ.
+- Nếu là kiến thức dữ kiện/sự kiện, chỉ hỏi điều CHẮC CHẮN đúng và phổ biến trong chương trình tiểu học lớp ${grade}; tránh chi tiết dễ nhầm.`
+}
+
 // Quy tắc ĐỘ KHÓ cho chế độ MASTER: bài nâng cao + kết hợp nhiều khái niệm/nhiều bước.
 const masterRule = (grade) =>
 `YÊU CẦU ĐỘ KHÓ (MASTER — luyện cho THÀNH THẠO):
@@ -102,6 +134,7 @@ async function genChunk(key, { subject, grade, topic, concepts, format, fast = f
   const names = concepts.map((c) => (typeof c === 'string' ? c : c.name)).join(', ')
   const open = format === 'open'
   const mrule = master ? '\n' + masterRule(grade) : ''
+  const subjRule = subjectRules(subject, grade) // quy tắc ra đề riêng theo môn
   // Master + NHIỀU chủ đề: yêu cầu KẾT HỢP các chủ đề trong danh sách vào cùng một bài toán.
   const multi = master && concepts.length > 1
   const combineRule = multi
@@ -121,7 +154,7 @@ QUY TẮC BẮT BUỘC:
 - TUYỆT ĐỐI KHÔNG dùng dạng "trong các ... sau", "phân số nào", "đáp án nào", "số nào", không liệt kê lựa chọn, không hỏi kiểu chọn 1 trong nhiều. Vì không hiển thị lựa chọn nên câu đó sẽ không trả lời được.
 - Câu TỐT: "Rút gọn phân số 6/8 về tối giản.", "Tính 1/5 + 2/5.", "Số 305 040 đọc là gì?", "So sánh 1/2 và 2/3 (điền dấu >, < hoặc =)."
 - Câu XẤU (cấm): "Phân số nào tối giản?", "Trong các phân số sau...".
-${NUM_RULE}
+${subjRule}
 Với mỗi câu, tự kiểm tra kỹ để đáp án chắc chắn đúng.
 Trả DUY NHẤT JSON:
 {"questions":[{"concept":"","q":"","answer":"","explain":""}]}
@@ -134,8 +167,8 @@ Trả DUY NHẤT JSON:
 QUY TẮC BẮT BUỘC:
 - "answer": GHI NGUYÊN VĂN giá trị đáp án đúng, phải TRÙNG KHÍT một trong 4 "options" (KHÔNG ghi số thứ tự 0-3).
 - 4 "options" phải KHÁC NHAU rõ ràng và CHỈ có ĐÚNG 1 đáp án đúng. Ba lựa chọn sai phải SAI GIÁ TRỊ thật sự.
-- Bài ĐỌC SỐ: các lựa chọn sai phải đọc SAI (sai chữ số/giá trị). TUYỆT ĐỐI không tạo lựa chọn chỉ khác CÁCH ĐỌC của đáp án đúng (thêm/bớt "không trăm", "tư"="bốn", "linh"="lẻ", "nghìn"="ngàn") — vì sẽ thành 2 đáp án cùng đúng.
-${NUM_RULE}
+- (Toán) Bài ĐỌC SỐ: các lựa chọn sai phải đọc SAI (sai chữ số/giá trị). TUYỆT ĐỐI không tạo lựa chọn chỉ khác CÁCH ĐỌC của đáp án đúng (thêm/bớt "không trăm", "tư"="bốn", "linh"="lẻ", "nghìn"="ngàn") — vì sẽ thành 2 đáp án cùng đúng.
+${subjRule}
 - "explain" ≤20 từ, phải khớp với "answer". Tự tính lại để chắc chắn "answer" đúng.
 Tiếng Việt, chính xác. Chỉ JSON.`)
   const max = Math.min(4000, (master ? 900 : 700) + n * (master ? 330 : 260))

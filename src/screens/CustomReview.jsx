@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { BackHeader } from '../components.jsx'
 import { selectConcepts, describeSelection } from '../lib/review.js'
+import { subjectsFromMem, subjectDisplayName, subjectModes } from '../lib/subjects.js'
 
 const TIMES = [
   { k: 'week', l: 'Tuần này' }, { k: 'month', l: 'Tháng này' },
@@ -24,20 +25,34 @@ const GAMES = [
 ]
 
 export default function CustomReview({ mem, onStart, onBack, allowChoice = true }) {
-  const styles = allowChoice ? STYLES : STYLES.filter((m) => !m.choice)
+  const subjectList = subjectsFromMem(mem)
+  const [subject, setSubject] = useState(subjectList[0]?.name || 'Toán')
   const [time, setTime] = useState('all')
   const [level, setLevel] = useState('weak')
   const [text, setText] = useState('')
   const [count, setCount] = useState(10)
   const [mode, setMode] = useState(allowChoice ? 'quiz' : 'typed')
 
+  // Chỉ ôn trong MÔN đang chọn (không trộn môn khác).
+  const memSub = (mem || []).filter((c) => subjectDisplayName(c.subject) === subject)
+  // Chế độ chơi phù hợp với môn (vd "Tìm lỗi sai" chỉ cho môn ngôn ngữ).
+  const allowed = subjectModes(subject)
+  const styles = STYLES.filter((m) => (allowChoice || !m.choice) && allowed.includes(m.k))
+  const games = GAMES.filter((g) => allowed.includes(g.k))
+
   const isMaster = level === 'master'
-  const names = selectConcepts(mem, { time, level, text })
+  const names = selectConcepts(memSub, { time, level, text })
+
+  // Đổi môn: nếu chế độ đang chọn không hợp môn mới thì đưa về mặc định an toàn.
+  function pickSubject(s) {
+    setSubject(s)
+    if (!subjectModes(s).includes(mode)) setMode(allowChoice ? 'quiz' : 'typed')
+  }
 
   function start() {
     onStart({
-      title: describeSelection({ time, level, text }),
-      conceptNames: names, count, mode,
+      title: `${subject} · ${describeSelection({ time, level, text })}`,
+      conceptNames: names, count, mode, subject,
       master: isMaster,
       masterText: isMaster ? text.trim() : '',
     })
@@ -47,8 +62,19 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true 
     <div className="screen">
       <BackHeader title="Bắt đầu ôn" onBack={onBack} />
 
-      {(!mem || mem.length === 0) && (
-        <div className="find-hint">📚 Chưa có bài học nào. Gõ chủ đề muốn ôn ở ô “Yêu cầu cụ thể” bên dưới, hoặc quay lại “Thêm bài học hôm nay”.</div>
+      <div className="cr-sec">
+        <h3>Chọn môn</h3>
+        <div className="chips">
+          {subjectList.map((s) => (
+            <button key={s.name} className={'chip' + (subject === s.name ? ' on' : '')} onClick={() => pickSubject(s.name)}>
+              {s.icon} {s.name}{s.count > 0 ? <em> · {s.count}</em> : ''}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {memSub.length === 0 && (
+        <div className="find-hint">📚 Chưa có bài học môn {subject}. Gõ chủ đề muốn ôn ở ô “Yêu cầu cụ thể” bên dưới, hoặc quay lại “Thêm bài học hôm nay”.</div>
       )}
 
       <div className="cr-sec">
@@ -84,7 +110,7 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true 
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
-        {mem && mem.length > 0 && (
+        {memSub.length > 0 && (
           <select
             className="cr-select"
             value=""
@@ -97,7 +123,7 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true 
             }}
           >
             <option value="">{isMaster ? '— Thêm chủ đề từ bản đồ kiến thức —' : '— Hoặc chọn chủ đề từ bản đồ kiến thức —'}</option>
-            {mem.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+            {memSub.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
           </select>
         )}
         <p className="cr-hint">
@@ -122,11 +148,11 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true 
           ))}
         </div>
 
-        {allowChoice && (
+        {allowChoice && games.length > 0 && (
           <>
             <p className="cr-sub">Games</p>
             <div className="chips chips-2row">
-              {GAMES.map((o) => (
+              {games.map((o) => (
                 <button key={o.k} className={'chip' + (mode === o.k ? ' on' : '')} onClick={() => setMode(o.k)}>{o.l}</button>
               ))}
             </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { loadMemory, saveMemory, applySession, addConcepts, resetMemory, conceptKey } from './lib/memory.js'
+import { subjectModes, subjectDisplayName } from './lib/subjects.js'
 import { buildReview } from './lib/mockAI.js'
 import { generateQuestions } from './lib/aiClient.js'
 import { loadAccount, saveAccount, loadSession, setSession as persistSession } from './lib/auth.js'
@@ -272,7 +273,7 @@ export default function App() {
   }
 
   async function startReview(opts = {}) {
-    const { title = 'Ôn tập', conceptNames, count = 10, mode = 'quiz', master = false, masterText = '' } = opts
+    const { title = 'Ôn tập', conceptNames, count = 10, mode = 'quiz', master = false, masterText = '', subject: subjectOpt = '' } = opts
     lastReviewRef.current = opts // để nút "Thử lại" soạn lại đúng yêu cầu này
     // An toàn: nếu phụ huynh đã tắt trắc nghiệm thì mọi buổi ôn đều là tự điền.
     const m = settings.allowChoice ? mode : 'typed'
@@ -289,14 +290,16 @@ export default function App() {
     const loadT0 = (typeof performance !== 'undefined' ? performance.now() : Date.now())
     let names = conceptNames
     if (!names || !names.length) {
-      names = [...mem].sort((a, b) => a.mastery - b.mastery).slice(0, 4).map((c) => c.name)
+      // Nếu đã chọn môn thì chỉ lấy khái niệm CỦA MÔN đó (không trộn môn khác).
+      const pool = subjectOpt ? mem.filter((c) => subjectDisplayName(c.subject) === subjectDisplayName(subjectOpt)) : mem
+      names = [...pool].sort((a, b) => a.mastery - b.mastery).slice(0, 4).map((c) => c.name)
     }
     // Master + chủ đề gõ tay: luyện đúng chủ đề con muốn "master" (không giới hạn trong bộ nhớ).
     // Cho gõ NHIỀU chủ đề (tách bằng dấu phẩy / xuống dòng / chấm phẩy) -> App KẾT HỢP bài khó của các chủ đề.
     const mt = (masterText || '').trim()
     let subject, topic, concepts
     if (master && mt) {
-      subject = (mem.find((c) => c.name === names[0])?.subject) || 'Toán'
+      subject = subjectOpt || (mem.find((c) => c.name === names[0])?.subject) || 'Toán'
       const topics = mt.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean)
       concepts = topics.length ? topics : [mt]
       topic = topics.length > 1 ? `Kết hợp: ${topics.join(' + ')}` : (topics[0] || mt)
@@ -304,7 +307,7 @@ export default function App() {
       // Lấy đúng MÔN + CHỦ ĐỀ của khái niệm đang ôn (không mặc định "Phân số" nữa),
       // để câu hỏi ra đúng nội dung con đang học (số tự nhiên, hình học…).
       const first = mem.find((c) => c.name === names[0])
-      subject = first?.subject || 'Toán'
+      subject = subjectOpt || first?.subject || 'Toán'
       topic = first?.topic || names[0] || 'Ôn tập'
       concepts = names
     }
@@ -316,8 +319,8 @@ export default function App() {
       return
     }
     reviewSubjectRef.current = subject
-    // "Tìm lỗi sai" chưa hợp với Toán -> báo không áp dụng (để dành cho Tiếng Anh, Lịch sử… sau này).
-    if (m === 'finderror' && subject === 'Toán') {
+    // "Tìm lỗi sai" chỉ dùng cho môn có hồ sơ cho phép (ngôn ngữ: Tiếng Việt/Tiếng Anh); Toán & khung chung thì ẩn.
+    if (m === 'finderror' && !subjectModes(subject).includes('finderror')) {
       setGenerating(false)
       setNotApplic(true)
       return

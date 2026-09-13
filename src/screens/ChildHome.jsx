@@ -1,13 +1,19 @@
 import { useState } from 'react'
 import { Brand, RewardTrack } from '../components.jsx'
 import { streakDays } from '../lib/stats.js'
+import { FEATURED_SUBJECTS, subjectDisplayName } from '../lib/subjects.js'
 
 const SLOGAN_HINT = 'Mục tiêu hay khẩu hiệu học tập của con'
 
-export default function ChildHome({ stats, slogan = '', onSetSlogan, onReview, onCapture }) {
+export default function ChildHome({ mem = [], stats, slogan = '', onSetSlogan, onReview, onCapture }) {
   const streak = stats ? streakDays(stats) : 0
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(slogan)
+
+  // Các môn: 3 môn nổi bật (luôn dùng được) + các môn khác con đã có bài.
+  const present = new Set((mem || []).map((c) => subjectDisplayName(c.subject)))
+  const featuredNames = FEATURED_SUBJECTS.map((s) => s.name)
+  const extraSubjects = [...present].filter((n) => n && !featuredNames.includes(n))
 
   function saveSlogan() {
     setEditing(false)
@@ -75,10 +81,14 @@ export default function ChildHome({ stats, slogan = '', onSetSlogan, onReview, o
       <section className="subjects" aria-label="Môn học">
         <h3>Môn học</h3>
         <div className="chips">
-          <span className="chip on">Toán</span>
-          <span className="chip">Tiếng Việt<em> · sắp có</em></span>
-          <span className="chip">Tiếng Anh<em> · sắp có</em></span>
+          {FEATURED_SUBJECTS.map((s) => (
+            <span key={s.name} className={'chip' + (present.has(s.name) ? ' on' : '')}>{s.icon} {s.name}</span>
+          ))}
+          {extraSubjects.map((n) => (
+            <span key={n} className="chip on">📚 {n}</span>
+          ))}
         </div>
+        <p className="cr-hint">Chụp/thêm bài môn nào là con ôn được môn đó. Các môn khác (Khoa học, Lịch sử…) cũng ôn được.</p>
       </section>
     </div>
   )
