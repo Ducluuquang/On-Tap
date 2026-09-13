@@ -1,8 +1,19 @@
+import { useState } from 'react'
 import { Brand, RewardTrack } from '../components.jsx'
 import { streakDays } from '../lib/stats.js'
 
-export default function ChildHome({ stats, onReview, onCapture }) {
+const SLOGAN_HINT = 'Mục tiêu hay khẩu hiệu học tập của con'
+
+export default function ChildHome({ stats, slogan = '', onSetSlogan, onReview, onCapture }) {
   const streak = stats ? streakDays(stats) : 0
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(slogan)
+
+  function saveSlogan() {
+    setEditing(false)
+    const v = draft.trim()
+    if (v !== (slogan || '') && onSetSlogan) onSetSlogan(v)
+  }
 
   return (
     <div className="screen">
@@ -13,8 +24,29 @@ export default function ChildHome({ stats, onReview, onCapture }) {
         </div>
       </header>
 
+      {/* Khẩu hiệu/mục tiêu học tập — con tự ghi (bấm để sửa) */}
       <section className="hello">
-        <h1>Chào Minh!</h1>
+        {editing ? (
+          <input
+            className="slogan-input"
+            autoFocus
+            maxLength={120}
+            value={draft}
+            placeholder={SLOGAN_HINT}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={saveSlogan}
+            onKeyDown={(e) => { if (e.key === 'Enter') saveSlogan() }}
+          />
+        ) : (
+          <h1
+            className={'slogan' + (slogan ? '' : ' slogan-empty')}
+            onClick={() => { setDraft(slogan || ''); setEditing(true) }}
+            title="Bấm để sửa khẩu hiệu học tập"
+          >
+            {slogan || SLOGAN_HINT}
+            <span className="slogan-edit" aria-hidden="true"> ✏️</span>
+          </h1>
+        )}
       </section>
 
       {/* Đường đến phần thưởng — mốc 7, 15, 30 ngày, rồi cứ 30 ngày một lần */}
@@ -48,10 +80,6 @@ export default function ChildHome({ stats, onReview, onCapture }) {
           <span className="chip">Tiếng Anh<em> · sắp có</em></span>
         </div>
       </section>
-
-      <footer className="foot">
-        Bản demo · Nội dung minh hoạ. Bản thật được tạo từ chính bài con học ở trường.
-      </footer>
     </div>
   )
 }

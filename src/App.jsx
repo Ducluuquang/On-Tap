@@ -292,12 +292,14 @@ export default function App() {
       names = [...mem].sort((a, b) => a.mastery - b.mastery).slice(0, 4).map((c) => c.name)
     }
     // Master + chủ đề gõ tay: luyện đúng chủ đề con muốn "master" (không giới hạn trong bộ nhớ).
+    // Cho gõ NHIỀU chủ đề (tách bằng dấu phẩy / xuống dòng / chấm phẩy) -> App KẾT HỢP bài khó của các chủ đề.
     const mt = (masterText || '').trim()
     let subject, topic, concepts
     if (master && mt) {
       subject = (mem.find((c) => c.name === names[0])?.subject) || 'Toán'
-      topic = mt
-      concepts = [mt]
+      const topics = mt.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean)
+      concepts = topics.length ? topics : [mt]
+      topic = topics.length > 1 ? `Kết hợp: ${topics.join(' + ')}` : (topics[0] || mt)
     } else {
       // Lấy đúng MÔN + CHỦ ĐỀ của khái niệm đang ôn (không mặc định "Phân số" nữa),
       // để câu hỏi ra đúng nội dung con đang học (số tự nhiên, hình học…).
@@ -455,6 +457,8 @@ export default function App() {
       screen = <Result session={session} onHome={() => setView('home')} onReport={() => switchRole('parent')} />
     } else {
       screen = <ChildHome mem={mem} stats={stats}
+        slogan={settings.slogan || ''}
+        onSetSlogan={(s) => setSettings((x) => ({ ...x, slogan: s }))}
         onReview={() => setView('custom')} onCapture={() => setView('capture')} />
     }
   } else {

@@ -8,8 +8,9 @@ import { audioCtx, playPop, playMiss } from '../lib/sound.js'
 
 // Bắn bóng 🎯 — 4 đáp án là 4 quả bóng bay THÀNH HÀNG NGANG ở trên.
 // Dưới màn hình có KHẨU SÚNG/CUNG: kéo để ngắm, thả ra thì mũi tên bay về quả bóng đang ngắm.
-// Ngắm trúng bóng có đáp án đúng để ghi điểm. Mỗi câu 15 giây.
-const PER_SEC = 15
+// Cung CHỈ quay trong nửa TRÊN (mũi tên luôn hướng lên phía bóng), không quay 360 độ.
+// Ngắm trúng bóng có đáp án đúng để ghi điểm. Mỗi câu 45 giây.
+const PER_SEC = 45
 const COLORS = ['#e0703a', '#17a08f', '#5b7cf0', '#e0a32f']
 const XS = [15, 38, 62, 85] // vị trí ngang (%) của 4 quả bóng
 const BY = 20               // vị trí dọc (%) của hàng bóng
@@ -110,9 +111,15 @@ export default function BalloonGame({ questions, mem, title = 'Bắn bóng', onF
     const src = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e
     const px = (src.clientX - r.left) / r.width
     const py = (src.clientY - r.top) / r.height
-    const ang = Math.atan2(py - CY / 100, px - CX / 100) // rad
-    setAimDeg(ang * 180 / Math.PI + 90)
-    return ang
+    const dx = px - CX / 100
+    // deg: 0 = mũi tên thẳng đứng lên trên; âm = chếch trái, dương = chếch phải.
+    let deg = Math.atan2(py - CY / 100, dx) * 180 / Math.PI + 90
+    // KẸP trong NỬA TRÊN (−90°..+90°, tổng 180°): mũi tên luôn hướng lên phía bóng, KHÔNG quay xuống/360°.
+    // Nếu kéo xuống dưới gốc thì kẹp về mép gần nhất: bên trái -> −90°, bên phải -> +90°.
+    if (deg > 90) deg = dx < 0 ? -90 : 90
+    else if (deg < -90) deg = -90
+    setAimDeg(deg)
+    return (deg - 90) * Math.PI / 180 // rad đã kẹp — để chọn bóng khớp với hướng nhìn
   }
   function nearestBalloon(angRad) {
     let best = 0, bestD = Infinity

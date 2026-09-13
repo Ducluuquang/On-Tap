@@ -72,7 +72,7 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true 
           ))}
         </div>
         {isMaster && (
-          <p className="cr-master-note">🏆 <b>Master</b>: App ra bài <b>nâng cao &amp; kết hợp nhiều bước</b> để con thật sự thành thạo chủ đề. Gõ chủ đề, hoặc chọn từ danh sách bên dưới.</p>
+          <p className="cr-master-note">🏆 <b>Master</b>: gõ <b>một hoặc nhiều chủ đề</b> (cách nhau bằng dấu phẩy). App ra bài <b>nâng cao &amp; KẾT HỢP</b> bài khó của các chủ đề đó với nhau để con thật sự thành thạo. Có thể chọn thêm từ danh sách bên dưới.</p>
         )}
       </div>
 
@@ -80,7 +80,7 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true 
         <h3>Yêu cầu cụ thể</h3>
         <input
           className="cr-input"
-          placeholder={isMaster ? 'Chủ đề muốn master, vd: nhân số có hai chữ số, bài toán tìm x…' : 'vd: ôn phần con hay sai, ôn topic yếu nhất…'}
+          placeholder={isMaster ? 'Nhiều chủ đề, cách nhau bằng dấu phẩy. Vd: nhân số hai chữ số, tìm x, diện tích hình chữ nhật' : 'vd: ôn phần con hay sai, ôn topic yếu nhất…'}
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
@@ -88,15 +88,21 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true 
           <select
             className="cr-select"
             value=""
-            onChange={(e) => { if (e.target.value) setText(e.target.value) }}
+            onChange={(e) => {
+              const v = e.target.value
+              if (!v) return
+              // Master: THÊM chủ đề vào danh sách (nối bằng dấu phẩy). Khác: thay thế như cũ.
+              if (isMaster) setText((t) => (t.trim() ? t.trim().replace(/[,\s]*$/, '') + ', ' + v : v))
+              else setText(v)
+            }}
           >
-            <option value="">— Hoặc chọn chủ đề từ bản đồ kiến thức —</option>
+            <option value="">{isMaster ? '— Thêm chủ đề từ bản đồ kiến thức —' : '— Hoặc chọn chủ đề từ bản đồ kiến thức —'}</option>
             {mem.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
           </select>
         )}
         <p className="cr-hint">
           {isMaster
-            ? 'Gõ đúng chủ đề con muốn luyện thành thạo. Bỏ trống thì sẽ master phần con đang yếu nhất.'
+            ? 'Gõ 1 hoặc nhiều chủ đề (cách nhau bằng dấu phẩy) — App sẽ kết hợp bài khó của các chủ đề. Bỏ trống thì master phần con đang yếu nhất.'
             : 'Gõ yêu cầu sẽ ưu tiên hơn lựa chọn mức độ ở trên.'}
         </p>
       </div>

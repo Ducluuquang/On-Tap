@@ -102,6 +102,11 @@ async function genChunk(key, { subject, grade, topic, concepts, format, fast = f
   const names = concepts.map((c) => (typeof c === 'string' ? c : c.name)).join(', ')
   const open = format === 'open'
   const mrule = master ? '\n' + masterRule(grade) : ''
+  // Master + NHIỀU chủ đề: yêu cầu KẾT HỢP các chủ đề trong danh sách vào cùng một bài toán.
+  const multi = master && concepts.length > 1
+  const combineRule = multi
+    ? `\n- KẾT HỢP NHIỀU CHỦ ĐỀ: ưu tiên mỗi bài lồng ghép TỪ 2 CHỦ ĐỀ TRỞ LÊN trong danh sách (${names}) vào cùng một bài toán nhiều bước, để con luyện phối hợp các kỹ năng. Vẫn đúng chương trình lớp ${grade}, câu chữ dễ hiểu.`
+    : ''
   // BẮT BUỘC đúng chủ đề: tránh lạc đề (đang ôn phép chia lại ra phép nhân, ôn số tự nhiên lại ra phân số…).
   const topicRule =
 `QUAN TRỌNG — ĐÚNG CHỦ ĐỀ: CHỈ ra câu luyện đúng các khái niệm đang ôn: ${names} (thuộc chủ đề "${topic}"). TUYỆT ĐỐI KHÔNG ra câu thuộc khái niệm/dạng KHÁC. Ví dụ: đang ôn "ước lượng thương / phép chia" thì KHÔNG hỏi phép nhân hay cách đọc số; đang ôn "số tự nhiên" thì KHÔNG hỏi phân số. Mỗi câu phải trực tiếp luyện đúng các khái niệm trên.`
@@ -109,7 +114,7 @@ async function genChunk(key, { subject, grade, topic, concepts, format, fast = f
   const kindChoice = master ? 'câu hỏi trắc nghiệm NÂNG CAO, KẾT HỢP nhiều khái niệm, mỗi câu 4 lựa chọn' : 'câu hỏi trắc nghiệm KHÁC NHAU cho học sinh ôn tập, mỗi câu 4 lựa chọn'
   const prompt = salt + (open
     ? `Môn ${subject}, lớp ${grade}, chủ đề "${topic}". Các khái niệm: ${names}.
-Tạo ${n} ${kindOpen}.${mrule}
+Tạo ${n} ${kindOpen}.${mrule}${combineRule}
 ${topicRule}
 QUY TẮC BẮT BUỘC:
 - Mỗi câu phải TỰ CHỨA đầy đủ dữ kiện và chỉ có MỘT đáp án đúng để con tự tính/viết ra.
@@ -122,7 +127,7 @@ Trả DUY NHẤT JSON:
 {"questions":[{"concept":"","q":"","answer":"","explain":""}]}
 "answer" là đáp án đúng viết ngắn gọn (số, phân số, hoặc cụm từ). "explain" giải thích ngắn gọn ≤20 từ. Tiếng Việt, chính xác. Chỉ JSON.`
     : `Môn ${subject}, lớp ${grade}, chủ đề "${topic}". Các khái niệm: ${names}.
-Tạo ${n} ${kindChoice}.${mrule}
+Tạo ${n} ${kindChoice}.${mrule}${combineRule}
 ${topicRule}
 Trả DUY NHẤT JSON:
 {"questions":[{"concept":"","q":"","options":["","","",""],"answer":"","explain":""}]}

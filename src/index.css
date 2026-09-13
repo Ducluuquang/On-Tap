@@ -74,6 +74,15 @@ body{
 .hello h1{margin:0;font-size:1.55rem;font-weight:800;letter-spacing:-.01em}
 .hello p{margin:4px 0 0;color:var(--ink-soft);font-size:.98rem}
 
+/* Khẩu hiệu/mục tiêu học tập (con tự ghi) — bấm để sửa */
+.hello .slogan{margin:0;font-size:1.16rem;font-weight:800;line-height:1.35;letter-spacing:-.01em;
+  cursor:pointer;border-radius:12px;padding:4px 6px;margin:-4px -6px;transition:background .15s}
+.hello .slogan:hover{background:var(--card-2,#f2f5f9)}
+.hello .slogan-empty{color:var(--muted);font-weight:600;font-style:italic}
+.slogan-edit{font-size:.72em;opacity:.5;font-weight:400}
+.hello .slogan-input{width:100%;box-sizing:border-box;font-size:1.12rem;font-weight:700;line-height:1.35;
+  color:var(--ink);border:1.5px solid var(--teal);border-radius:12px;padding:9px 12px;background:#fff;outline:none}
+
 /* Mission */
 .mission{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:20px;box-shadow:0 10px 26px rgba(20,33,46,.06)}
 .mission-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px}
