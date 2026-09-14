@@ -12,6 +12,15 @@ function withIds(result) {
   return { subject: result.subject || 'Toán', grade: result.grade || '', topic: result.topic || '', concepts }
 }
 
+// Nhận diện khi người dùng DÁN ĐƯỜNG LINK — app chưa mở được nội dung bên trong link,
+// nên tuyệt đối KHÔNG để AI đoán bừa ra chủ đề (trước đây dán link lại ra chủ đề Toán random).
+function looksLikeLink(t) {
+  const s = String(t || '')
+  return /(https?:\/\/|www\.)\S+/i.test(s) || /\b[a-z0-9-]+\.[a-z]{2,}\/\S+/i.test(s)
+}
+const LINK_MSG = 'App chưa mở được nội dung bên trong đường link (nhất là trang game như Wordwall). Anh/chị hãy CHỤP MÀN HÌNH trang đó rồi tải ảnh lên (nút 📷 ở bước trước), hoặc gõ/dán trực tiếp các từ vựng / nội dung vào ô này.'
+const EMPTY_MSG = 'Chưa đọc được nội dung bài học từ phần này. Anh/chị chụp màn hình rồi tải ảnh lên, hoặc gõ/dán trực tiếp các từ vựng / nội dung cần học (đừng chỉ dán đường link).'
+
 export default function ParentCapture({ onExtracted, onBack }) {
   const [mode, setMode] = useState('choose') // choose | text
   const [text, setText] = useState('')
@@ -20,8 +29,19 @@ export default function ParentCapture({ onExtracted, onBack }) {
 
   async function run(fn) {
     setError(''); setReading(true)
-    try { onExtracted(withIds(await fn())) }
-    catch (err) { setError(err.message || 'Có lỗi xảy ra.'); setReading(false) }
+    try {
+      const res = withIds(await fn())
+      // KHÔNG bịa: nếu không tách được khái niệm nào -> báo để chụp ảnh/gõ trực tiếp, không lưu bừa.
+      if (!res.concepts.length) { setReading(false); setError(EMPTY_MSG); return }
+      onExtracted(res)
+    } catch (err) { setError(err.message || 'Có lỗi xảy ra.'); setReading(false) }
+  }
+  // Gửi nội dung GÕ TAY: chặn nếu là đường link (app chưa đọc được link).
+  function submitText() {
+    const t = text.trim()
+    if (!t) return
+    if (looksLikeLink(t)) { setError(LINK_MSG); return }
+    run(() => extractFromText(t))
   }
   const onFiles = (e) => {
     const fs = Array.from(e.target.files || [])
@@ -78,12 +98,13 @@ export default function ParentCapture({ onExtracted, onBack }) {
             className="ta"
             rows={5}
             autoFocus
-            placeholder={'Gõ tiêu đề / nội dung con vừa học, ví dụ:\n• Toán lớp 4: cộng trừ 2 chữ số\n• Lịch sử lớp 5: cuộc chiến chống Nguyên Mông xâm lược'}
+            placeholder={'Gõ / dán nội dung con vừa học (KHÔNG dán đường link), ví dụ:\n• Toán lớp 4: cộng trừ 2 chữ số\n• Tiếng Anh: apple, banana, cat, dog, elephant\n• Lịch sử lớp 5: chống Nguyên Mông xâm lược'}
             value={text}
             onChange={(e) => setText(e.target.value)}
           />
+          <p className="cr-hint">🔗 Nếu là đường link (Wordwall, Quizlet…): app chưa đọc được nội dung bên trong link — anh/chị chụp màn hình trang đó rồi <b>tải ảnh lên</b>, app sẽ đọc được.</p>
           {error && <div className="err">{error}</div>}
-          <button className="cta" disabled={!text.trim()} onClick={() => run(() => extractFromText(text.trim()))}>
+          <button className="cta" disabled={!text.trim()} onClick={submitText}>
             Đọc và ghi nhớ bài học
           </button>
           <button className="ghost small" onClick={() => { setMode('choose'); setError('') }}>← Chọn cách khác</button>

@@ -64,6 +64,7 @@ export async function extractFromText(key, text) {
 `Một học sinh tiểu học Việt Nam mô tả nội dung vừa học ở trường: "${text}".
 Suy ra và trả về DUY NHẤT JSON:
 {"subject":"","grade":"","topic":"","concepts":[{"name":"","difficulty":"Cơ bản|Nâng cao","importance":"Rất quan trọng|Quan trọng|Bình thường"}]}
+QUAN TRỌNG: nếu nội dung trên chỉ là một ĐƯỜNG LINK/URL, một chuỗi vô nghĩa, hoặc KHÔNG đủ thông tin để biết bài học gì, hãy trả về đúng {"subject":"","grade":"","topic":"","concepts":[]} — TUYỆT ĐỐI KHÔNG tự bịa chủ đề, đặc biệt KHÔNG tự ý ra chủ đề Toán.
 Nếu môn TIẾNG ANH: "concepts" gồm các TỪ VỰNG (mỗi từ/cụm là 1 concept, "name" = chính từ tiếng Anh đó, KHÔNG cần nghĩa) và các ĐIỂM NGỮ PHÁP LỚN (vd "Thì hiện tại đơn"). Môn khác: tách khái niệm như thường.
 Tối đa 8 khái niệm (riêng từ vựng tiếng Anh tối đa 12 từ), đúng với mô tả. "name" bằng tiếng Việt (trừ từ vựng tiếng Anh giữ nguyên). Chỉ JSON.`
   const out = await ask(key, [{ type: 'text', text: prompt }], 900, { fast: true })
