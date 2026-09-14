@@ -52,7 +52,8 @@ export async function extractConcepts(key, items, mediaLegacy = 'image/jpeg') {
 `Đây là ${many ? `${blocks.length} ảnh/trang` : 'ảnh một trang'} bài/phiếu bài tập của học sinh tiểu học Việt Nam (có thể bị xoay).${many ? ' Các trang có thể cùng một bài hoặc nhiều bài khác nhau — tổng hợp lại.' : ''}
 Đọc và trả về DUY NHẤT JSON:
 {"subject":"","grade":"","topic":"","concepts":[{"name":"","difficulty":"Cơ bản|Nâng cao","importance":"Rất quan trọng|Quan trọng|Bình thường"}]}
-Tối đa ${many ? 10 : 6} khái niệm, gộp trùng lặp. Tiếng Việt. Chỉ JSON.`
+Nếu môn TIẾNG ANH: "concepts" gồm các TỪ VỰNG (mỗi từ/cụm là 1 concept, "name" = chính từ tiếng Anh đó, KHÔNG cần ghi nghĩa) và các ĐIỂM NGỮ PHÁP LỚN (vd "Thì hiện tại đơn", "Thì quá khứ đơn"). Môn khác: tách khái niệm như thường.
+Tối đa ${many ? 12 : 8} khái niệm (riêng từ vựng tiếng Anh tối đa 15 từ), gộp trùng lặp. "name" bằng tiếng Việt (trừ từ vựng tiếng Anh giữ nguyên tiếng Anh). Chỉ JSON.`
   const out = await ask(key, [...blocks, { type: 'text', text: prompt }], many ? 1500 : 900, { fast: true })
   return parseJSON(out)
 }
@@ -63,7 +64,8 @@ export async function extractFromText(key, text) {
 `Một học sinh tiểu học Việt Nam mô tả nội dung vừa học ở trường: "${text}".
 Suy ra và trả về DUY NHẤT JSON:
 {"subject":"","grade":"","topic":"","concepts":[{"name":"","difficulty":"Cơ bản|Nâng cao","importance":"Rất quan trọng|Quan trọng|Bình thường"}]}
-Tối đa 6 khái niệm, đúng với mô tả. Tiếng Việt. Chỉ JSON.`
+Nếu môn TIẾNG ANH: "concepts" gồm các TỪ VỰNG (mỗi từ/cụm là 1 concept, "name" = chính từ tiếng Anh đó, KHÔNG cần nghĩa) và các ĐIỂM NGỮ PHÁP LỚN (vd "Thì hiện tại đơn"). Môn khác: tách khái niệm như thường.
+Tối đa 8 khái niệm (riêng từ vựng tiếng Anh tối đa 12 từ), đúng với mô tả. "name" bằng tiếng Việt (trừ từ vựng tiếng Anh giữ nguyên). Chỉ JSON.`
   const out = await ask(key, [{ type: 'text', text: prompt }], 900, { fast: true })
   return parseJSON(out)
 }
@@ -140,6 +142,11 @@ async function genChunk(key, { subject, grade, topic, concepts, format, fast = f
   const combineRule = multi
     ? `\n- KẾT HỢP NHIỀU CHỦ ĐỀ: ưu tiên mỗi bài lồng ghép TỪ 2 CHỦ ĐỀ TRỞ LÊN trong danh sách (${names}) vào cùng một bài toán nhiều bước, để con luyện phối hợp các kỹ năng. Vẫn đúng chương trình lớp ${grade}, câu chữ dễ hiểu.`
     : ''
+  // Chống LẶP: mỗi câu một nội dung khác nhau. Với môn ngôn ngữ, cấm hỏi lại cùng một từ.
+  const isLang = subjKey(subject) === 'tieng-anh' || subjKey(subject) === 'tieng-viet'
+  const distinctRule = isLang
+    ? `\n- ĐA DẠNG BẮT BUỘC: mỗi câu về một TỪ VỰNG / ĐIỂM NGỮ PHÁP KHÁC nhau; TUYỆT ĐỐI KHÔNG hỏi lại cùng một từ (vd cùng chữ "trim") ở hai câu trong ${n} câu này.`
+    : `\n- ĐA DẠNG: mỗi câu một nội dung/đối tượng/số liệu KHÁC nhau; không hỏi lại cùng một thứ.`
   // BẮT BUỘC đúng chủ đề: tránh lạc đề (đang ôn phép chia lại ra phép nhân, ôn số tự nhiên lại ra phân số…).
   const topicRule =
 `QUAN TRỌNG — ĐÚNG CHỦ ĐỀ: CHỈ ra câu luyện đúng các khái niệm đang ôn: ${names} (thuộc chủ đề "${topic}"). TUYỆT ĐỐI KHÔNG ra câu thuộc khái niệm/dạng KHÁC. Ví dụ: đang ôn "ước lượng thương / phép chia" thì KHÔNG hỏi phép nhân hay cách đọc số; đang ôn "số tự nhiên" thì KHÔNG hỏi phân số. Mỗi câu phải trực tiếp luyện đúng các khái niệm trên.`
@@ -148,7 +155,7 @@ async function genChunk(key, { subject, grade, topic, concepts, format, fast = f
   const prompt = salt + (open
     ? `Môn ${subject}, lớp ${grade}, chủ đề "${topic}". Các khái niệm: ${names}.
 Tạo ${n} ${kindOpen}.${mrule}${combineRule}
-${topicRule}
+${topicRule}${distinctRule}
 QUY TẮC BẮT BUỘC:
 - Mỗi câu phải TỰ CHỨA đầy đủ dữ kiện và chỉ có MỘT đáp án đúng để con tự tính/viết ra.
 - TUYỆT ĐỐI KHÔNG dùng dạng "trong các ... sau", "phân số nào", "đáp án nào", "số nào", không liệt kê lựa chọn, không hỏi kiểu chọn 1 trong nhiều. Vì không hiển thị lựa chọn nên câu đó sẽ không trả lời được.
@@ -161,7 +168,7 @@ Trả DUY NHẤT JSON:
 "answer" là đáp án đúng viết ngắn gọn (số, phân số, hoặc cụm từ). "explain" giải thích ngắn gọn ≤20 từ. Tiếng Việt, chính xác. Chỉ JSON.`
     : `Môn ${subject}, lớp ${grade}, chủ đề "${topic}". Các khái niệm: ${names}.
 Tạo ${n} ${kindChoice}.${mrule}${combineRule}
-${topicRule}
+${topicRule}${distinctRule}
 Trả DUY NHẤT JSON:
 {"questions":[{"concept":"","q":"","options":["","","",""],"answer":"","explain":""}]}
 QUY TẮC BẮT BUỘC:
@@ -198,7 +205,10 @@ export async function generateQuestions(key, opts) {
   const vary = Math.random().toString(36).slice(2, 7)
   const freshRule = `(Mã đề ${vary}: hãy ra bộ câu hỏi MỚI và KHÁC các lần ôn trước — đổi số liệu, đổi ngữ cảnh, đổi cách hỏi; tránh trùng lặp) `
   // Đợt nhỏ (3-4 câu) chạy song song -> mỗi đợt xong nhanh, tổng thời gian ngắn hơn nhiều so với 1 đợt lớn.
-  const CHUNK = count <= 12 ? 3 : 4
+  // Môn NGÔN NGỮ (Anh/Việt) hay bị LẶP TỪ giữa các đợt song song (vd "trim" lặp 4/10 câu) vì mỗi đợt
+  // không "thấy" đợt kia. -> gom thành ĐỢT LỚN để quy tắc "không lặp từ" áp cho cả loạt câu.
+  const isLangGen = subjKey(subject) === 'tieng-anh' || subjKey(subject) === 'tieng-viet'
+  const CHUNK = isLangGen ? Math.min(Math.max(count, 1), 12) : (count <= 12 ? 3 : 4)
   // Mỗi đợt TỰ THỬ LẠI 1 lần nếu lỗi/rỗng — mạng mobile chập chờn hay làm HỤT câu (1,2,5,7 câu).
   const genOne = async (n, salt) => {
     let r = await genChunk(key, base, n, salt).catch(() => [])

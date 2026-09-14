@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Brand, StatusPill, MasteryBar, RewardTrack } from '../components.jsx'
 import { conceptStatusList } from '../lib/mockAI.js'
 import { last7, totalMinutes, todayMinutes, streakDays, dayReport } from '../lib/stats.js'
+import { subjectDisplayName, subjectIcon } from '../lib/subjects.js'
 
 const WD = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
 
@@ -53,9 +54,17 @@ function StudyChart({ stats, sel, onSel }) {
 }
 
 export default function ParentDashboard({ mem, stats, onSettings, toast }) {
-  const concepts = conceptStatusList(mem)
-  const subjects = [...new Set((mem || []).map((c) => c.subject).filter(Boolean))]
-  const kmapTitle = subjects.length === 1 ? `Bản đồ kiến thức môn ${subjects[0]}` : 'Bản đồ kiến thức'
+  const allConcepts = conceptStatusList(mem)
+  // Các môn con đã có bài (theo tên hiển thị) — để phụ huynh CHỌN môn xem báo cáo.
+  const subjectNames = [...new Set((mem || []).map((c) => subjectDisplayName(c.subject)).filter(Boolean))]
+  const [subjView, setSubjView] = useState('all')
+  const activeSubj = subjView !== 'all' && subjectNames.includes(subjView) ? subjView : 'all'
+
+  // Lọc bản đồ kiến thức theo môn đang xem.
+  const concepts = activeSubj === 'all' ? allConcepts : allConcepts.filter((c) => subjectDisplayName(c.subject) === activeSubj)
+  const kmapTitle = activeSubj !== 'all'
+    ? `Bản đồ kiến thức môn ${activeSubj}`
+    : (subjectNames.length === 1 ? `Bản đồ kiến thức môn ${subjectNames[0]}` : 'Bản đồ kiến thức')
   const total = totalMinutes(stats)
   const todayM = todayMinutes(stats)
   const streak = streakDays(stats) // DÙNG CHUNG với thẻ phần thưởng -> luôn khớp nhau
@@ -65,7 +74,9 @@ export default function ParentDashboard({ mem, stats, onSettings, toast }) {
   const days7 = last7(stats)
   const defaultDay = ([...days7].reverse().find((d) => dayReport(stats, d.date).length) || days7[days7.length - 1]).date
   const [selDay, setSelDay] = useState(defaultDay)
-  const report = dayReport(stats, selDay)
+  // Nhật ký theo ngày, lọc theo môn đang xem.
+  const reportAll = dayReport(stats, selDay)
+  const report = activeSubj === 'all' ? reportAll : reportAll.filter((r) => subjectDisplayName(r.subject) === activeSubj)
 
   return (
     <div className="screen">
@@ -94,6 +105,19 @@ export default function ParentDashboard({ mem, stats, onSettings, toast }) {
 
       {/* Đường đến phần thưởng — DÙNG CHUNG với trang Con nên số ngày luôn khớp nhau */}
       <RewardTrack stats={stats} />
+
+      {/* Chọn môn để xem báo cáo (không dồn mọi môn thành 1 dọc dài) */}
+      {subjectNames.length > 1 && (
+        <div className="subjfilter">
+          <span className="subjfilter-lbl">Xem báo cáo môn:</span>
+          <div className="chips">
+            <button className={'chip' + (activeSubj === 'all' ? ' on' : '')} onClick={() => setSubjView('all')}>Tất cả</button>
+            {subjectNames.map((s) => (
+              <button key={s} className={'chip' + (activeSubj === s ? ' on' : '')} onClick={() => setSubjView(s)}>{subjectIcon(s)} {s}</button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Nhận xét theo NGÀY: bấm cột ngày ở biểu đồ trên để xem chi tiết từng ngày */}
       <div className="daynote">

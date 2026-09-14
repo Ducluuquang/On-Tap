@@ -110,6 +110,10 @@ body{
 
 .foot{margin-top:auto;color:var(--muted);font-size:.75rem;text-align:center;line-height:1.5;padding-top:6px}
 
+/* Bộ chọn môn xem báo cáo (trang phụ huynh) */
+.subjfilter{margin:2px 0 2px}
+.subjfilter-lbl{display:block;font-weight:800;color:var(--ink-soft);font-size:.82rem;margin-bottom:7px}
+
 /* Back header */
 .backhead{display:flex;align-items:center;gap:12px}
 .back{width:38px;height:38px;border-radius:11px;border:1px solid var(--border);background:#fff;cursor:pointer;font-size:1.1rem;color:var(--ink);flex:none}
