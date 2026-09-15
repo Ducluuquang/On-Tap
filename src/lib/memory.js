@@ -3,9 +3,34 @@
 // và ngày nên ôn lại (spaced review).
 
 import { CONCEPTS } from '../data/content.js'
+import { subjectKey } from './subjects.js'
 
 // v2: bỏ dữ liệu DEMO cũ — bắt đầu THẬT từ số 0 (bản đồ kiến thức trống, tự tích luỹ theo bài con học).
 const KEY = 'ontap.memory.v2'
+
+// HẾT HẠN theo thời gian (chốt Sep 2026): bản đồ kiến thức không phình to mãi — khi con lên lớp,
+// kiến thức cũ tự rời khỏi bản đồ. Tiếng Anh (từ vựng + ngữ pháp) giữ 24 tháng; các môn khác 12 tháng.
+export function retentionMonths(subject) {
+  return subjectKey(subject) === 'tieng-anh' ? 24 : 12
+}
+
+// Ngày "gần nhất còn dùng" của một khái niệm = ngày học hoặc ngày ôn gần nhất (cái nào mới hơn).
+function recencyDate(c) {
+  return [c && c.learnedOn, c && c.lastReviewed].filter(Boolean).sort().pop() || ''
+}
+
+// Bỏ các khái niệm ĐÃ QUÁ HẠN khỏi bản đồ kiến thức (dựa trên ngày gần nhất + số tháng giữ theo môn).
+// Khái niệm không rõ ngày -> giữ lại (an toàn, không xoá nhầm).
+export function pruneExpired(mem, todayDate = new Date()) {
+  return (mem || []).filter((c) => {
+    const recency = recencyDate(c)
+    if (!recency) return true
+    const cutoff = new Date(todayDate)
+    cutoff.setMonth(cutoff.getMonth() - retentionMonths(c.subject))
+    const cutoffStr = cutoff.toISOString().slice(0, 10)
+    return recency >= cutoffStr // còn trong hạn -> giữ; quá hạn -> rời bản đồ
+  })
+}
 
 // 3 mức (chốt Sep 2026): Thành thạo (~100%) → Vững (80%) → Cần ôn (dưới 80%).
 export function statusOf(m) {
@@ -59,7 +84,7 @@ function seed() {
 export function loadMemory() {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) return JSON.parse(raw)
+    if (raw) return pruneExpired(JSON.parse(raw)) // tự bỏ kiến thức quá hạn mỗi lần mở app
   } catch (e) { /* bỏ qua */ }
   return [] // BẢN THẬT: bắt đầu trống, không còn khái niệm demo
 }
