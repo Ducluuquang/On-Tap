@@ -7,20 +7,23 @@ const H = (key) => ({ 'x-api-key': key, 'anthropic-version': '2023-06-01', 'cont
 
 let cachedIds = null
 async function modelIds(key) {
-  if (cachedIds) return cachedIds
+  if (cachedIds && cachedIds.length) return cachedIds // CHỈ cache khi lấy được -> tránh kẹt danh sách rỗng vĩnh viễn
   try {
     const r = await fetch(MODELS, { headers: H(key) })
     const d = await r.json()
-    cachedIds = (d.data || []).map((m) => m.id)
-  } catch { cachedIds = [] }
-  return cachedIds
+    const ids = (d.data || []).map((m) => m.id)
+    if (ids.length) cachedIds = ids
+    return ids
+  } catch { return [] }
 }
-// fast=true: ưu tiên model nhanh (haiku) cho việc ĐỌC bài — nhanh hơn nhiều mà vẫn đủ chính xác.
-// Mặc định: sonnet (soạn/chấm câu hỏi — cần chính xác cao).
+// Chọn model theo tên CÓ SẴN trong tài khoản (tự thích ứng khi Anthropic đổi đời model).
+// fast=true: ưu tiên model nhanh cho việc ĐỌC bài. Mặc định: model chính xác để soạn/chấm câu hỏi.
+// Fallback dùng model ĐANG CÓ (sonnet-5), KHÔNG hardcode model đã ngừng (sonnet-4-5/haiku-4-5).
 export async function pickModel(key, { fast = false } = {}) {
   const ids = await modelIds(key)
-  if (fast) return ids.find((i) => /haiku/i.test(i)) || ids.find((i) => /sonnet/i.test(i)) || ids[0] || 'claude-haiku-4-5'
-  return ids.find((i) => /sonnet/i.test(i)) || ids.find((i) => /haiku/i.test(i)) || ids[0] || 'claude-sonnet-4-5'
+  const find = (re) => ids.find((i) => re.test(i))
+  if (fast) return find(/haiku/i) || find(/sonnet/i) || find(/fable/i) || ids[0] || 'claude-sonnet-5'
+  return find(/sonnet/i) || find(/opus/i) || find(/haiku/i) || ids[0] || 'claude-sonnet-5'
 }
 
 async function ask(key, content, max = 2500, { fast = false } = {}) {
