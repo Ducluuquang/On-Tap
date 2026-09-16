@@ -1,122 +1,100 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { BackHeader } from '../components.jsx'
-import { buildReview } from '../lib/mockAI.js'
 import { nextMastery } from '../lib/memory.js'
+import { createActiveTimer } from '../lib/stats.js'
 import { CONCEPT_NAME } from '../data/content.js'
 
-export default function Review({ mem, title = 'Ôn tập hôm nay', onFinish, onExit }) {
-  const [questions] = useState(() => buildReview(mem, 6))
+// Trắc nghiệm để HỌC: có giải thích. Sai là sai — không cho thử lại.
+export default function Review({ questions, mem, title = 'Ôn tập hôm nay', hint = '', onFinish, onExit }) {
   const [index, setIndex] = useState(0)
   const [picked, setPicked] = useState(null)
-  const [status, setStatus] = useState('ask') // ask | wrong1 | resolved
-  const [triedWrong, setTriedWrong] = useState(false)
-  const [usedHint, setUsedHint] = useState(false)
-  const [outcome, setOutcome] = useState(null) // correct | wrong
-  const [results, setResults] = useState({}) // conceptId -> {correct,wrong,mastery}
+  const [resolved, setResolved] = useState(false)
+  const [results, setResults] = useState({})
   const [solved, setSolved] = useState(0)
+  const timer = useRef(createActiveTimer())
+
+  // Nhấn Enter = "Câu tiếp theo" khi đã trả lời xong.
+  useEffect(() => {
+    if (!resolved) return undefined
+    const onKey = (e) => { if (e.key === 'Enter') { e.preventDefault(); next() } }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolved, picked, index])
+
+  if (!questions || questions.length === 0) {
+    return (
+      <div className="screen center">
+        <p className="para">Chưa soạn được câu hỏi. Thử lại nhé.</p>
+        <button className="cta small" onClick={onExit}>Về trang chủ</button>
+      </div>
+    )
+  }
 
   const q = questions[index]
-  const startMastery = (cid) =>
-    results[cid]?.mastery ?? (mem.find((c) => c.id === cid)?.mastery ?? 60)
+  const label = CONCEPT_NAME[q.concept] || q.concept
+  const isCorrect = picked === q.answer
 
   function choose(i) {
-    if (status !== 'ask') return
+    if (resolved) return
+    timer.current.step()
     setPicked(i)
-    if (i === q.answer) {
-      setOutcome('correct')
-      setStatus('resolved')
-    } else if (!triedWrong) {
-      setTriedWrong(true)
-      setStatus('wrong1')
-    } else {
-      setOutcome('wrong')
-      setStatus('resolved')
-    }
-  }
-
-  function retry() {
-    setUsedHint(true)
-    setPicked(null)
-    setStatus('ask')
-  }
-  function reveal() {
-    setOutcome('wrong')
-    setStatus('resolved')
+    setResolved(true)
   }
 
   function next() {
-    const cid = q.concept
-    const cur = results[cid] || { correct: 0, wrong: 0, mastery: startMastery(cid) }
-    const isCorrect = outcome === 'correct'
+    const key = q.concept
+    const cur = results[key] || {
+      correct: 0, wrong: 0, label,
+      mastery: results[key]?.mastery ?? (mem.find((c) => c.id === key || c.name === key)?.mastery ?? 55),
+    }
     const updated = {
       correct: cur.correct + (isCorrect ? 1 : 0),
       wrong: cur.wrong + (isCorrect ? 0 : 1),
-      mastery: nextMastery(cur.mastery, { correct: isCorrect, usedHint }),
+      mastery: nextMastery(cur.mastery, { correct: isCorrect, choice: true }),
+      label,
     }
-    const newResults = { ...results, [cid]: updated }
+    const newResults = { ...results, [key]: updated }
     const newSolved = solved + (isCorrect ? 1 : 0)
-    setResults(newResults)
-    setSolved(newSolved)
-
+    setResults(newResults); setSolved(newSolved)
     if (index + 1 >= questions.length) {
-      onFinish(
-        { total: questions.length, correct: newSolved },
-        newResults
-      )
-      return
+      onFinish({ total: questions.length, correct: newSolved, activeSeconds: timer.current.get() }, newResults); return
     }
-    setIndex(index + 1)
-    setPicked(null)
-    setStatus('ask')
-    setTriedWrong(false)
-    setUsedHint(false)
-    setOutcome(null)
+    timer.current.reset()
+    setIndex(index + 1); setPicked(null); setResolved(false)
   }
 
   const optClass = (i) => {
     let c = 'opt'
-    if (status === 'resolved') {
+    if (resolved) {
       if (i === q.answer) c += ' correct'
       else if (i === picked) c += ' wrong'
-    } else if (picked === i) c += ' picked'
+    }
     return c
   }
 
   return (
     <div className="screen">
       <BackHeader title={title} onBack={onExit} />
-
       <div className="qprogress">
         <div className="qbar"><span style={{ width: (index / questions.length) * 100 + '%' }} /></div>
         <span className="qcount">{index + 1}/{questions.length}</span>
       </div>
 
-      <div className="qtag">{CONCEPT_NAME[q.concept]}</div>
-      <h2 className="question">{q.q}</h2>
+      {hint && <div className="find-hint">{hint}</div>}
+      <div className="qtag">{label}</div>
+      <h2 className={'question' + (hint ? ' q-multiline' : '')}>{q.q}</h2>
 
       <div className="opts">
         {q.options.map((o, i) => (
-          <button key={i} className={optClass(i)} onClick={() => choose(i)} disabled={status === 'resolved'}>
-            {o}
-          </button>
+          <button key={i} className={optClass(i)} onClick={() => choose(i)} disabled={resolved}>{o}</button>
         ))}
       </div>
 
-      {status === 'wrong1' && (
-        <div className="fb fb-hint">
-          <b>Chưa đúng — thử lại nhé.</b>
-          <p>Gợi ý: {q.hint}</p>
-          <div className="fb-actions">
-            <button className="cta small" onClick={retry}>Thử lại</button>
-            <button className="ghost small" onClick={reveal}>Xem đáp án</button>
-          </div>
-        </div>
-      )}
-
-      {status === 'resolved' && (
-        <div className={'fb ' + (outcome === 'correct' ? 'fb-ok' : 'fb-no')}>
-          <b>{outcome === 'correct' ? (usedHint ? 'Đúng rồi! 👏' : 'Chính xác! 🎉') : 'Đáp án đúng đã hiện ở trên.'}</b>
-          <p>{q.explain}</p>
+      {resolved && (
+        <div className={'fb ' + (isCorrect ? 'fb-ok' : 'fb-no')}>
+          <b>{isCorrect ? 'Chính xác! 🎉' : 'Sai rồi — đáp án đúng đã hiện ở trên.'}</b>
+          {q.explain && <p>{q.explain}</p>}
           <button className="cta" onClick={next}>
             {index + 1 >= questions.length ? 'Xem kết quả' : 'Câu tiếp theo'}
           </button>

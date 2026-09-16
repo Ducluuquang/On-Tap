@@ -3,7 +3,7 @@
 // chọn câu hỏi theo điểm yếu, và viết nhận xét cho phụ huynh.
 
 import { CONCEPTS, CONCEPT_NAME, questionsFor, QUESTIONS } from '../data/content.js'
-import { statusOf } from './memory.js'
+import { statusOf, recencyDate } from './memory.js'
 
 // Vài "bài chụp" mẫu để bấm thử (thay cho chụp ảnh thật).
 export const SAMPLE_CAPTURES = [
@@ -39,8 +39,19 @@ export function extractFromCapture(sampleId) {
 }
 
 // Chọn câu hỏi cho buổi ôn: ưu tiên concept yếu (mastery thấp) nhiều câu hơn.
-export function buildReview(mem, count = 6) {
-  const ranked = [...mem].sort((a, b) => a.mastery - b.mastery)
+// openOnly = true: chỉ lấy câu TỰ CHỨA (bỏ câu kiểu "trong các... sau") cho chế độ tự điền.
+// conceptNames: nếu có, CHỈ lấy câu thuộc đúng khái niệm đang ôn (tránh ra câu lạc đề khi dự phòng).
+export function buildReview(mem, count = 6, { openOnly = false, conceptNames = null } = {}) {
+  let pool = [...mem]
+  if (conceptNames && conceptNames.length) {
+    const set = new Set(conceptNames.map((n) => String(n).toLowerCase()))
+    const only = pool.filter((c) => set.has(c.name.toLowerCase()) || set.has(c.id))
+    // Không có câu mẫu ĐÚNG chủ đề đang ôn (VD "số lớn hơn 6 chữ số") -> trả rỗng,
+    // thà báo "thử lại" còn hơn ra câu lạc đề (phân số) không liên quan.
+    if (!only.length) return []
+    pool = only
+  }
+  const ranked = pool.sort((a, b) => a.mastery - b.mastery)
   const picks = []
   // 2 câu từ concept yếu nhất, rồi rải đều các concept còn lại.
   const order = [ranked[0], ranked[0], ...ranked.slice(1), ...ranked]
@@ -48,7 +59,7 @@ export function buildReview(mem, count = 6) {
   for (const c of order) {
     if (picks.length >= count) break
     if (!c) continue
-    const pool = questionsFor(c.id).filter((q) => !used.has(q.id))
+    const pool = questionsFor(c.id).filter((q) => !used.has(q.id) && (!openOnly || !q.mcOnly))
     if (pool.length === 0) continue
     const q = pool[0]
     used.add(q.id)
@@ -69,9 +80,16 @@ export function parentSummary(mem, lastSession) {
 }
 
 export function conceptStatusList(mem) {
+  // Sắp xếp: MỚI HỌC lên trên cùng (theo ngày gần nhất), KHÔNG theo mức độ thành thạo.
+  // Cùng ngày thì phần yếu (mastery thấp) lên trước để phụ huynh dễ thấy chỗ cần ôn.
   return [...mem]
-    .sort((a, b) => b.mastery - a.mastery)
-    .map((c) => ({ ...c, status: statusOf(c.mastery) }))
+    .sort((a, b) => {
+      const rb = recencyDate(b), ra = recencyDate(a)
+      if (rb !== ra) return rb < ra ? -1 : 1 // ngày mới hơn lên trước
+      return (a.mastery || 0) - (b.mastery || 0)
+    })
+    // Chưa ôn lần nào -> "Mới" (0%); ôn rồi thì tính theo ngưỡng thành thạo.
+    .map((c) => ({ ...c, status: (c.reviews || 0) === 0 ? 'new' : statusOf(c.mastery) }))
 }
 
 export const TOTAL_QUESTIONS = QUESTIONS.length

@@ -1,7 +1,7 @@
 // Backend serverless (chuẩn Vercel). Giữ khóa API an toàn ở máy chủ.
 // Trình duyệt gọi POST /api/ai với { action, ... } và KHÔNG bao giờ thấy khóa.
 
-import { extractConcepts, generateQuestions } from './aiCore.mjs'
+import { extractConcepts, extractFromText, generateQuestions, gradeHomework, judgeAnswer } from './aiCore.mjs'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -17,13 +17,31 @@ export default async function handler(req, res) {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {})
     const { action } = body
     if (action === 'extract') {
-      const data = await extractConcepts(key, body.image, body.media || 'image/jpeg')
+      const items = Array.isArray(body.items) && body.items.length
+        ? body.items
+        : [{ type: 'image', b64: body.image, media: body.media || 'image/jpeg' }]
+      const data = await extractConcepts(key, items)
+      res.status(200).json(data)
+      return
+    }
+    if (action === 'extract_text') {
+      const data = await extractFromText(key, String(body.text || '').slice(0, 2000))
       res.status(200).json(data)
       return
     }
     if (action === 'generate') {
       const questions = await generateQuestions(key, body.payload || {})
       res.status(200).json({ questions })
+      return
+    }
+    if (action === 'grade') {
+      const data = await gradeHomework(key, body.image, body.media || 'image/jpeg')
+      res.status(200).json(data)
+      return
+    }
+    if (action === 'judge') {
+      const data = await judgeAnswer(key, body.payload || {})
+      res.status(200).json(data)
       return
     }
     res.status(400).json({ error: 'action không hợp lệ' })
