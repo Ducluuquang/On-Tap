@@ -28,9 +28,12 @@ export async function pickModel(key, { fast = false } = {}) {
 
 async function ask(key, content, max = 2500, { fast = false } = {}) {
   const model = await pickModel(key, { fast })
+  // TẮT "thinking": model đời mới (sonnet-5…) mặc định suy nghĩ trước khi trả lời -> CHẬM và
+  // ăn hết token nên câu hỏi bị CỤT/thiếu, dẫn tới "Chưa soạn được câu hỏi" (timeout 60s).
+  // Tắt đi thì trả JSON thẳng: nhanh hơn nhiều và đủ câu. Vẫn giữ chính xác nhờ quy tắc tự kiểm trong prompt.
   const r = await fetch(API, {
     method: 'POST', headers: H(key),
-    body: JSON.stringify({ model, max_tokens: max, messages: [{ role: 'user', content }] }),
+    body: JSON.stringify({ model, max_tokens: max, thinking: { type: 'disabled' }, messages: [{ role: 'user', content }] }),
   })
   const d = await r.json()
   if (d.error) throw new Error(d.error.message || JSON.stringify(d.error))
