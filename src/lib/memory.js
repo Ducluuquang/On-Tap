@@ -57,6 +57,28 @@ export function conceptKey(name) {
   return [...new Set(words)].sort().join(' ')
 }
 
+// GỘP các khái niệm TRÙNG (cùng nghĩa theo conceptKey) thành MỘT -> bản đồ kiến thức không bị lặp.
+// Giữ tên đầy đủ hơn, mastery cao nhất, cộng dồn số lần ôn/đúng/sai, giữ ngày gần nhất.
+export function dedupeMem(mem) {
+  const byKey = new Map()
+  const out = []
+  for (const c of mem || []) {
+    const k = conceptKey(c && c.name)
+    if (!k) { out.push(c); continue } // tên rỗng -> giữ nguyên, không gộp
+    const prev = byKey.get(k)
+    if (!prev) { const nc = { ...c }; byKey.set(k, nc); out.push(nc); continue }
+    // Đã có khái niệm CÙNG NGHĨA -> gộp vào (không thêm dòng mới).
+    if ((c.name || '').length > (prev.name || '').length) prev.name = c.name // tên nào đầy đủ hơn thì giữ
+    prev.mastery = Math.max(prev.mastery || 0, c.mastery || 0)
+    prev.reviews = (prev.reviews || 0) + (c.reviews || 0)
+    prev.correct = (prev.correct || 0) + (c.correct || 0)
+    prev.wrong = (prev.wrong || 0) + (c.wrong || 0)
+    prev.learnedOn = [prev.learnedOn, c.learnedOn].filter(Boolean).sort().pop() || prev.learnedOn
+    prev.lastReviewed = [prev.lastReviewed, c.lastReviewed].filter(Boolean).sort().pop() || prev.lastReviewed
+  }
+  return out
+}
+
 // Trạng thái khởi tạo: giả lập con đã học mấy khái niệm này rồi, mức độ khác nhau.
 function daysAgo(n) {
   const t = new Date()
@@ -85,7 +107,8 @@ function seed() {
 export function loadMemory() {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) return pruneExpired(JSON.parse(raw)) // tự bỏ kiến thức quá hạn mỗi lần mở app
+    // Mỗi lần mở app: bỏ kiến thức QUÁ HẠN + GỘP các khái niệm TRÙNG (không để lặp trong bản đồ).
+    if (raw) return dedupeMem(pruneExpired(JSON.parse(raw)))
   } catch (e) { /* bỏ qua */ }
   return [] // BẢN THẬT: bắt đầu trống, không còn khái niệm demo
 }
