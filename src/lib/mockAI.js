@@ -3,7 +3,7 @@
 // chọn câu hỏi theo điểm yếu, và viết nhận xét cho phụ huynh.
 
 import { CONCEPTS, CONCEPT_NAME, questionsFor, QUESTIONS } from '../data/content.js'
-import { statusOf } from './memory.js'
+import { statusOf, recencyDate } from './memory.js'
 
 // Vài "bài chụp" mẫu để bấm thử (thay cho chụp ảnh thật).
 export const SAMPLE_CAPTURES = [
@@ -80,8 +80,14 @@ export function parentSummary(mem, lastSession) {
 }
 
 export function conceptStatusList(mem) {
+  // Sắp xếp: MỚI HỌC lên trên cùng (theo ngày gần nhất), KHÔNG theo mức độ thành thạo.
+  // Cùng ngày thì phần yếu (mastery thấp) lên trước để phụ huynh dễ thấy chỗ cần ôn.
   return [...mem]
-    .sort((a, b) => b.mastery - a.mastery)
+    .sort((a, b) => {
+      const rb = recencyDate(b), ra = recencyDate(a)
+      if (rb !== ra) return rb < ra ? -1 : 1 // ngày mới hơn lên trước
+      return (a.mastery || 0) - (b.mastery || 0)
+    })
     // Chưa ôn lần nào -> "Mới" (0%); ôn rồi thì tính theo ngưỡng thành thạo.
     .map((c) => ({ ...c, status: (c.reviews || 0) === 0 ? 'new' : statusOf(c.mastery) }))
 }

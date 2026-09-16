@@ -395,10 +395,12 @@ export default function App() {
   }
 
   function onExtracted(result) { setPending(result); setView('approve') }
-  function onSaveApprove(checked) {
+  function onSaveApprove(checked, subject) {
+    // Dùng MÔN phụ huynh đã chọn/xác nhận (tránh AI đoán sai -> Toán lẫn vào Tiếng Anh).
+    const subj = subject || pending.subject
     const chosen = (pending?.concepts || [])
       .filter((c) => checked[c.id])
-      .map((c) => ({ ...c, subject: pending.subject, topic: pending.topic }))
+      .map((c) => ({ ...c, subject: subj, topic: pending.topic }))
     setMem((m) => addConcepts(m, chosen))
     setToast(`Đã lưu ${chosen.length} khái niệm vào bộ nhớ của con ✓`)
     setPending(null)

@@ -55,6 +55,7 @@ export async function extractConcepts(key, items, mediaLegacy = 'image/jpeg') {
 `Đây là ${many ? `${blocks.length} ảnh/trang` : 'ảnh một trang'} bài/phiếu bài tập của học sinh tiểu học Việt Nam (có thể bị xoay).${many ? ' Các trang có thể cùng một bài hoặc nhiều bài khác nhau — tổng hợp lại.' : ''}
 Đọc và trả về DUY NHẤT JSON:
 {"subject":"","grade":"","topic":"","concepts":[{"name":"","difficulty":"Cơ bản|Nâng cao","importance":"Rất quan trọng|Quan trọng|Bình thường"}]}
+"subject" phải là ĐÚNG môn của bài (Toán, Tiếng Việt, Tiếng Anh, Khoa học, Lịch sử, Địa lý…). Suy từ NỘI DUNG: bài có số/phép tính/hình = Toán; từ vựng/ngữ pháp tiếng Anh = Tiếng Anh; chính tả/từ loại tiếng Việt = Tiếng Việt. Nếu nhiều môn, chọn môn CHÍNH. Tất cả khái niệm trong 1 lần đọc thuộc CÙNG "subject" này.
 Nếu môn TIẾNG ANH: "concepts" gồm các TỪ VỰNG (mỗi từ/cụm là 1 concept, "name" = chính từ tiếng Anh đó, KHÔNG cần ghi nghĩa) và các ĐIỂM NGỮ PHÁP LỚN (vd "Thì hiện tại đơn", "Thì quá khứ đơn"). Môn khác: tách khái niệm như thường.
 Tối đa ${many ? 12 : 8} khái niệm (riêng từ vựng tiếng Anh tối đa 15 từ), gộp trùng lặp. "name" bằng tiếng Việt (trừ từ vựng tiếng Anh giữ nguyên tiếng Anh). Chỉ JSON.`
   const out = await ask(key, [...blocks, { type: 'text', text: prompt }], many ? 1500 : 900, { fast: true })

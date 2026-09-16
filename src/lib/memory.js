@@ -15,7 +15,8 @@ export function retentionMonths(subject) {
 }
 
 // Ngày "gần nhất còn dùng" của một khái niệm = ngày học hoặc ngày ôn gần nhất (cái nào mới hơn).
-function recencyDate(c) {
+// Dùng để: (1) tính hết hạn, (2) sắp xếp bản đồ kiến thức MỚI HỌC lên trên.
+export function recencyDate(c) {
   return [c && c.learnedOn, c && c.lastReviewed].filter(Boolean).sort().pop() || ''
 }
 
