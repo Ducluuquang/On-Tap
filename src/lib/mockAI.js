@@ -79,13 +79,21 @@ export function parentSummary(mem, lastSession) {
   return `Con đang vững phần "${strongest.name}". Cần chú ý "${weakest.name}" (${weakest.mastery}%) — nên ưu tiên ôn lại.`
 }
 
+// Mốc "vừa cập nhật" của khái niệm (ms): ưu tiên updatedAt (chi tiết tới giây), nếu chưa có
+// thì suy từ ngày gần nhất. -> khái niệm VỪA ôn (dù cùng ngày) vẫn nhảy lên trên.
+function updatedMs(c) {
+  if (typeof c.updatedAt === 'number' && c.updatedAt > 0) return c.updatedAt
+  const r = recencyDate(c) // YYYY-MM-DD
+  return r ? new Date(r + 'T00:00:00').getTime() : 0
+}
+
 export function conceptStatusList(mem) {
-  // Sắp xếp: MỚI HỌC lên trên cùng (theo ngày gần nhất), KHÔNG theo mức độ thành thạo.
-  // Cùng ngày thì phần yếu (mastery thấp) lên trước để phụ huynh dễ thấy chỗ cần ôn.
+  // Sắp xếp: VỪA ÔN / VỪA CẬP NHẬT lên trên cùng (theo mốc thời gian chi tiết), KHÔNG theo mức thành thạo.
+  // Bằng nhau thì phần yếu (mastery thấp) lên trước để phụ huynh dễ thấy chỗ cần ôn.
   return [...mem]
     .sort((a, b) => {
-      const rb = recencyDate(b), ra = recencyDate(a)
-      if (rb !== ra) return rb < ra ? -1 : 1 // ngày mới hơn lên trước
+      const mb = updatedMs(b), ma = updatedMs(a)
+      if (mb !== ma) return mb - ma // mới hơn (số lớn hơn) lên trước
       return (a.mastery || 0) - (b.mastery || 0)
     })
     // Chưa ôn lần nào -> "Mới" (0%); ôn rồi thì tính theo ngưỡng thành thạo.

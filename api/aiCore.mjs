@@ -110,7 +110,7 @@ export function subjKey(subject) {
 
 // Quy tắc RA ĐỀ RIÊNG theo môn (giữ độ chính xác đặc thù từng môn).
 // Toán, Tiếng Việt, Tiếng Anh có quy tắc kỹ; mọi môn khác dùng khung CHUNG.
-export function subjectRules(subject, grade) {
+export function subjectRules(subject, grade, enLang = 'vi') {
   const k = subjKey(subject)
   if (k === 'toan') {
     return NUM_RULE + `
@@ -122,8 +122,11 @@ export function subjectRules(subject, grade) {
 - Ngữ liệu trong sáng, phù hợp học sinh tiểu học lớp ${grade}.`
   }
   if (k === 'tieng-anh') {
+    const askLine = enLang === 'en'
+      ? 'Phần YÊU CẦU/câu hỏi VÀ các đáp án đều viết bằng TIẾNG ANH.'
+      : 'Phần YÊU CẦU/câu hỏi viết bằng TIẾNG VIỆT cho con dễ hiểu; NHƯNG từ vựng/cụm cần học và 4 ĐÁP ÁN giữ nguyên TIẾNG ANH (vd: «Chọn dạng quá khứ đúng của "go":» rồi 4 đáp án tiếng Anh). Con chỉ cần chọn đáp án đúng.'
     return `- Tiếng Anh (học sinh tiểu học Việt Nam): từ vựng, ngữ pháp cơ bản, mẫu câu, chính tả.
-- Câu hỏi và các đáp án viết bằng TIẾNG ANH; phần "explain" có thể giải thích ngắn bằng tiếng Việt.
+- ${askLine} Phần "explain" giải thích ngắn bằng tiếng Việt.
 - Từ vựng/ngữ pháp đúng CHUẨN; chỉ 1 đáp án đúng; độ khó hợp lớp ${grade}.`
   }
   // Khung CHUNG cho mọi môn khác (Khoa học, Lịch sử, Địa lý…).
@@ -140,11 +143,11 @@ const masterRule = (grade) =>
 - Tự giải lại TỪNG BƯỚC để đáp án CHẮC CHẮN đúng trước khi ghi ra.`
 
 // Soạn MỘT đợt câu hỏi (dùng cho chạy song song).
-async function genChunk(key, { subject, grade, topic, concepts, format, fast = false, master = false }, n, salt = '') {
+async function genChunk(key, { subject, grade, topic, concepts, format, fast = false, master = false, enLang = 'vi' }, n, salt = '') {
   const names = concepts.map((c) => (typeof c === 'string' ? c : c.name)).join(', ')
   const open = format === 'open'
   const mrule = master ? '\n' + masterRule(grade) : ''
-  const subjRule = subjectRules(subject, grade) // quy tắc ra đề riêng theo môn
+  const subjRule = subjectRules(subject, grade, enLang) // quy tắc ra đề riêng theo môn (kèm ngôn ngữ đề Tiếng Anh)
   // Master + NHIỀU chủ đề: yêu cầu KẾT HỢP các chủ đề trong danh sách vào cùng một bài toán.
   const multi = master && concepts.length > 1
   const combineRule = multi
@@ -207,8 +210,8 @@ function dedupeByQ(list) {
 export async function generateQuestions(key, opts) {
   // fast=false (mặc định): dùng model CHÍNH XÁC để soạn bài (độ tin cậy là ưu tiên số 1).
   // Tăng tốc bằng cách chia NHỎ và chạy SONG SONG nhiều đợt — nhanh mà KHÔNG giảm chính xác.
-  const { subject = 'Toán', grade = '', topic = '', concepts = [], count = 6, format = 'choice', fast = false, master = false } = opts
-  const base = { subject, grade, topic, concepts, format, fast, master }
+  const { subject = 'Toán', grade = '', topic = '', concepts = [], count = 6, format = 'choice', fast = false, master = false, enLang = 'vi' } = opts
+  const base = { subject, grade, topic, concepts, format, fast, master, enLang }
   // Mã đề NGẪU NHIÊN mỗi lần gọi -> mỗi buổi ôn ra bộ câu KHÁC nhau dù cùng nội dung.
   const vary = Math.random().toString(36).slice(2, 7)
   const freshRule = `(Mã đề ${vary}: hãy ra bộ câu hỏi MỚI và KHÁC các lần ôn trước — đổi số liệu, đổi ngữ cảnh, đổi cách hỏi; tránh trùng lặp) `

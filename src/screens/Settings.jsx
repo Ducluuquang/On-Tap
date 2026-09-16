@@ -15,6 +15,7 @@ export default function Settings({ account, settings, stats, onChangePassword, o
   const hasPin = !!account?.pin
   const [pinStep, setPinStep] = useState(null) // null | 'set' | 'enter' | 'reset'
   const [pinTarget, setPinTarget] = useState(false) // giá trị allowChoice muốn đặt
+  const [pinAction, setPinAction] = useState('toggle') // 'toggle' (trắc nghiệm) | 'reset' (xoá dữ liệu)
   const [pin, setPin] = useState('')       // ô nhập PIN (đặt / nhập)
   const [pin2, setPin2] = useState('')     // PIN mới (khi đặt lại)
   const [resetUser, setResetUser] = useState('')
@@ -34,22 +35,27 @@ export default function Settings({ account, settings, stats, onChangePassword, o
   function changeGoal(v) { onSetGoal(v) }
 
   const digit = (v) => v.replace(/\D/g, '').slice(0, 1)
-  function openPin(target) {
-    setPinTarget(target); setPin(''); setPin2(''); setResetUser(''); setPinMsg('')
+  function openPin(target, action = 'toggle') {
+    setPinTarget(target); setPinAction(action); setPin(''); setPin2(''); setResetUser(''); setPinMsg('')
     setPinStep(hasPin ? 'enter' : 'set')
   }
   function closePin() { setPinStep(null); setPin(''); setPin2(''); setResetUser(''); setPinMsg('') }
+  // Sau khi PIN đúng: làm đúng việc đang cần (bật/tắt trắc nghiệm HOẶC xoá dữ liệu).
+  function doPinnedAction() {
+    if (pinAction === 'reset') onResetData()
+    else onToggleChoice(pinTarget)
+  }
   function confirmPin() {
     if (pinStep === 'set') {
       if (!/^\d$/.test(pin)) { setPinMsg('Mã PIN là 1 chữ số (0–9).'); return }
-      onSetPin(pin); onToggleChoice(pinTarget); closePin()
+      onSetPin(pin); doPinnedAction(); closePin()
     } else if (pinStep === 'enter') {
-      if (pin === String(account.pin)) { onToggleChoice(pinTarget); closePin() }
+      if (pin === String(account.pin)) { doPinnedAction(); closePin() }
       else setPinMsg('Mã PIN chưa đúng.')
     } else if (pinStep === 'reset') {
       if (resetUser.trim() !== account?.username) { setPinMsg('Tên đăng nhập chưa đúng.'); return }
       if (!/^\d$/.test(pin2)) { setPinMsg('Mã PIN mới là 1 chữ số (0–9).'); return }
-      onSetPin(pin2); onToggleChoice(pinTarget); closePin()
+      onSetPin(pin2); doPinnedAction(); closePin()
     }
   }
   const onEnter = (e) => { if (e.key === 'Enter') { e.preventDefault(); confirmPin() } }
@@ -112,7 +118,7 @@ export default function Settings({ account, settings, stats, onChangePassword, o
               <p className="cr-hint">Xoá toàn bộ bản đồ kiến thức, báo cáo, thời gian học của con và bắt đầu lại từ số 0. Không hoàn tác được.</p>
               <div className="modal-btns">
                 <button className="cta small ghost" onClick={() => setConfirmReset(false)}>Huỷ</button>
-                <button className="cta small danger" onClick={() => { setConfirmReset(false); onResetData() }}>Xoá &amp; làm lại</button>
+                <button className="cta small danger" onClick={() => { setConfirmReset(false); openPin(null, 'reset') }}>Xoá &amp; làm lại</button>
               </div>
             </>
           )}
@@ -125,7 +131,7 @@ export default function Settings({ account, settings, stats, onChangePassword, o
             {pinStep === 'set' && (
               <>
                 <h3>Đặt mã PIN phụ huynh</h3>
-                <p className="cr-hint">Mã 1 chữ số để khoá thay đổi cài đặt này — con sẽ không tự bật/tắt được.</p>
+                <p className="cr-hint">Mã 1 chữ số để khoá các thao tác quan trọng (bật/tắt trắc nghiệm, xoá dữ liệu) — con sẽ không tự làm được.</p>
                 <input className="auth-in pin-in" type="password" inputMode="numeric" maxLength={1} autoFocus
                   value={pin} onChange={(e) => setPin(digit(e.target.value))} onKeyDown={onEnter} placeholder="•" />
               </>
@@ -133,7 +139,7 @@ export default function Settings({ account, settings, stats, onChangePassword, o
             {pinStep === 'enter' && (
               <>
                 <h3>Nhập mã PIN phụ huynh</h3>
-                <p className="cr-hint">Để bật/tắt kiểu trắc nghiệm.</p>
+                <p className="cr-hint">{pinAction === 'reset' ? 'Để xoá dữ liệu học tập của con.' : 'Để bật/tắt kiểu trắc nghiệm.'}</p>
                 <input className="auth-in pin-in" type="password" inputMode="numeric" maxLength={1} autoFocus
                   value={pin} onChange={(e) => setPin(digit(e.target.value))} onKeyDown={onEnter} placeholder="•" />
                 <button className="linkbtn" onClick={() => { setPinStep('reset'); setPinMsg('') }}>Quên mã PIN?</button>

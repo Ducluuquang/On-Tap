@@ -75,6 +75,7 @@ export function dedupeMem(mem) {
     prev.wrong = (prev.wrong || 0) + (c.wrong || 0)
     prev.learnedOn = [prev.learnedOn, c.learnedOn].filter(Boolean).sort().pop() || prev.learnedOn
     prev.lastReviewed = [prev.lastReviewed, c.lastReviewed].filter(Boolean).sort().pop() || prev.lastReviewed
+    prev.updatedAt = Math.max(prev.updatedAt || 0, c.updatedAt || 0) || prev.updatedAt
   }
   return out
 }
@@ -136,6 +137,7 @@ export function nextMastery(m, { correct, choice = false } = {}) {
 // Ôn xong: cập nhật một concept trong bộ nhớ với kết quả buổi ôn.
 export function applySession(mem, perConcept) {
   const today = new Date().toISOString().slice(0, 10)
+  const now = Date.now() // mốc thời gian CHI TIẾT -> khái niệm vừa ôn nhảy lên đầu báo cáo
   return mem.map((c) => {
     const r = perConcept[c.id] || perConcept[c.name]
     if (!r) return c
@@ -146,6 +148,7 @@ export function applySession(mem, perConcept) {
       correct: (c.correct || 0) + r.correct,
       wrong: (c.wrong || 0) + r.wrong,
       lastReviewed: today,
+      updatedAt: now,
       newToday: false,
     }
   })
@@ -168,6 +171,7 @@ function slug(s) {
 // Thêm/cập nhật khái niệm (từ ảnh AI đọc được) vào bộ nhớ của con.
 export function addConcepts(mem, concepts) {
   const today = new Date().toISOString().slice(0, 10)
+  const now = Date.now()
   const out = mem.map((c) => ({ ...c }))
   const idx = new Map(out.map((c, i) => [conceptKey(c.name), i]))
   for (const c of concepts) {
@@ -177,13 +181,13 @@ export function addConcepts(mem, concepts) {
     if (idx.has(key)) {
       // Đã có khái niệm CÙNG NGHĨA (dù viết khác) -> chỉ cập nhật, KHÔNG thêm trùng vào bản đồ.
       const i = idx.get(key)
-      out[i] = { ...out[i], learnedOn: today, newToday: true }
+      out[i] = { ...out[i], learnedOn: today, updatedAt: now, newToday: true }
     } else {
       const nc = {
         id: c.id || slug(name), name, difficulty: c.difficulty || 'Cơ bản',
         subject: c.subject || 'Toán', topic: c.topic || '',
         mastery: 0, reviews: 0, correct: 0, wrong: 0, // MỚI: chưa ôn -> 0% (không "cho" 50% ảo)
-        learnedOn: today, newToday: true, learnedInApp: true,
+        learnedOn: today, updatedAt: now, newToday: true, learnedInApp: true,
       }
       out.push(nc)
       idx.set(key, out.length - 1)
@@ -195,6 +199,7 @@ export function addConcepts(mem, concepts) {
 // Ghi nhận chỗ con làm sai (Error Memory): hạ mastery + đánh dấu cần ôn lại.
 export function recordErrors(mem, conceptNames) {
   const today = new Date().toISOString().slice(0, 10)
+  const now = Date.now()
   const out = mem.map((c) => ({ ...c }))
   const idx = new Map(out.map((c, i) => [conceptKey(c.name), i]))
   for (const raw of conceptNames) {
@@ -203,11 +208,11 @@ export function recordErrors(mem, conceptNames) {
     const key = conceptKey(name)
     if (idx.has(key)) {
       const i = idx.get(key)
-      out[i] = { ...out[i], mastery: Math.max(0, out[i].mastery - 8), wrong: (out[i].wrong || 0) + 1, reviews: (out[i].reviews || 0) + 1, newToday: true, lastReviewed: today }
+      out[i] = { ...out[i], mastery: Math.max(0, out[i].mastery - 8), wrong: (out[i].wrong || 0) + 1, reviews: (out[i].reviews || 0) + 1, newToday: true, lastReviewed: today, updatedAt: now }
     } else {
       out.push({
         id: slug(name), name, difficulty: 'Cơ bản', subject: 'Toán', topic: '',
-        mastery: 30, reviews: 1, correct: 0, wrong: 1, newToday: true, learnedInApp: true,
+        mastery: 30, reviews: 1, correct: 0, wrong: 1, newToday: true, learnedInApp: true, updatedAt: now,
       })
       idx.set(key, out.length - 1)
     }

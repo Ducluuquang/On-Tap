@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { BackHeader } from '../components.jsx'
 import { selectConcepts, describeSelection } from '../lib/review.js'
-import { subjectsFromMem, subjectDisplayName, subjectModes } from '../lib/subjects.js'
+import { subjectsFromMem, subjectDisplayName, subjectModes, subjectKey } from '../lib/subjects.js'
 
 const TIMES = [
   { k: 'week', l: 'Tuần này' }, { k: 'month', l: 'Tháng này' },
@@ -32,7 +32,9 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true 
   const [text, setText] = useState('')
   const [count, setCount] = useState(10)
   const [mode, setMode] = useState(allowChoice ? 'quiz' : 'typed')
+  const [enLang, setEnLang] = useState('vi') // ngôn ngữ YÊU CẦU của đề Tiếng Anh: 'vi' | 'en'
 
+  const isEnglish = subjectKey(subject) === 'tieng-anh'
   // Chỉ ôn trong MÔN đang chọn (không trộn môn khác).
   const memSub = (mem || []).filter((c) => subjectDisplayName(c.subject) === subject)
   // Chế độ chơi phù hợp với môn (vd "Tìm lỗi sai" chỉ cho môn ngôn ngữ).
@@ -53,6 +55,7 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true 
     onStart({
       title: `${subject} · ${describeSelection({ time, level, text })}`,
       conceptNames: names, count, mode, subject,
+      enLang: isEnglish ? enLang : undefined, // đề Tiếng Anh: yêu cầu bằng tiếng Việt hay tiếng Anh
       master: isMaster,
       masterText: isMaster ? text.trim() : '',
     })
@@ -75,6 +78,17 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true 
 
       {memSub.length === 0 && (
         <div className="find-hint">📚 Chưa có bài học môn {subject}. Gõ chủ đề muốn ôn ở ô “Yêu cầu cụ thể” bên dưới, hoặc quay lại “Thêm bài học hôm nay”.</div>
+      )}
+
+      {isEnglish && (
+        <div className="cr-sec">
+          <h3>Ngôn ngữ yêu cầu đề (Tiếng Anh)</h3>
+          <div className="chips">
+            <button className={'chip' + (enLang === 'vi' ? ' on' : '')} onClick={() => setEnLang('vi')}>Yêu cầu bằng tiếng Việt</button>
+            <button className={'chip' + (enLang === 'en' ? ' on' : '')} onClick={() => setEnLang('en')}>Yêu cầu bằng tiếng Anh</button>
+          </div>
+          <p className="cr-hint">Từ vựng và đáp án vẫn bằng tiếng Anh. Chọn “tiếng Việt” nếu con chưa đọc hiểu được yêu cầu bằng tiếng Anh — con chỉ cần chọn đáp án đúng.</p>
+        </div>
       )}
 
       <div className="cr-sec">

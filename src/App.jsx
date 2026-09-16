@@ -273,7 +273,7 @@ export default function App() {
   }
 
   async function startReview(opts = {}) {
-    const { title = 'Ôn tập', conceptNames, count = 10, mode = 'quiz', master = false, masterText = '', subject: subjectOpt = '' } = opts
+    const { title = 'Ôn tập', conceptNames, count = 10, mode = 'quiz', master = false, masterText = '', subject: subjectOpt = '', enLang = 'vi' } = opts
     lastReviewRef.current = opts // để nút "Thử lại" soạn lại đúng yêu cầu này
     // An toàn: nếu phụ huynh đã tắt trắc nghiệm thì mọi buổi ôn đều là tự điền.
     const m = settings.allowChoice ? mode : 'typed'
@@ -341,7 +341,7 @@ export default function App() {
       for (let round = 0; round < 4 && list.length < count; round++) {
         const ask = round === 0 ? count + 3 : (count - list.length) + 3
         // generateQuestions đã tự bắt lỗi nên không ném ra ngoài.
-        const batch = await generateQuestions({ subject, grade: '4-5', topic, concepts, count: ask, format: fmt, master })
+        const batch = await generateQuestions({ subject, grade: '4-5', topic, concepts, count: ask, format: fmt, master, enLang })
         // KHÔNG dừng khi một lượt rỗng (mạng chập chờn) — thử tiếp lượt sau để đủ số câu đã chọn.
         if (batch && batch.length) {
           raw = raw.concat(batch)
