@@ -612,3 +612,84 @@ select.auth-in{appearance:auto;cursor:pointer}
 .mario-hero{position:absolute;bottom:26px;transform:translateX(-50%);font-size:2.2rem;line-height:1;z-index:3;pointer-events:none;filter:drop-shadow(0 3px 3px rgba(0,0,0,.28))}
 .mario-hero.jump{animation:mJump .5s ease}
 @keyframes mJump{0%{bottom:26px}44%{bottom:196px}56%{bottom:196px}100%{bottom:26px}}
+
+/* =========================================================
+   MÀN "BẮT ĐẦU ÔN" — thiết kế lại (hero + 3 tầng + CTA dính đáy)
+   Bảng màu: teal (thương hiệu) + vàng (phần thưởng) + cam (cần ôn) — dùng biến sẵn có.
+   ========================================================= */
+.screen.cr{padding-bottom:0}
+
+/* --- TẦNG 1: Thẻ gợi ý "ÔN NGAY" (điểm nhấn) --- */
+.cr-hero{
+  position:relative;overflow:hidden;border-radius:18px;
+  padding:17px 18px 19px;color:#fff;
+  background:linear-gradient(135deg,#0F857B 0%,#0B5C55 100%);
+  box-shadow:0 12px 28px rgba(15,118,110,.30);
+}
+.cr-hero::after{content:"";position:absolute;right:-30px;top:-30px;width:130px;height:130px;border-radius:50%;
+  background:radial-gradient(circle,rgba(246,197,96,.30),transparent 70%);pointer-events:none}
+.cr-hero-tag{position:relative;display:inline-block;background:rgba(255,255,255,.16);color:#FFE6BE;
+  font-weight:800;font-size:.72rem;letter-spacing:.04em;padding:5px 11px;border-radius:999px;text-transform:uppercase}
+.cr-hero-big{position:relative;font-size:1.4rem;font-weight:900;margin:11px 0 4px;line-height:1.16;letter-spacing:-.01em}
+.cr-hero-sub{position:relative;margin:0;font-size:.9rem;color:rgba(255,255,255,.86);font-weight:500;line-height:1.4}
+.cr-hero-cta{position:relative;margin-top:14px;width:100%;border:0;cursor:pointer;font-family:inherit;
+  font-weight:900;font-size:1.06rem;letter-spacing:.02em;padding:14px;border-radius:13px;
+  color:#5A3B08;background:linear-gradient(180deg,#F7CB68,#E0A32F);
+  box-shadow:0 8px 18px rgba(224,163,47,.40);transition:transform .08s}
+.cr-hero-cta:active{transform:scale(.985)}
+
+/* --- TẦNG 2: Tự chọn bài ôn (thẻ trắng, dưới hero) --- */
+.cr-tier{background:#fff;border:1px solid var(--border);border-radius:16px;
+  padding:15px 15px 17px;display:flex;flex-direction:column;gap:15px;box-shadow:var(--shadow)}
+.cr-tier-h{font-size:1rem;font-weight:900;color:var(--ink);letter-spacing:-.01em}
+
+/* Chip MÔN — 2 dòng: tên + "N cần ôn" (rõ nghĩa) */
+.chip-subj{display:inline-flex;flex-direction:column;align-items:flex-start;gap:1px;
+  padding:8px 14px;border-radius:14px;line-height:1.15}
+.cs-name{font-weight:800;font-size:.92rem}
+.cs-need{font-weight:600;font-size:.72rem;color:var(--weak-tx)}
+.cs-need.cs-ok{color:var(--strong-tx)}
+.chip-subj.on .cs-need{color:#FFE0C4}
+.chip-subj.on .cs-need.cs-ok{color:#D8EEE9}
+
+/* Chip MỨC ĐỘ — lưới 2 cột, có icon; Master chiếm cả hàng (tạo động lực) */
+.chips-lv{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.chip-lv{width:100%;justify-content:center;text-align:center;padding:11px 8px;font-weight:700;font-size:.9rem}
+.chip-lv .lv-ic{margin-right:1px}
+.chip-lv.chip-master{grid-column:1 / -1}
+
+/* Chip SỐ CÂU — 4 cột, 2 dòng: "N câu" + "~x phút" */
+.chips-count{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.chip-count{display:flex;flex-direction:column;align-items:center;gap:1px;padding:9px 4px;line-height:1.12}
+.cc-n{font-weight:800;font-size:.9rem}
+.cc-t{font-weight:600;font-size:.71rem;opacity:.75}
+.chip-count.on .cc-t{opacity:.92}
+
+/* --- TẦNG 3: Tuỳ chỉnh nâng cao (thu gọn) --- */
+.cr-adv{border:1px dashed #D7E0E0;border-radius:14px;background:#fff;padding:2px 14px 6px}
+.cr-adv.open{border-style:solid;border-color:var(--border);box-shadow:var(--shadow)}
+.cr-adv-toggle{width:100%;background:transparent;border:0;cursor:pointer;font-family:inherit;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:12px 0 8px;font-weight:800;color:var(--ink-soft);font-size:.96rem}
+.cr-adv.open .cr-adv-toggle{padding-bottom:4px}
+.cr-adv-caret{color:var(--muted);font-size:.78rem}
+.cr-adv-cap{margin:0 0 9px;font-size:.78rem;color:var(--muted)}
+.cr-adv-body{display:flex;flex-direction:column;gap:15px;padding:6px 0 8px}
+
+/* --- Thanh "BẮT ĐẦU ÔN" dính đáy (luôn hiển thị) --- */
+.cr-stickyspace{height:74px}
+.cr-sticky{position:fixed;left:50%;transform:translateX(-50%);bottom:0;z-index:45;
+  width:100%;max-width:430px;display:flex;align-items:center;gap:12px;
+  padding:10px 15px calc(10px + env(safe-area-inset-bottom,0px));
+  background:#fff;border-top:1px solid var(--border);box-shadow:0 -8px 22px rgba(20,33,46,.12)}
+.cr-sticky-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.cr-sticky-top{font-size:.94rem;font-weight:800;color:var(--ink)}
+.cr-sticky-top b{color:var(--teal-dark)}
+.cr-sticky-sub{font-size:.76rem;font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cr-sticky-warn{color:var(--weak-tx);white-space:normal}
+.cr-sticky-cta{flex-shrink:0;border:0;cursor:pointer;font-family:inherit;font-weight:800;font-size:1rem;
+  color:#fff;background:var(--teal);padding:13px 20px;border-radius:12px;
+  box-shadow:0 6px 14px rgba(15,118,110,.30);transition:transform .08s,background .15s}
+.cr-sticky-cta:hover{background:var(--teal-dark)}
+.cr-sticky-cta:active{transform:scale(.98)}
+.cr-sticky-cta:disabled{background:#B7C7C4;box-shadow:none;cursor:not-allowed}
