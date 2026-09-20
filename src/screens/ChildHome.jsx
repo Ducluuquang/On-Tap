@@ -5,7 +5,7 @@ import { FEATURED_SUBJECTS, subjectDisplayName } from '../lib/subjects.js'
 
 const SLOGAN_HINT = 'Mục tiêu hay khẩu hiệu học tập của con'
 
-export default function ChildHome({ mem = [], stats, slogan = '', onSetSlogan, onReview, onCapture }) {
+export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSlogan, onReview, onCapture, onSwitchChild }) {
   const streak = stats ? streakDays(stats) : 0
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(slogan)
@@ -29,6 +29,13 @@ export default function ChildHome({ mem = [], stats, slogan = '', onSetSlogan, o
           <span className="flame">🔥</span> {streak} ngày
         </div>
       </header>
+
+      {child && (
+        <div className="who-row">
+          <span className="who-pill">👦 {child.name}{child.grade ? ` · ${child.grade}` : ''}</span>
+          {onSwitchChild && <button className="who-switch" onClick={onSwitchChild}>↔ Đổi bạn học</button>}
+        </div>
+      )}
 
       {/* Khẩu hiệu/mục tiêu học tập — con tự ghi (bấm để sửa) */}
       <section className="hello">

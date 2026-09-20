@@ -3,7 +3,10 @@
 //   + thời gian con thực sự trả lời bài (mỗi câu tính tối đa 60s).
 // KHÔNG tính thời gian mở app đứng yên giữa các câu. Lưu theo từng ngày (YYYY-MM-DD).
 
+import { scopedKey } from './active.js'
+
 // v2: bỏ số liệu DEMO — báo cáo THẬT tính từ 0, tự tích luỹ theo buổi ôn thật của con.
+// Mỗi CON có báo cáo riêng -> khoá lưu gắn theo con (scopedKey).
 const KEY = 'ontap.stats.v2'
 const DAY_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
 
@@ -41,16 +44,16 @@ function seedLog() {
 
 export function loadStats() {
   try {
-    const r = localStorage.getItem(KEY)
+    const r = localStorage.getItem(scopedKey(KEY))
     if (r) { const s = JSON.parse(r); return { goalMin: 15, days: {}, log: {}, ...s } }
   } catch { /* noop */ }
   return { goalMin: 15, days: {}, log: {} } // BẢN THẬT: bắt đầu trống
 }
 export function resetStats() {
-  try { localStorage.removeItem(KEY) } catch { /* noop */ }
+  try { localStorage.removeItem(scopedKey(KEY)) } catch { /* noop */ }
 }
 export function saveStats(s) {
-  try { localStorage.setItem(KEY, JSON.stringify(s)) } catch { /* noop */ }
+  try { localStorage.setItem(scopedKey(KEY), JSON.stringify(s)) } catch { /* noop */ }
 }
 
 // Cộng thêm số giây học vào HÔM NAY (trả về bản mới, không sửa tại chỗ).

@@ -3,7 +3,8 @@ import { loadMemory, saveMemory, applySession, addConcepts, resetMemory, concept
 import { subjectModes, subjectDisplayName } from './lib/subjects.js'
 import { buildReview } from './lib/mockAI.js'
 import { generateQuestions } from './lib/aiClient.js'
-import { loadAccount, saveAccount, loadSession, setSession as persistSession } from './lib/auth.js'
+import { loadAccount, saveAccount, loadSession, setSession as persistSession, normalizeAccount, newChildId } from './lib/auth.js'
+import { setActiveChild, getActiveChild, migrateGlobalToChild } from './lib/active.js'
 import { loadStats, saveStats, addSeconds, addSession, setGoalMin, resetStats } from './lib/stats.js'
 import { loadSettings, saveSettings } from './lib/settings.js'
 import { canon, localMatch } from './lib/answerMatch.js'
@@ -11,6 +12,7 @@ import { dotNumbers } from './lib/num.js'
 import { loadRecent, pushRecent, resetRecent } from './lib/recent.js'
 
 import Auth from './screens/Auth.jsx'
+import ChildPicker from './screens/ChildPicker.jsx'
 import Settings from './screens/Settings.jsx'
 import ChildHome from './screens/ChildHome.jsx'
 import CustomReview from './screens/CustomReview.jsx'
@@ -182,9 +184,25 @@ function remapConcept(qs, memList, askedConcepts) {
   })
 }
 
+// NÂNG CẤP tài khoản CŨ -> cấu trúc nhiều con, LÀM MỘT LẦN lúc nạp module để id con ỔN ĐỊNH
+// (không sinh id mới mỗi lần render -> không mất dữ liệu theo con).
+const RAW_ACCOUNT = loadAccount()
+const INIT_ACCOUNT = normalizeAccount(RAW_ACCOUNT)
+if (INIT_ACCOUNT && RAW_ACCOUNT && !(Array.isArray(RAW_ACCOUNT.children) && RAW_ACCOUNT.children.length)) {
+  saveAccount(INIT_ACCOUNT) // lần đầu nâng cấp: lưu lại ngay để id con cố định
+}
+
 export default function App() {
-  const [account, setAccount] = useState(loadAccount)
-  const [authed, setAuthed] = useState(() => loadSession() && !!loadAccount())
+  const [account, setAccount] = useState(INIT_ACCOUNT)
+  const [authed, setAuthed] = useState(() => loadSession() && !!INIT_ACCOUNT)
+  // Con đang học (null = chưa chọn -> hiện màn chọn con). Khôi phục nếu đã chọn từ trước.
+  const [activeChild, setActiveChildState] = useState(() => {
+    const aid = getActiveChild()
+    return (INIT_ACCOUNT?.children || []).find((c) => c.id === aid) || null
+  })
+  const [parentGate, setParentGate] = useState(null) // callback khi nhập đúng mật khẩu phụ huynh
+  const [gatePass, setGatePass] = useState('')
+  const [gateErr, setGateErr] = useState('')
   const [stats, setStats] = useState(loadStats)
   const [settings, setSettings] = useState(loadSettings)
 
@@ -217,34 +235,72 @@ export default function App() {
     return () => clearTimeout(t)
   }, [toast])
 
-  // ---- Đăng nhập / tài khoản ----
+  // ---- Con đang học: vào / đổi / thêm ----
+  // Nạp lại dữ liệu ĐÚNG con hiện tại (mỗi con có bản đồ kiến thức + báo cáo riêng).
+  function reloadChildData() {
+    setMem(loadMemory()); setStats(loadStats()); setSession(null)
+  }
+  function enterChild(child) {
+    if (!child) return
+    setActiveChild(child.id)          // đặt con hiện tại (khoá lưu gắn theo id này)
+    migrateGlobalToChild(child.id)    // GIỮ dữ liệu cũ: chuyển sang con nếu con chưa có dữ liệu
+    reloadChildData()
+    setActiveChildState(child)
+    setRole('child'); setView('home')
+  }
+  function switchChild() {
+    setActiveChild(null)              // -> quay lại màn chọn con
+    setActiveChildState(null)
+    setRole('child'); setView('home')
+  }
+  function addChild(child) {
+    const acc = { ...account, children: [...(account.children || []), child] }
+    saveAccount(acc); setAccount(acc)
+    setToast(`Đã thêm tài khoản con: ${child.name} ✓`)
+  }
+
+  // ---- Đăng ký / đăng nhập / tài khoản ----
   function handleRegister(profile) {
-    // Tương thích cũ: nếu ai đó gọi (phone, email) như trước.
-    const pr = typeof profile === 'string' ? { phone: profile, email: arguments[1] } : (profile || {})
+    const pr = profile || {}
+    const c = pr.child || {}
+    const child = {
+      id: newChildId(), name: (c.name || '').trim() || 'Bé',
+      grade: c.grade || '', school: c.school || '', schoolType: c.schoolType || '', pin: c.pin || '',
+    }
     const acc = {
-      username: pr.phone, password: pr.phone, email: pr.email || '',
-      parentName: pr.parentName || '',
-      student: { name: pr.studentName || '', grade: pr.grade || '', school: pr.school || '', schoolType: pr.schoolType || '' },
+      username: pr.phone, password: pr.parentPass || pr.phone, // giữ tương thích cũ
+      phone: pr.phone, email: pr.email || '',
+      parentName: pr.parentName || '', parentPass: pr.parentPass || '',
+      plan: pr.plan || 1, children: [child],
     }
     saveAccount(acc); setAccount(acc)
     persistSession(true); setAuthed(true)
+    enterChild(child) // đăng ký xong vào thẳng con đầu tiên
   }
   function handleLogin(u, p) {
-    const acc = loadAccount()
-    if (acc && u === acc.username && p === acc.password) { persistSession(true); setAuthed(true); return true }
+    const acc = account || normalizeAccount(loadAccount())
+    const okUser = acc && (u === acc.phone || u === acc.username)
+    const okPass = acc && (p === acc.parentPass || p === acc.password)
+    if (okUser && okPass) {
+      persistSession(true); setAuthed(true)
+      setActiveChild(null); setActiveChildState(null) // -> hiện màn chọn con
+      return true
+    }
     return false
   }
   function handleReset(phone, newPass) {
-    const acc = loadAccount()
-    if (acc && phone === acc.username) {
-      const next = { ...acc, password: newPass }
-      saveAccount(next); setAccount(next); persistSession(true); setAuthed(true); return true
+    const acc = account || normalizeAccount(loadAccount())
+    if (acc && (phone === acc.phone || phone === acc.username)) {
+      const next = { ...acc, parentPass: newPass, password: newPass }
+      saveAccount(next); setAccount(next); persistSession(true); setAuthed(true)
+      setActiveChild(null); setActiveChildState(null)
+      return true
     }
     return false
   }
   function changePassword(cur, next) {
-    if (!account || cur !== account.password) return false
-    const acc = { ...account, password: next }
+    if (!account || (cur !== account.parentPass && cur !== account.password)) return false
+    const acc = { ...account, parentPass: next, password: next }
     saveAccount(acc); setAccount(acc); return true
   }
   function saveEmail(email) {
@@ -255,21 +311,43 @@ export default function App() {
     const acc = { ...account, pin: String(pin) }
     saveAccount(acc); setAccount(acc)
   }
-  // Xoá toàn bộ dữ liệu học tập (bản đồ kiến thức, báo cáo, thời gian học, lịch sử câu hỏi) — làm lại từ đầu.
+  // Xoá dữ liệu học tập CỦA CON ĐANG HỌC (bản đồ kiến thức, báo cáo, thời gian, lịch sử câu) — làm lại từ đầu.
   function resetLearningData() {
     resetMemory(); resetStats(); resetRecent()
     setMem([]); setStats(loadStats()); setSession(null)
-    setToast('Đã xoá dữ liệu học tập — bắt đầu lại từ đầu ✓')
+    setToast('Đã xoá dữ liệu học tập của con này — bắt đầu lại từ đầu ✓')
     setView(role === 'child' ? 'home' : 'dashboard')
   }
   function logout() {
     persistSession(false); setAuthed(false)
+    setActiveChild(null); setActiveChildState(null)
     setRole('child'); setView('home')
   }
 
+  // Cổng bảo mật: cần mật khẩu phụ huynh (8 số) mới vào khu vực phụ huynh.
+  function askParent(onOk) {
+    setGatePass(''); setGateErr('')
+    setParentGate({ onOk })
+  }
+  function submitParentGate() {
+    const ok = gatePass === (account?.parentPass || account?.password)
+    if (!ok) { setGateErr('Sai mật khẩu phụ huynh.'); return }
+    const cb = parentGate?.onOk
+    setParentGate(null); setGatePass(''); setGateErr('')
+    if (cb) cb()
+  }
+  // Từ màn chọn con -> khu vực phụ huynh: nhập mật khẩu rồi mở báo cáo con đầu tiên.
+  function enterParentArea() {
+    askParent(() => {
+      const first = (account?.children || [])[0]
+      if (first) { setActiveChild(first.id); migrateGlobalToChild(first.id); reloadChildData(); setActiveChildState(first) }
+      setRole('parent'); setView('dashboard')
+    })
+  }
+
   function switchRole(r) {
-    setRole(r)
-    setView(r === 'child' ? 'home' : 'dashboard')
+    if (r === 'parent') { askParent(() => { setRole('parent'); setView('dashboard') }); return }
+    setRole(r); setView('home')
   }
 
   async function startReview(opts = {}) {
@@ -299,7 +377,7 @@ export default function App() {
     const mt = (masterText || '').trim()
     let subject, topic, concepts
     if (master && mt) {
-      subject = subjectOpt || (mem.find((c) => c.name === names[0])?.subject) || 'Toán'
+      subject = subjectOpt || (mem.find((c) => c.name === names[0])?.subject) || 'Môn khác'
       const topics = mt.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean)
       concepts = topics.length ? topics : [mt]
       topic = topics.length > 1 ? `Kết hợp: ${topics.join(' + ')}` : (topics[0] || mt)
@@ -307,7 +385,7 @@ export default function App() {
       // Lấy đúng MÔN + CHỦ ĐỀ của khái niệm đang ôn (không mặc định "Phân số" nữa),
       // để câu hỏi ra đúng nội dung con đang học (số tự nhiên, hình học…).
       const first = mem.find((c) => c.name === names[0])
-      subject = subjectOpt || first?.subject || 'Toán'
+      subject = subjectOpt || first?.subject || 'Môn khác'
       topic = first?.topic || names[0] || 'Ôn tập'
       concepts = names
     }
@@ -378,7 +456,7 @@ export default function App() {
     const studySeconds = Math.round((summary.activeSeconds || 0) + loadSec)
     // Cộng thời gian học + ghi NHẬT KÝ theo ngày/môn (số câu, đúng, sai, thời gian) cho phụ huynh.
     setStats((s) => addSession(addSeconds(s, studySeconds), {
-      subject: reviewSubjectRef.current || 'Toán',
+      subject: reviewSubjectRef.current || 'Môn khác',
       total: summary.total || 0,
       correct: summary.correct || 0,
       sec: studySeconds,
@@ -406,6 +484,11 @@ export default function App() {
     setPending(null)
     setView(role === 'child' ? 'home' : 'dashboard')
   }
+  // Phụ huynh SỬA môn của một khái niệm (nếu trước đây bị gán nhầm) -> báo cáo hết lẫn môn.
+  function setConceptSubject(id, subject) {
+    setMem((m) => m.map((c) => (c.id === id ? { ...c, subject, updatedAt: Date.now() } : c)))
+    setToast(`Đã chuyển khái niệm sang môn ${subject} ✓`)
+  }
   const retryReview = () => { if (lastReviewRef.current) startReview(lastReviewRef.current) }
   const goHomeFromError = () => { setGenError(false); setView('home') }
   const genOrScreen = (node) => {
@@ -416,11 +499,41 @@ export default function App() {
   }
   const homeView = role === 'child' ? 'home' : 'dashboard'
 
+  // Cổng mật khẩu phụ huynh (hiện đè lên mọi màn).
+  const gateModal = parentGate ? (
+    <div className="modal-back" onClick={() => setParentGate(null)}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h3>Khu vực phụ huynh</h3>
+        <p className="cr-hint">Nhập mật khẩu phụ huynh (8 số) để tiếp tục.</p>
+        <input className="auth-in" type="password" inputMode="numeric" maxLength={12} autoFocus placeholder="Mật khẩu phụ huynh"
+          value={gatePass} onChange={(e) => { setGatePass(e.target.value.replace(/\D+/g, '')); setGateErr('') }}
+          onKeyDown={(e) => e.key === 'Enter' && submitParentGate()} />
+        {gateErr && <div className="err">{gateErr}</div>}
+        <div className="modal-btns">
+          <button className="cta ghost" onClick={() => setParentGate(null)}>Huỷ</button>
+          <button className="cta" onClick={submitParentGate}>Vào</button>
+        </div>
+      </div>
+    </div>
+  ) : null
+
   if (!authed) {
     return (
       <div className="stage">
         <div className="phone">
           <Auth account={account} onRegister={handleRegister} onLogin={handleLogin} onReset={handleReset} />
+        </div>
+      </div>
+    )
+  }
+
+  // Đã đăng nhập nhưng CHƯA chọn con -> màn chọn con (các con hiện ra để chọn học).
+  if (!activeChild) {
+    return (
+      <div className="stage">
+        <div className="phone">
+          <ChildPicker account={account} onEnter={enterChild} onAddChild={addChild} onParent={enterParentArea} onLogout={logout} />
+          {gateModal}
         </div>
       </div>
     )
@@ -461,14 +574,14 @@ export default function App() {
     } else if (view === 'result') {
       screen = <Result session={session} onHome={() => setView('home')} onReport={() => switchRole('parent')} />
     } else {
-      screen = <ChildHome mem={mem} stats={stats}
+      screen = <ChildHome mem={mem} stats={stats} child={activeChild}
         slogan={settings.slogan || ''}
         onSetSlogan={(s) => setSettings((x) => ({ ...x, slogan: s }))}
-        onReview={() => setView('custom')} onCapture={() => setView('capture')} />
+        onReview={() => setView('custom')} onCapture={() => setView('capture')} onSwitchChild={switchChild} />
     }
   } else {
     // Phụ huynh chỉ xem báo cáo + vào Cài đặt (mục tiêu, bật/tắt trắc nghiệm).
-    screen = <ParentDashboard mem={mem} session={session} stats={stats} onSettings={() => setView('settings')} toast={toast} />
+    screen = <ParentDashboard mem={mem} session={session} stats={stats} child={activeChild} onSettings={() => setView('settings')} onSetSubject={setConceptSubject} toast={toast} />
   }
 
   return (
@@ -479,10 +592,11 @@ export default function App() {
           <button className={role === 'child' ? 'on' : ''} onClick={() => switchRole('child')}>Con</button>
           <button className={role === 'parent' ? 'on' : ''} onClick={() => switchRole('parent')}>Phụ huynh</button>
         </div>
-        <button className="ds-logout" onClick={() => setView('settings')} title="Cài đặt">⚙️</button>
+        {activeChild && <button className="ds-logout" onClick={switchChild} title="Đổi tài khoản con">↔ Đổi con</button>}
+        <button className="ds-logout" onClick={() => askParent(() => setView('settings'))} title="Cài đặt (phụ huynh)">⚙️</button>
         <button className="ds-logout" onClick={logout} title="Đăng xuất">Đăng xuất</button>
       </div>
-      <div className="phone">{screen}</div>
+      <div className="phone">{screen}{gateModal}</div>
     </div>
   )
 }

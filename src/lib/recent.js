@@ -2,16 +2,18 @@
 // để những lần ôn sau ưu tiên câu MỚI, tránh lặp lại y hệt các lần trước.
 // Chỉ lưu chuỗi rút gọn của câu hỏi, không lưu đáp án — rất nhẹ.
 
+import { scopedKey } from './active.js'
+
 const KEY = 'ontap.recentq.v2'
 const CAP = 80 // nhớ tối đa 80 câu gần nhất
 
 export function resetRecent() {
-  try { localStorage.removeItem(KEY) } catch { /* noop */ }
+  try { localStorage.removeItem(scopedKey(KEY)) } catch { /* noop */ }
 }
 
 export function loadRecent() {
   try {
-    const r = JSON.parse(localStorage.getItem(KEY) || '[]')
+    const r = JSON.parse(localStorage.getItem(scopedKey(KEY)) || '[]')
     return Array.isArray(r) ? r : []
   } catch { return [] }
 }
@@ -23,6 +25,6 @@ export function pushRecent(keys) {
     if (!add.length) return
     const cur = loadRecent().filter((k) => !add.includes(k))
     const merged = [...add, ...cur].slice(0, CAP)
-    localStorage.setItem(KEY, JSON.stringify(merged))
+    localStorage.setItem(scopedKey(KEY), JSON.stringify(merged))
   } catch { /* noop */ }
 }

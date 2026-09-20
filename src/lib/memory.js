@@ -4,8 +4,10 @@
 
 import { CONCEPTS } from '../data/content.js'
 import { subjectKey } from './subjects.js'
+import { scopedKey } from './active.js'
 
 // v2: bỏ dữ liệu DEMO cũ — bắt đầu THẬT từ số 0 (bản đồ kiến thức trống, tự tích luỹ theo bài con học).
+// Mỗi CON có bản đồ riêng -> khoá lưu gắn theo con (scopedKey).
 const KEY = 'ontap.memory.v2'
 
 // HẾT HẠN theo thời gian (chốt Sep 2026): bản đồ kiến thức không phình to mãi — khi con lên lớp,
@@ -107,7 +109,7 @@ function seed() {
 
 export function loadMemory() {
   try {
-    const raw = localStorage.getItem(KEY)
+    const raw = localStorage.getItem(scopedKey(KEY))
     // Mỗi lần mở app: bỏ kiến thức QUÁ HẠN + GỘP các khái niệm TRÙNG (không để lặp trong bản đồ).
     if (raw) return dedupeMem(pruneExpired(JSON.parse(raw)))
   } catch (e) { /* bỏ qua */ }
@@ -115,11 +117,11 @@ export function loadMemory() {
 }
 
 export function saveMemory(mem) {
-  try { localStorage.setItem(KEY, JSON.stringify(mem)) } catch (e) { /* bỏ qua */ }
+  try { localStorage.setItem(scopedKey(KEY), JSON.stringify(mem)) } catch (e) { /* bỏ qua */ }
 }
 
 export function resetMemory() {
-  try { localStorage.removeItem(KEY) } catch (e) { /* bỏ qua */ }
+  try { localStorage.removeItem(scopedKey(KEY)) } catch (e) { /* bỏ qua */ }
   return []
 }
 
@@ -185,7 +187,8 @@ export function addConcepts(mem, concepts) {
     } else {
       const nc = {
         id: c.id || slug(name), name, difficulty: c.difficulty || 'Cơ bản',
-        subject: c.subject || 'Toán', topic: c.topic || '',
+        // KHÔNG mặc định 'Toán' -> tránh khái niệm môn khác bị gán nhầm vào Toán (lẫn môn trong báo cáo).
+        subject: c.subject || 'Môn khác', topic: c.topic || '',
         mastery: 0, reviews: 0, correct: 0, wrong: 0, // MỚI: chưa ôn -> 0% (không "cho" 50% ảo)
         learnedOn: today, updatedAt: now, newToday: true, learnedInApp: true,
       }
@@ -211,7 +214,7 @@ export function recordErrors(mem, conceptNames) {
       out[i] = { ...out[i], mastery: Math.max(0, out[i].mastery - 8), wrong: (out[i].wrong || 0) + 1, reviews: (out[i].reviews || 0) + 1, newToday: true, lastReviewed: today, updatedAt: now }
     } else {
       out.push({
-        id: slug(name), name, difficulty: 'Cơ bản', subject: 'Toán', topic: '',
+        id: slug(name), name, difficulty: 'Cơ bản', subject: 'Môn khác', topic: '',
         mastery: 30, reviews: 1, correct: 0, wrong: 1, newToday: true, learnedInApp: true, updatedAt: now,
       })
       idx.set(key, out.length - 1)

@@ -8,8 +8,9 @@ export default function ParentApprove({ pending, onSave, onBack }) {
   const [checked, setChecked] = useState(() =>
     Object.fromEntries(pending.concepts.map((c) => [c.id, true]))
   )
-  // Môn: mặc định lấy môn AI đoán, nhưng CHO SỬA (tránh Toán lẫn vào Tiếng Anh…).
-  const [subject, setSubject] = useState(pending.subject || 'Toán')
+  // Môn: mặc định lấy môn AI đoán. Nếu AI KHÔNG chắc -> để trống, BẮT phụ huynh chọn
+  // (không mặc định 'Toán' nữa -> tránh môn khác bị gán nhầm vào Toán, gây lẫn môn trong báo cáo).
+  const [subject, setSubject] = useState(pending.subject || '')
   const subjectOptions = [...new Set([pending.subject, ...COMMON_SUBJECTS].filter(Boolean))]
   const toggle = (id) => setChecked((s) => ({ ...s, [id]: !s[id] }))
   const count = Object.values(checked).filter(Boolean).length
@@ -25,6 +26,7 @@ export default function ParentApprove({ pending, onSave, onBack }) {
         <div className="u-row">
           <span>Môn</span>
           <select className="u-subject" value={subject} onChange={(e) => setSubject(e.target.value)}>
+            <option value="">— Chọn môn —</option>
             {subjectOptions.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
@@ -49,7 +51,8 @@ export default function ParentApprove({ pending, onSave, onBack }) {
         ))}
       </div>
 
-      <button className="cta" disabled={count === 0} onClick={() => onSave(checked, subject)}>
+      {!subject && <p className="cr-hint">⚠️ Hãy chọn <b>Môn</b> trước khi lưu (để báo cáo từng môn không bị lẫn).</p>}
+      <button className="cta" disabled={count === 0 || !subject} onClick={() => onSave(checked, subject)}>
         Lưu {count} khái niệm vào bộ nhớ của con
       </button>
     </div>

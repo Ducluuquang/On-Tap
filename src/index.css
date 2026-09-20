@@ -693,3 +693,47 @@ select.auth-in{appearance:auto;cursor:pointer}
 .cr-sticky-cta:hover{background:var(--teal-dark)}
 .cr-sticky-cta:active{transform:scale(.98)}
 .cr-sticky-cta:disabled{background:#B7C7C4;box-shadow:none;cursor:not-allowed}
+
+/* =========================================================
+   TÀI KHOẢN: đăng ký (gói), màn chọn con, đổi con, sửa môn
+   ========================================================= */
+/* Đăng ký: chọn gói + ghi chú */
+.auth-plan{margin:2px 0 2px}
+.auth-hint{margin:6px 0 2px;font-size:.8rem;color:var(--muted);line-height:1.5}
+
+/* Chip "con đang học" ở trang chủ + nút đổi con */
+.who-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-4px 0 2px}
+.who-switch{border:1px solid var(--border);background:#fff;color:var(--teal-dark);font-family:inherit;
+  font-weight:700;font-size:.82rem;padding:7px 13px;border-radius:999px;cursor:pointer}
+.who-switch:active{transform:scale(.98)}
+
+/* Màn CHỌN CON */
+.pick .hello h1{margin-bottom:2px}
+.pick-h{margin:2px 0 2px;font-size:1.15rem;font-weight:900;color:var(--ink)}
+.pick-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px}
+.pick-card{display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center;
+  background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:16px 10px 13px;cursor:pointer;
+  font-family:inherit;box-shadow:var(--shadow);transition:transform .08s,border-color .15s}
+.pick-card:active{transform:scale(.98)}
+.pick-card:hover{border-color:var(--teal)}
+.pick-card.add{border-style:dashed;background:#FBFDFC;justify-content:center}
+.pick-ava{font-size:2.4rem;line-height:1;width:66px;height:66px;display:grid;place-items:center;
+  background:var(--teal-soft);border-radius:50%}
+.pick-ava.big{width:88px;height:88px;font-size:3rem;margin:0 auto 4px}
+.pick-name{font-size:1.02rem;color:var(--ink)}
+.pick-sub{font-style:normal;font-size:.8rem;color:var(--muted)}
+.pick-lock{margin-top:3px;font-size:.72rem;font-weight:700;color:var(--dev-tx);background:var(--dev-bg);
+  padding:2px 9px;border-radius:999px}
+.pick-lock.open{color:var(--strong-tx);background:var(--strong-bg)}
+.pick-pinbox{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;margin-top:20px}
+.pick-pinbox h2{margin:4px 0 0;font-size:1.25rem}
+.pin-in{max-width:200px;text-align:center;letter-spacing:.5em;font-size:1.3rem;font-weight:800}
+.pick-parent{margin-top:14px}
+
+/* Sửa MÔN của một khái niệm trong bản đồ kiến thức (phụ huynh) */
+.krow-subj{display:flex;align-items:center;gap:7px;margin-top:8px;flex-wrap:wrap}
+.krow-subjlbl{font-size:.78rem;font-weight:700;color:var(--ink-soft)}
+.krow-subjsel{font-family:inherit;font-size:.82rem;color:var(--ink);background:#fff;
+  border:1px solid var(--border);border-radius:9px;padding:5px 9px;cursor:pointer}
+.krow-subjsel:focus{outline:none;border-color:var(--teal)}
+.krow-subjhint{font-size:.72rem;color:var(--muted)}

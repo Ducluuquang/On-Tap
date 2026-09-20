@@ -5,6 +5,8 @@ import { last7, totalMinutes, todayMinutes, streakDays, dayReport } from '../lib
 import { subjectDisplayName, subjectIcon } from '../lib/subjects.js'
 
 const WD = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
+// Danh sách môn để phụ huynh SỬA nhanh môn của một khái niệm (nếu trước đây bị gán nhầm).
+const SUBJ_OPTS = ['Toán', 'Tiếng Việt', 'Tiếng Anh', 'Khoa học', 'Lịch sử', 'Địa lý', 'Tự nhiên và Xã hội', 'Đạo đức', 'Tin học', 'Môn khác']
 
 function hm(min) {
   const h = Math.floor(min / 60), m = min % 60
@@ -53,7 +55,8 @@ function StudyChart({ stats, sel, onSel }) {
   )
 }
 
-export default function ParentDashboard({ mem, stats, onSettings, toast }) {
+export default function ParentDashboard({ mem, stats, child, onSettings, onSetSubject, toast }) {
+  const childName = (child && child.name) || 'con'
   const allConcepts = conceptStatusList(mem)
   // Các môn con đã có bài (theo tên hiển thị) — để phụ huynh CHỌN môn xem báo cáo.
   const subjectNames = [...new Set((mem || []).map((c) => subjectDisplayName(c.subject)).filter(Boolean))]
@@ -83,11 +86,11 @@ export default function ParentDashboard({ mem, stats, onSettings, toast }) {
       {toast && <div className="toast">{toast}</div>}
       <header className="topbar">
         <Brand sub="· Phụ huynh" />
-        <span className="who-pill">Bố/Mẹ của Minh</span>
+        <span className="who-pill">Bố/Mẹ của {childName}</span>
       </header>
 
       <section className="hello">
-        <h1>Hôm nay của Minh</h1>
+        <h1>Hôm nay của {childName}</h1>
         <p>Mở 10 giây là biết con học thế nào.</p>
       </section>
 
@@ -146,18 +149,31 @@ export default function ParentDashboard({ mem, stats, onSettings, toast }) {
       <section className="kmap">
         <h3>{kmapTitle}</h3>
         {concepts.length === 0 && <p className="cr-hint">Chưa có dữ liệu. Con chụp/thêm bài học để bắt đầu ghi bản đồ kiến thức.</p>}
-        {concepts.map((c) => (
-          <div className="krow" key={c.id}>
-            <div className="krow-top">
-              <span className="kname">{c.name}</span>
-              <StatusPill status={c.status} />
+        {concepts.map((c) => {
+          const cur = subjectDisplayName(c.subject)
+          const opts = [...new Set([cur, ...SUBJ_OPTS])]
+          return (
+            <div className="krow" key={c.id}>
+              <div className="krow-top">
+                <span className="kname">{c.name}</span>
+                <StatusPill status={c.status} />
+              </div>
+              <div className="krow-bar">
+                <MasteryBar value={c.mastery} status={c.status} />
+                <span className="kpct">{c.mastery}%</span>
+              </div>
+              {onSetSubject && (
+                <div className="krow-subj">
+                  <span className="krow-subjlbl">Môn:</span>
+                  <select className="krow-subjsel" value={cur} onChange={(e) => onSetSubject(c.id, e.target.value)}>
+                    {opts.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <span className="krow-subjhint">sửa nếu bị gán nhầm môn</span>
+                </div>
+              )}
             </div>
-            <div className="krow-bar">
-              <MasteryBar value={c.mastery} status={c.status} />
-              <span className="kpct">{c.mastery}%</span>
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </section>
 
       <button className="cta" onClick={onSettings}>⚙️ Mục tiêu &amp; bật/tắt trắc nghiệm</button>
