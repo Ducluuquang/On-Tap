@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Brand } from '../components.jsx'
 import { newChildId } from '../lib/auth.js'
+import { CHILD_ICONS, iconFor } from '../lib/icons.js'
 
 const SCHOOL_TYPES = ['Công lập', 'Tư thục', 'Song ngữ', 'Quốc tế (đơn ngữ)']
 const GRADES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-const AVATAR = ['🦊', '🐼', '🐧', '🐨', '🦁', '🐯', '🐸', '🦉']
 
 // Màn CHỌN CON: sau khi phụ huynh đăng nhập, các tài khoản con hiện ra để chọn học.
 // Bấm 1 con -> gõ PIN (nếu có) -> vào học. Còn slot theo gói -> thêm con mới.
@@ -20,6 +20,7 @@ export default function ChildPicker({ account, onEnter, onAddChild, onParent, on
   const [adding, setAdding] = useState(false)
   const [pass, setPass] = useState('')      // mật khẩu phụ huynh để thêm con
   const [name, setName] = useState('')
+  const [icon, setIcon] = useState('')
   const [grade, setGrade] = useState('')
   const [school, setSchool] = useState('')
   const [schoolType, setSchoolType] = useState('')
@@ -41,12 +42,13 @@ export default function ChildPicker({ account, onEnter, onAddChild, onParent, on
     setErr('')
     if (pass !== (account.parentPass || account.password)) { setErr('Sai mật khẩu phụ huynh.'); return }
     if (!name.trim()) { setErr('Nhập tên tài khoản con.'); return }
+    if (!/^\d{1,2}$/.test(npin)) { setErr('Đặt PIN 1–2 số cho con.'); return }
+    if (!icon) { setErr('Chọn icon cho con.'); return }
     if (!grade) { setErr('Chọn lớp.'); return }
     if (!school.trim()) { setErr('Nhập tên trường.'); return }
-    if (!schoolType) { setErr('Chọn hệ trường.'); return }
-    if (!/^\d{4}$/.test(npin)) { setErr('Đặt PIN 4 số cho con.'); return }
-    onAddChild({ id: newChildId(), name: name.trim(), grade, school: school.trim(), schoolType, pin: npin })
-    setAdding(false); setPass(''); setName(''); setGrade(''); setSchool(''); setSchoolType(''); setNpin('')
+    if (!schoolType) { setErr('Chọn khối trường.'); return }
+    onAddChild({ id: newChildId(), name: name.trim(), icon, grade, school: school.trim(), schoolType, pin: npin })
+    setAdding(false); setPass(''); setName(''); setIcon(''); setGrade(''); setSchool(''); setSchoolType(''); setNpin('')
   }
 
   // ---- Nhập PIN để vào 1 con ----
@@ -55,10 +57,10 @@ export default function ChildPicker({ account, onEnter, onAddChild, onParent, on
       <div className="screen pick">
         <header className="topbar"><Brand /></header>
         <div className="pick-pinbox">
-          <div className="pick-ava big">{AVATAR[Math.abs(hash(pinFor.id)) % AVATAR.length]}</div>
+          <div className="pick-ava big">{iconFor(pinFor)}</div>
           <h2>Chào {pinFor.name} 👋</h2>
           <p className="cr-hint">Gõ mã PIN của con để vào học.</p>
-          <input className="auth-in pin-in" inputMode="numeric" maxLength={4} autoFocus placeholder="• • • •"
+          <input className="auth-in pin-in" inputMode="numeric" maxLength={2} autoFocus placeholder="••"
             value={pin} onChange={(e) => { setPin(onlyDigits(e.target.value)); setErr('') }}
             onKeyDown={(e) => e.key === 'Enter' && submitPin()} />
           {err && <div className="err">{err}</div>}
@@ -80,8 +82,17 @@ export default function ChildPicker({ account, onEnter, onAddChild, onParent, on
         <label className="auth-lbl">Mật khẩu phụ huynh</label>
         <input className="auth-in" type="password" inputMode="numeric" maxLength={12} placeholder="Xác nhận là phụ huynh"
           value={pass} onChange={(e) => setPass(onlyDigits(e.target.value))} />
-        <label className="auth-lbl">Tên tài khoản con</label>
+        <label className="auth-lbl">Tên hoặc nickname</label>
         <input className="auth-in" placeholder="VD: Bin" value={name} onChange={(e) => setName(e.target.value)} />
+        <label className="auth-lbl">Mã PIN (1–2 số)</label>
+        <input className="auth-in" inputMode="numeric" maxLength={2} placeholder="VD: 7 hoặc 12"
+          value={npin} onChange={(e) => setNpin(onlyDigits(e.target.value))} />
+        <label className="auth-lbl">Chọn icon ưa thích</label>
+        <div className="icon-pick">
+          {CHILD_ICONS.map((ic) => (
+            <button type="button" key={ic} className={'icon-opt' + (icon === ic ? ' on' : '')} onClick={() => setIcon(ic)}>{ic}</button>
+          ))}
+        </div>
         <label className="auth-lbl">Lớp</label>
         <select className="auth-in" value={grade} onChange={(e) => setGrade(e.target.value)}>
           <option value="">— Chọn lớp —</option>
@@ -89,14 +100,12 @@ export default function ChildPicker({ account, onEnter, onAddChild, onParent, on
         </select>
         <label className="auth-lbl">Trường</label>
         <input className="auth-in" placeholder="VD: Tiểu học Kim Đồng" value={school} onChange={(e) => setSchool(e.target.value)} />
-        <label className="auth-lbl">Hệ trường</label>
-        <select className="auth-in" value={schoolType} onChange={(e) => setSchoolType(e.target.value)}>
-          <option value="">— Chọn hệ —</option>
-          {SCHOOL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-        </select>
-        <label className="auth-lbl">Mã PIN của con (4 số)</label>
-        <input className="auth-in" inputMode="numeric" maxLength={4} placeholder="VD: 1234"
-          value={npin} onChange={(e) => setNpin(onlyDigits(e.target.value))} />
+        <label className="auth-lbl">Thuộc khối</label>
+        <div className="chips reg-types">
+          {SCHOOL_TYPES.map((t) => (
+            <button type="button" key={t} className={'chip' + (schoolType === t ? ' on' : '')} onClick={() => setSchoolType(t)}>{schoolType === t ? '✓ ' : ''}{t}</button>
+          ))}
+        </div>
 
         {err && <div className="err">{err}</div>}
         <button className="cta" onClick={submitAdd}>Thêm con</button>
@@ -121,7 +130,7 @@ export default function ChildPicker({ account, onEnter, onAddChild, onParent, on
       <div className="pick-grid">
         {children.map((c) => (
           <button key={c.id} className="pick-card" onClick={() => tapChild(c)}>
-            <span className="pick-ava">{AVATAR[Math.abs(hash(c.id)) % AVATAR.length]}</span>
+            <span className="pick-ava">{iconFor(c)}</span>
             <b className="pick-name">{c.name}</b>
             <em className="pick-sub">{c.grade || 'Chưa đặt lớp'}</em>
             {c.pin ? <span className="pick-lock">🔒 PIN</span> : <span className="pick-lock open">Vào thẳng</span>}
@@ -143,11 +152,4 @@ export default function ChildPicker({ account, onEnter, onAddChild, onParent, on
       </p>
     </div>
   )
-}
-
-// Băm nhẹ id -> chọn avatar ổn định cho mỗi con.
-function hash(s) {
-  let h = 0
-  for (let i = 0; i < (s || '').length; i++) { h = (h * 31 + s.charCodeAt(i)) | 0 }
-  return h
 }

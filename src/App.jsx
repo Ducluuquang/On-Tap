@@ -190,6 +190,8 @@ const RAW_ACCOUNT = loadAccount()
 const INIT_ACCOUNT = normalizeAccount(RAW_ACCOUNT)
 if (INIT_ACCOUNT && RAW_ACCOUNT && !(Array.isArray(RAW_ACCOUNT.children) && RAW_ACCOUNT.children.length)) {
   saveAccount(INIT_ACCOUNT) // lần đầu nâng cấp: lưu lại ngay để id con cố định
+  const fid = INIT_ACCOUNT.children[0] && INIT_ACCOUNT.children[0].id
+  if (fid) migrateGlobalToChild(fid) // GIỮ dữ liệu tài khoản cũ -> chuyển sang con đầu tiên (chỉ khi nâng cấp)
 }
 
 export default function App() {
@@ -243,7 +245,6 @@ export default function App() {
   function enterChild(child) {
     if (!child) return
     setActiveChild(child.id)          // đặt con hiện tại (khoá lưu gắn theo id này)
-    migrateGlobalToChild(child.id)    // GIỮ dữ liệu cũ: chuyển sang con nếu con chưa có dữ liệu
     reloadChildData()
     setActiveChildState(child)
     setRole('child'); setView('home')
@@ -262,20 +263,21 @@ export default function App() {
   // ---- Đăng ký / đăng nhập / tài khoản ----
   function handleRegister(profile) {
     const pr = profile || {}
-    const c = pr.child || {}
-    const child = {
-      id: newChildId(), name: (c.name || '').trim() || 'Bé',
-      grade: c.grade || '', school: c.school || '', schoolType: c.schoolType || '', pin: c.pin || '',
-    }
+    // Gói N học sinh -> tạo N tài khoản con (mỗi con id riêng, có icon + PIN 1-2 số).
+    const children = (pr.children || []).map((c) => ({
+      id: newChildId(), name: (c.name || '').trim() || 'Bé', pin: c.pin || '', icon: c.icon || '',
+      grade: c.grade || '', school: c.school || '', schoolType: c.schoolType || '',
+    }))
+    if (!children.length) children.push({ id: newChildId(), name: 'Bé', pin: '', icon: '', grade: '', school: '', schoolType: '' })
     const acc = {
       username: pr.phone, password: pr.parentPass || pr.phone, // giữ tương thích cũ
-      phone: pr.phone, email: pr.email || '',
+      phone: pr.phone, email: pr.email || '', province: pr.province || '',
       parentName: pr.parentName || '', parentPass: pr.parentPass || '',
-      plan: pr.plan || 1, children: [child],
+      plan: pr.plan || children.length, children,
     }
     saveAccount(acc); setAccount(acc)
     persistSession(true); setAuthed(true)
-    enterChild(child) // đăng ký xong vào thẳng con đầu tiên
+    setActiveChild(null); setActiveChildState(null) // đăng ký xong -> màn chọn con (các con hiện ra)
   }
   function handleLogin(u, p) {
     const acc = account || normalizeAccount(loadAccount())
@@ -340,7 +342,7 @@ export default function App() {
   function enterParentArea() {
     askParent(() => {
       const first = (account?.children || [])[0]
-      if (first) { setActiveChild(first.id); migrateGlobalToChild(first.id); reloadChildData(); setActiveChildState(first) }
+      if (first) { setActiveChild(first.id); reloadChildData(); setActiveChildState(first) }
       setRole('parent'); setView('dashboard')
     })
   }

@@ -737,3 +737,43 @@ select.auth-in{appearance:auto;cursor:pointer}
   border:1px solid var(--border);border-radius:9px;padding:5px 9px;cursor:pointer}
 .krow-subjsel:focus{outline:none;border-color:var(--teal)}
 .krow-subjhint{font-size:.72rem;color:var(--muted)}
+
+/* =========================================================
+   ĐĂNG KÝ MỚI (gói 1-5, khối học sinh, icon, tick khối) + THANH TOÁN
+   ========================================================= */
+.auth-landing .cta{margin-top:6px}
+.auth-in--err{border-color:var(--weak);background:#FDF1EC}
+.auth-in--err:focus{border-color:var(--weak)}
+.auth-hint--warn{color:var(--weak-tx);font-weight:700;text-align:center}
+
+/* Chọn gói */
+.reg-plan{margin:2px 0}
+
+/* Khối thông tin 1 học sinh */
+.reg-kid{border:1px solid var(--border);border-radius:14px;padding:12px 13px 14px;margin-top:12px;
+  background:#FBFDFC;display:flex;flex-direction:column;gap:5px;box-shadow:var(--shadow)}
+.reg-kid .auth-lbl{margin-top:6px}
+.reg-kid-h{font-weight:900;color:var(--ink);font-size:1rem;margin-bottom:2px}
+
+/* Chọn icon ưa thích */
+.icon-pick{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;padding:7px;
+  border:1.5px solid var(--border);border-radius:12px;background:#fff}
+.icon-opt{font-size:1.3rem;line-height:1;padding:6px 0;border:1.5px solid transparent;border-radius:10px;
+  background:#F4F9F8;cursor:pointer;transition:transform .08s}
+.icon-opt.on{border-color:var(--teal);background:var(--teal-soft);transform:scale(1.06)}
+.icon-pick--err{border-color:var(--weak);background:#FDF1EC}
+
+/* Tick khối trường */
+.reg-types{margin-top:2px}
+.reg-types--err{outline:2px solid var(--weak);outline-offset:3px;border-radius:12px;padding:4px}
+
+/* Trang thanh toán */
+.pay-cycle{margin:2px 0 4px}
+.pay-box{display:flex;gap:14px;align-items:center;background:#fff;border:1px solid var(--border);
+  border-radius:14px;padding:14px;box-shadow:var(--shadow)}
+.pay-qr-wrap{flex-shrink:0}
+.pay-qr{width:116px;height:116px;border:1px solid var(--border);border-radius:8px;background:#fff;display:block}
+.pay-bank{display:flex;flex-direction:column;gap:3px;font-size:.84rem;color:var(--ink-soft)}
+.pay-bank b{color:var(--ink)}
+.pay-bank i{color:var(--muted)}
+.pay-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}

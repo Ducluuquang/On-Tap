@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Brand, RewardTrack } from '../components.jsx'
 import { streakDays } from '../lib/stats.js'
 import { FEATURED_SUBJECTS, subjectDisplayName } from '../lib/subjects.js'
+import { iconFor } from '../lib/icons.js'
 
 const SLOGAN_HINT = 'Mục tiêu hay khẩu hiệu học tập của con'
 
@@ -32,7 +33,7 @@ export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSl
 
       {child && (
         <div className="who-row">
-          <span className="who-pill">👦 {child.name}{child.grade ? ` · ${child.grade}` : ''}</span>
+          <span className="who-pill">{iconFor(child)} {child.name}{child.grade ? ` · ${child.grade}` : ''}</span>
           {onSwitchChild && <button className="who-switch" onClick={onSwitchChild}>↔ Đổi bạn học</button>}
         </div>
       )}
