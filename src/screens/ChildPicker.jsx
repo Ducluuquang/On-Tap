@@ -65,7 +65,7 @@ export default function ChildPicker({ account, onEnter, onAddChild, onParent, on
             onKeyDown={(e) => e.key === 'Enter' && submitPin()} />
           {err && <div className="err">{err}</div>}
           <button className="cta" onClick={submitPin}>Vào học →</button>
-          <button className="ghost small" onClick={() => { setPinFor(null); setErr('') }}>← Chọn bạn khác</button>
+          <button className="ghost small" onClick={() => { setPinFor(null); setErr('') }}>← Đổi người học</button>
         </div>
       </div>
     )

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Brand, StatusPill, MasteryBar, RewardTrack } from '../components.jsx'
+import { Brand, BackHeader, StatusPill, MasteryBar, RewardTrack } from '../components.jsx'
 import { conceptStatusList } from '../lib/mockAI.js'
 import { last7, totalMinutes, todayMinutes, streakDays, dayReport } from '../lib/stats.js'
 import { subjectDisplayName, subjectIcon } from '../lib/subjects.js'
@@ -55,7 +55,9 @@ function StudyChart({ stats, sel, onSel }) {
   )
 }
 
-export default function ParentDashboard({ mem, stats, child, onSettings, onSetSubject, toast }) {
+// viewer = 'parent' (đầy đủ: sửa môn, vào cài đặt) | 'child' (học sinh CHỈ XEM báo cáo của mình).
+export default function ParentDashboard({ mem, stats, child, viewer = 'parent', onBack, onSettings, onSetSubject, toast }) {
+  const isKid = viewer === 'child'
   const childName = (child && child.name) || 'con'
   const allConcepts = conceptStatusList(mem)
   // Các môn con đã có bài (theo tên hiển thị) — để phụ huynh CHỌN môn xem báo cáo.
@@ -84,14 +86,18 @@ export default function ParentDashboard({ mem, stats, child, onSettings, onSetSu
   return (
     <div className="screen">
       {toast && <div className="toast">{toast}</div>}
-      <header className="topbar">
-        <Brand sub="· Phụ huynh" />
-        <span className="who-pill">Bố/Mẹ của {childName}</span>
-      </header>
+      {isKid ? (
+        <BackHeader title="Báo cáo học tập" onBack={onBack} />
+      ) : (
+        <header className="topbar">
+          <Brand sub="· Phụ huynh" />
+          <span className="who-pill">Bố/Mẹ của {childName}</span>
+        </header>
+      )}
 
       <section className="hello">
-        <h1>Hôm nay của {childName}</h1>
-        <p>Mở 10 giây là biết con học thế nào.</p>
+        <h1>{isKid ? `Kết quả học của ${childName}` : `Hôm nay của ${childName}`}</h1>
+        <p>{isKid ? 'Xem lại mình đã học thế nào nhé! 💪' : 'Mở 10 giây là biết con học thế nào.'}</p>
       </section>
 
       <section className="study">
@@ -162,7 +168,7 @@ export default function ParentDashboard({ mem, stats, child, onSettings, onSetSu
                 <MasteryBar value={c.mastery} status={c.status} />
                 <span className="kpct">{c.mastery}%</span>
               </div>
-              {onSetSubject && (
+              {!isKid && onSetSubject && (
                 <div className="krow-subj">
                   <span className="krow-subjlbl">Môn:</span>
                   <select className="krow-subjsel" value={cur} onChange={(e) => onSetSubject(c.id, e.target.value)}>
@@ -176,7 +182,10 @@ export default function ParentDashboard({ mem, stats, child, onSettings, onSetSu
         })}
       </section>
 
-      <button className="cta" onClick={onSettings}>⚙️ Mục tiêu &amp; bật/tắt trắc nghiệm</button>
+      {/* Cài đặt (mục tiêu, bật/tắt trắc nghiệm) chỉ dành cho PHỤ HUYNH — học sinh chỉ xem báo cáo. */}
+      {!isKid && onSettings && (
+        <button className="cta" onClick={onSettings}>⚙️ Mục tiêu &amp; bật/tắt trắc nghiệm</button>
+      )}
 
       <footer className="foot">
         Số liệu cập nhật theo kết quả ôn thực tế của con.

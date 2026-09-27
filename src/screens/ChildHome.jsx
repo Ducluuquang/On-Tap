@@ -6,7 +6,7 @@ import { iconFor } from '../lib/icons.js'
 
 const SLOGAN_HINT = 'Mục tiêu hay khẩu hiệu học tập của con'
 
-export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSlogan, onReview, onCapture, onSwitchChild }) {
+export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSlogan, onReview, onCapture, onReport, onSwitchChild }) {
   const streak = stats ? streakDays(stats) : 0
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(slogan)
@@ -34,7 +34,7 @@ export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSl
       {child && (
         <div className="who-row">
           <span className="who-pill">{iconFor(child)} {child.name}{child.grade ? ` · ${child.grade}` : ''}</span>
-          {onSwitchChild && <button className="who-switch" onClick={onSwitchChild}>↔ Đổi bạn học</button>}
+          {onSwitchChild && <button className="who-switch" onClick={onSwitchChild}>↔ Đổi người học</button>}
         </div>
       )}
 
@@ -84,6 +84,17 @@ export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSl
           </span>
           <span className="hc-go">→</span>
         </button>
+
+        {onReport && (
+          <button className="home-card" onClick={onReport}>
+            <span className="hc-ic">📊</span>
+            <span className="hc-body">
+              <b>Báo cáo học tập</b>
+              <em>Xem thời gian học, phần đã vững và phần cần ôn</em>
+            </span>
+            <span className="hc-go">→</span>
+          </button>
+        )}
       </section>
 
       <section className="subjects" aria-label="Môn học">

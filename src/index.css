@@ -644,7 +644,7 @@ select.auth-in{appearance:auto;cursor:pointer}
 .cr-tier-h{font-size:1rem;font-weight:900;color:var(--ink);letter-spacing:-.01em}
 
 /* Chip MÔN — 2 dòng: tên + "N cần ôn" (rõ nghĩa) */
-.chip-subj{display:inline-flex;flex-direction:column;align-items:flex-start;gap:1px;
+.chip-subj{display:inline-flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;
   padding:8px 14px;border-radius:14px;line-height:1.15}
 .cs-name{font-weight:800;font-size:.92rem}
 .cs-need{font-weight:600;font-size:.72rem;color:var(--weak-tx)}

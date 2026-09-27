@@ -52,7 +52,7 @@ export default function Result({ session, onHome, onReport }) {
       </section>
 
       <button className="cta" onClick={onHome}>Về trang chủ</button>
-      <button className="ghost" onClick={onReport}>Xem báo cáo cho phụ huynh</button>
+      <button className="ghost" onClick={onReport}>📊 Xem báo cáo học tập</button>
     </div>
   )
 }

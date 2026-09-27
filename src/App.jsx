@@ -574,12 +574,16 @@ export default function App() {
     } else if (view === 'approve' && pending) {
       screen = <ParentApprove pending={pending} onSave={onSaveApprove} onBack={() => setView('capture')} />
     } else if (view === 'result') {
-      screen = <Result session={session} onHome={() => setView('home')} onReport={() => switchRole('parent')} />
+      screen = <Result session={session} onHome={() => setView('home')} onReport={() => setView('report')} />
+    } else if (view === 'report') {
+      // Học sinh XEM báo cáo học tập của mình (chỉ xem — không sửa môn, không vào cài đặt, không cần mật khẩu).
+      screen = <ParentDashboard mem={mem} stats={stats} child={activeChild} viewer="child" onBack={() => setView('home')} toast={toast} />
     } else {
       screen = <ChildHome mem={mem} stats={stats} child={activeChild}
         slogan={settings.slogan || ''}
         onSetSlogan={(s) => setSettings((x) => ({ ...x, slogan: s }))}
-        onReview={() => setView('custom')} onCapture={() => setView('capture')} onSwitchChild={switchChild} />
+        onReview={() => setView('custom')} onCapture={() => setView('capture')}
+        onReport={() => setView('report')} onSwitchChild={switchChild} />
     }
   } else {
     // Phụ huynh chỉ xem báo cáo + vào Cài đặt (mục tiêu, bật/tắt trắc nghiệm).
@@ -594,7 +598,7 @@ export default function App() {
           <button className={role === 'child' ? 'on' : ''} onClick={() => switchRole('child')}>Con</button>
           <button className={role === 'parent' ? 'on' : ''} onClick={() => switchRole('parent')}>Phụ huynh</button>
         </div>
-        {activeChild && <button className="ds-logout" onClick={switchChild} title="Đổi tài khoản con">↔ Đổi con</button>}
+        {activeChild && <button className="ds-logout" onClick={switchChild} title="Đổi người học">↔ Đổi người học</button>}
         <button className="ds-logout" onClick={() => askParent(() => setView('settings'))} title="Cài đặt (phụ huynh)">⚙️</button>
         <button className="ds-logout" onClick={logout} title="Đăng xuất">Đăng xuất</button>
       </div>

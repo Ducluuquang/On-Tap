@@ -147,7 +147,11 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true 
               return (
                 <button key={s.name} className={'chip chip-subj' + (subject === s.name ? ' on' : '')} onClick={() => pickSubject(s.name)}>
                   <span className="cs-name">{s.icon} {s.name}</span>
-                  <span className={'cs-need' + (need > 0 ? '' : ' cs-ok')}>{need > 0 ? `${need} cần ôn` : 'đã vững'}</span>
+                  {/* Môn CHƯA có bài học -> để trống (không ghi "đã vững" sai sự thật).
+                      Có bài rồi mới hiện tình hình thật: "N cần ôn" hoặc "đã vững" (khi tất cả đều vững). */}
+                  {sub.length > 0 && (
+                    <span className={'cs-need' + (need > 0 ? '' : ' cs-ok')}>{need > 0 ? `${need} cần ôn` : 'đã vững'}</span>
+                  )}
                 </button>
               )
             })}
