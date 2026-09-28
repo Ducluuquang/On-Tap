@@ -8,7 +8,7 @@ const GRADES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 
 // Màn CHỌN CON: sau khi phụ huynh đăng nhập, các tài khoản con hiện ra để chọn học.
 // Bấm 1 con -> gõ PIN (nếu có) -> vào học. Còn slot theo gói -> thêm con mới.
-export default function ChildPicker({ account, onEnter, onAddChild, onParent, onLogout }) {
+export default function ChildPicker({ account, onEnter, onAddChild, onParent, requireParent, onLogout }) {
   const children = account?.children || []
   const plan = account?.plan || 1
   const canAdd = children.length < plan
@@ -17,8 +17,7 @@ export default function ChildPicker({ account, onEnter, onAddChild, onParent, on
   const [pin, setPin] = useState('')
   const [err, setErr] = useState('')
 
-  const [adding, setAdding] = useState(false)
-  const [pass, setPass] = useState('')      // mật khẩu phụ huynh để thêm con
+  const [adding, setAdding] = useState(false) // mở form thêm con SAU KHI đã qua cửa PIN phụ huynh
   const [name, setName] = useState('')
   const [icon, setIcon] = useState('')
   const [grade, setGrade] = useState('')
@@ -40,7 +39,6 @@ export default function ChildPicker({ account, onEnter, onAddChild, onParent, on
 
   function submitAdd() {
     setErr('')
-    if (pass !== (account.parentPass || account.password)) { setErr('Sai mật khẩu phụ huynh.'); return }
     if (!name.trim()) { setErr('Nhập tên tài khoản con.'); return }
     if (!/^\d{1,2}$/.test(npin)) { setErr('Đặt PIN 1–2 số cho con.'); return }
     if (!icon) { setErr('Chọn icon cho con.'); return }
@@ -48,7 +46,7 @@ export default function ChildPicker({ account, onEnter, onAddChild, onParent, on
     if (!school.trim()) { setErr('Nhập tên trường.'); return }
     if (!schoolType) { setErr('Chọn khối trường.'); return }
     onAddChild({ id: newChildId(), name: name.trim(), icon, grade, school: school.trim(), schoolType, pin: npin })
-    setAdding(false); setPass(''); setName(''); setIcon(''); setGrade(''); setSchool(''); setSchoolType(''); setNpin('')
+    setAdding(false); setName(''); setIcon(''); setGrade(''); setSchool(''); setSchoolType(''); setNpin('')
   }
 
   // ---- Nhập PIN để vào 1 con ----
@@ -77,11 +75,7 @@ export default function ChildPicker({ account, onEnter, onAddChild, onParent, on
       <div className="screen pick">
         <header className="topbar"><Brand /></header>
         <h2 className="pick-h">Thêm tài khoản con</h2>
-        <p className="cr-hint">Còn {plan - children.length} chỗ trong gói {plan} con. Cần mật khẩu phụ huynh để thêm.</p>
-
-        <label className="auth-lbl">Mật khẩu phụ huynh</label>
-        <input className="auth-in" type="password" inputMode="numeric" maxLength={12} placeholder="Xác nhận là phụ huynh"
-          value={pass} onChange={(e) => setPass(onlyDigits(e.target.value))} />
+        <p className="cr-hint">Còn {plan - children.length} chỗ trong gói {plan} con.</p>
         <label className="auth-lbl">Tên hoặc nickname</label>
         <input className="auth-in" placeholder="VD: Bin" value={name} onChange={(e) => setName(e.target.value)} />
         <label className="auth-lbl">Mã PIN (1–2 số)</label>
@@ -138,7 +132,12 @@ export default function ChildPicker({ account, onEnter, onAddChild, onParent, on
         ))}
 
         {canAdd && (
-          <button className="pick-card add" onClick={() => { setAdding(true); setErr('') }}>
+          <button className="pick-card add" onClick={() => {
+            setErr('')
+            // Thêm con là việc của phụ huynh -> qua cửa PIN phụ huynh trước (không cần mật khẩu).
+            if (requireParent) requireParent(() => setAdding(true))
+            else setAdding(true)
+          }}>
             <span className="pick-ava">➕</span>
             <b className="pick-name">Thêm con</b>
             <em className="pick-sub">Còn {plan - children.length} chỗ</em>
@@ -146,7 +145,7 @@ export default function ChildPicker({ account, onEnter, onAddChild, onParent, on
         )}
       </div>
 
-      <button className="cta ghost pick-parent" onClick={() => onParent && onParent()}>⚙️ Khu vực phụ huynh</button>
+      <button className="cta ghost pick-parent" onClick={() => onParent && onParent()}>⚙️ Dành cho Phụ huynh</button>
       <p className="cr-hint" style={{ textAlign: 'center' }}>
         Gói hiện tại: {plan} con{!canAdd && children.length >= plan ? ' · đã dùng hết chỗ' : ''}.
       </p>

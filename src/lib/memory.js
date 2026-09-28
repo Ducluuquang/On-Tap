@@ -52,15 +52,28 @@ export const STATUS_LABEL = {
 
 // Danh sách "từ nối" bỏ qua khi so hai tên khái niệm (để nhận ra 2 tên CÙNG NGHĨA khác cách viết).
 const STOP_WORDS = new Set(['cua', 'mot', 'voi', 'va', 'cac', 'nhung', 'cho', 'la', 'trong', 'de', 'khi', 'theo', 've', 'nhu', 'den'])
-// "Khoá khái niệm" = tập hợp từ có nghĩa (bỏ dấu, bỏ từ nối), sắp xếp -> 2 tên cùng nghĩa cho ra cùng khoá.
+// Số thứ tự tiếng Anh hay dùng trong tên chủ điểm ngữ pháp -> chữ số, để
+// "Zero conditional" = "Conditional 0", "First conditional" = "Conditional 1"… (cùng một chủ đề).
+const ORDINALS = { zero: '0', first: '1', second: '2', third: '3', '1st': '1', '2nd': '2', '3rd': '3' }
+// "Khoá khái niệm" = tập hợp từ có nghĩa (bỏ dấu, KHÔNG phân biệt hoa/thường, bỏ từ nối), sắp xếp
+// -> 2 tên cùng nghĩa (vd "conditional 0" và "Conditional 0") cho ra CÙNG một khoá.
 export function conceptKey(name) {
   const noMarks = String(name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd')
-  const words = noMarks.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter((w) => w && !STOP_WORDS.has(w))
+  const words = noMarks.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
+    .filter((w) => w && !STOP_WORDS.has(w))
+    .map((w) => ORDINALS[w] || w)
   return [...new Set(words)].sort().join(' ')
 }
 
+// Tên hiển thị thống nhất: gọn khoảng trắng + VIẾT HOA chữ cái đầu ("conditional 0" -> "Conditional 0").
+export function prettyName(name) {
+  const s = String(name || '').replace(/\s+/g, ' ').trim()
+  if (!s) return s
+  return s.charAt(0).toLocaleUpperCase('vi') + s.slice(1)
+}
+
 // GỘP các khái niệm TRÙNG (cùng nghĩa theo conceptKey) thành MỘT -> bản đồ kiến thức không bị lặp.
-// Giữ tên đầy đủ hơn, mastery cao nhất, cộng dồn số lần ôn/đúng/sai, giữ ngày gần nhất.
+// Giữ tên đầy đủ hơn (viết hoa chữ đầu), mastery cao nhất, cộng dồn số lần ôn/đúng/sai, giữ ngày gần nhất.
 export function dedupeMem(mem) {
   const byKey = new Map()
   const out = []
@@ -68,9 +81,9 @@ export function dedupeMem(mem) {
     const k = conceptKey(c && c.name)
     if (!k) { out.push(c); continue } // tên rỗng -> giữ nguyên, không gộp
     const prev = byKey.get(k)
-    if (!prev) { const nc = { ...c }; byKey.set(k, nc); out.push(nc); continue }
+    if (!prev) { const nc = { ...c, name: prettyName(c.name) }; byKey.set(k, nc); out.push(nc); continue }
     // Đã có khái niệm CÙNG NGHĨA -> gộp vào (không thêm dòng mới).
-    if ((c.name || '').length > (prev.name || '').length) prev.name = c.name // tên nào đầy đủ hơn thì giữ
+    if ((c.name || '').trim().length > (prev.name || '').length) prev.name = prettyName(c.name) // tên đầy đủ hơn thì giữ
     prev.mastery = Math.max(prev.mastery || 0, c.mastery || 0)
     prev.reviews = (prev.reviews || 0) + (c.reviews || 0)
     prev.correct = (prev.correct || 0) + (c.correct || 0)
@@ -156,6 +169,69 @@ export function applySession(mem, perConcept) {
   })
 }
 
+// ÔN XONG — GHI KẾT QUẢ (một phép tính DUY NHẤT cho cả màn "Thay đổi hôm nay" lẫn bản đồ kiến thức,
+// nên báo cáo của con và của phụ huynh LUÔN KHỚP nhau).
+// - Gộp kết quả theo KHÁI NIỆM (không phân biệt hoa/thường): "conditional 0" + "Conditional 0" = 1 dòng.
+// - Tính lại điểm từ điểm THẬT đang có trong bản đồ (không dùng mốc giả 55%). Sai thì giữ nguyên điểm.
+// - Chủ đề con vừa ôn mà CHƯA có trong bản đồ -> thêm mới (bắt đầu 0%) để phụ huynh cũng thấy.
+// choice = true (trắc nghiệm/game: +14/câu đúng) | false (tự gõ đáp án: +20/câu đúng).
+// Trả về { mem: bản đồ mới, deltas: [{ id, name, before, after, correct, wrong }] }.
+export function applyReviewResults(mem, perConcept, { choice = true, subject = '' } = {}) {
+  const today = new Date().toISOString().slice(0, 10)
+  const now = Date.now()
+  const out = (mem || []).map((c) => ({ ...c }))
+  const idx = new Map(out.map((c, i) => [conceptKey(c.name), i]))
+
+  // 1) Gộp các nhóm kết quả CÙNG khái niệm (khoá do màn ôn đặt có thể là id hoặc tên, hoa hay thường).
+  const groups = new Map() // khoá khái niệm -> { name, correct, wrong }
+  for (const [rawKey, r] of Object.entries(perConcept || {})) {
+    if (!r) continue
+    const byId = out.find((c) => c.id === rawKey)
+    const name = byId ? byId.name : (r.label || rawKey)
+    const k = conceptKey(name)
+    if (!k) continue
+    const g = groups.get(k) || { name, correct: 0, wrong: 0 }
+    g.correct += r.correct || 0
+    g.wrong += r.wrong || 0
+    groups.set(k, g)
+  }
+
+  // 2) Ghi vào ĐÚNG khái niệm trong bản đồ, tính điểm từ điểm thật.
+  const deltas = []
+  for (const [k, g] of groups) {
+    let i = idx.get(k)
+    let before
+    if (i == null) {
+      const name = prettyName(g.name)
+      out.push({
+        id: slug(name) + '-' + now.toString(36), name, difficulty: 'Cơ bản',
+        subject: subject || 'Môn khác', topic: '',
+        mastery: 0, reviews: 0, correct: 0, wrong: 0,
+        learnedOn: today, updatedAt: now, learnedInApp: true,
+      })
+      i = out.length - 1
+      idx.set(k, i)
+      before = 0
+    } else {
+      before = out[i].mastery || 0
+    }
+    let after = before
+    for (let n = 0; n < g.correct; n++) after = nextMastery(after, { correct: true, choice })
+    out[i] = {
+      ...out[i],
+      mastery: after,
+      reviews: (out[i].reviews || 0) + 1,
+      correct: (out[i].correct || 0) + g.correct,
+      wrong: (out[i].wrong || 0) + g.wrong,
+      lastReviewed: today,
+      updatedAt: now,
+      newToday: false,
+    }
+    deltas.push({ id: out[i].id, name: out[i].name, before, after, correct: g.correct, wrong: g.wrong })
+  }
+  return { mem: out, deltas }
+}
+
 // Mastery càng cao thì giãn lịch ôn càng lâu (nhớ tốt thì để lâu, quên thì ôn sớm).
 export function daysUntilNext(m) {
   if (m >= 90) return 30
@@ -177,7 +253,7 @@ export function addConcepts(mem, concepts) {
   const out = mem.map((c) => ({ ...c }))
   const idx = new Map(out.map((c, i) => [conceptKey(c.name), i]))
   for (const c of concepts) {
-    const name = (c.name || '').trim()
+    const name = prettyName(c.name) // viết hoa chữ đầu, thống nhất một kiểu
     if (!name) continue
     const key = conceptKey(name)
     if (idx.has(key)) {

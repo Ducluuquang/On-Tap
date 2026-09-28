@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { BackHeader } from '../components.jsx'
 
-export default function Settings({ account, settings, stats, onChangePassword, onSaveEmail, onSetPin, onResetData, onSetGoal, onToggleChoice, onBack }) {
+export default function Settings({ account, settings, stats, unlocked = false, onChangePassword, onSaveEmail, onSetPin, onResetData, onSetGoal, onToggleChoice, onBack }) {
   const [confirmReset, setConfirmReset] = useState(false)
   const [cur, setCur] = useState('')
   const [np, setNp] = useState('')
@@ -36,6 +36,13 @@ export default function Settings({ account, settings, stats, onChangePassword, o
 
   const digit = (v) => v.replace(/\D/g, '').slice(0, 1)
   function openPin(target, action = 'toggle') {
+    // Đã nhập PIN ở CỬA khu vực phụ huynh (cùng một PIN) -> làm luôn, không hỏi PIN lần nữa.
+    // (Xoá dữ liệu vẫn có bước "Bạn chắc chứ?" phía trước.)
+    if (unlocked && hasPin) {
+      if (action === 'reset') onResetData()
+      else onToggleChoice(target)
+      return
+    }
     setPinTarget(target); setPinAction(action); setPin(''); setPin2(''); setResetUser(''); setPinMsg('')
     setPinStep(hasPin ? 'enter' : 'set')
   }
@@ -53,7 +60,8 @@ export default function Settings({ account, settings, stats, onChangePassword, o
       if (pin === String(account.pin)) { doPinnedAction(); closePin() }
       else setPinMsg('Mã PIN chưa đúng.')
     } else if (pinStep === 'reset') {
-      if (resetUser.trim() !== account?.username) { setPinMsg('Tên đăng nhập chưa đúng.'); return }
+      // Quên PIN: xác minh bằng MẬT KHẨU tài khoản (chỉ phụ huynh biết) — giống cửa khu vực phụ huynh.
+      if (resetUser !== (account?.parentPass || account?.password)) { setPinMsg('Mật khẩu tài khoản chưa đúng.'); return }
       if (!/^\d$/.test(pin2)) { setPinMsg('Mã PIN mới là 1 chữ số (0–9).'); return }
       onSetPin(pin2); doPinnedAction(); closePin()
     }
@@ -148,8 +156,9 @@ export default function Settings({ account, settings, stats, onChangePassword, o
             {pinStep === 'reset' && (
               <>
                 <h3>Đặt lại mã PIN</h3>
-                <p className="cr-hint">Nhập tên đăng nhập (số điện thoại) rồi đặt mã PIN mới.</p>
-                <input className="auth-in" value={resetUser} onChange={(e) => setResetUser(e.target.value)} placeholder="Tên đăng nhập" />
+                <p className="cr-hint">Nhập mật khẩu tài khoản (lúc đăng nhập), rồi đặt mã PIN mới.</p>
+                <input className="auth-in" type="password" inputMode="numeric" maxLength={12} value={resetUser}
+                  onChange={(e) => setResetUser(e.target.value.replace(/\D+/g, ''))} placeholder="Mật khẩu tài khoản" />
                 <input className="auth-in pin-in" type="password" inputMode="numeric" maxLength={1}
                   value={pin2} onChange={(e) => setPin2(digit(e.target.value))} onKeyDown={onEnter} placeholder="Mã PIN mới (1 chữ số)" />
               </>

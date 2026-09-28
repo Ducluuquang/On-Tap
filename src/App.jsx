@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { loadMemory, saveMemory, applySession, addConcepts, resetMemory, conceptKey } from './lib/memory.js'
+import { loadMemory, saveMemory, applyReviewResults, addConcepts, resetMemory, conceptKey, prettyName } from './lib/memory.js'
 import { subjectModes, subjectDisplayName } from './lib/subjects.js'
 import { buildReview } from './lib/mockAI.js'
 import { generateQuestions } from './lib/aiClient.js'
@@ -171,12 +171,15 @@ function remapConcept(qs, memList, askedConcepts) {
     const k = conceptKey(c.name)
     if (k && !byKey.has(k)) byKey.set(k, c.name)
   }
-  // Thêm các khái niệm đang ôn (VD chủ đề gõ tay "master") nếu chưa có trong bộ nhớ.
+  // Thêm các khái niệm đang ôn (VD chủ đề gõ tay "master") nếu chưa có trong bộ nhớ — viết hoa chữ đầu.
   for (const name of askedConcepts || []) {
     const k = conceptKey(name)
-    if (k && !byKey.has(k)) byKey.set(k, name)
+    if (k && !byKey.has(k)) byKey.set(k, prettyName(name))
   }
-  const fallback = (askedConcepts && askedConcepts[0]) || 'Ôn tập'
+  // Câu hỏi có nhãn lạ -> gán về chủ đề ĐẦU TIÊN đang ôn, nhưng theo ĐÚNG tên trong bản đồ
+  // (trước đây dùng nguyên chữ gõ tay, vd "conditional 0" viết thường -> bị tách thành 2 chủ đề).
+  const fk = conceptKey((askedConcepts && askedConcepts[0]) || '')
+  const fallback = (fk && byKey.get(fk)) || prettyName((askedConcepts && askedConcepts[0]) || '') || 'Ôn tập'
   return qs.map((q) => {
     const k = conceptKey(q.concept || '')
     const mapped = (k && byKey.get(k)) || fallback
@@ -202,9 +205,16 @@ export default function App() {
     const aid = getActiveChild()
     return (INIT_ACCOUNT?.children || []).find((c) => c.id === aid) || null
   })
-  const [parentGate, setParentGate] = useState(null) // callback khi nhập đúng mật khẩu phụ huynh
-  const [gatePass, setGatePass] = useState('')
+  // CỔNG PHỤ HUYNH bằng MÃ PIN phụ huynh (cùng PIN với bật/tắt trắc nghiệm & xoá dữ liệu).
+  // Mật khẩu tài khoản CHỈ dùng lúc đăng nhập (và khi quên PIN).
+  const [parentGate, setParentGate] = useState(null) // { onOk } khi đang mở cổng
+  const [gateStep, setGateStep] = useState('enter')   // 'enter' | 'set' (chưa có PIN) | 'forgot'
+  const [gatePass, setGatePass] = useState('')        // ô nhập PIN
+  const [gatePwd, setGatePwd] = useState('')          // mật khẩu tài khoản (chỉ khi quên PIN)
   const [gateErr, setGateErr] = useState('')
+  // Đã mở khoá khu vực phụ huynh trong lần này -> bên trong (cài đặt) không hỏi PIN lại.
+  // Tự khoá lại khi quay về vai Con / đổi người học / đăng xuất.
+  const [parentUnlocked, setParentUnlocked] = useState(false)
   const [stats, setStats] = useState(loadStats)
   const [settings, setSettings] = useState(loadSettings)
 
@@ -247,11 +257,13 @@ export default function App() {
     setActiveChild(child.id)          // đặt con hiện tại (khoá lưu gắn theo id này)
     reloadChildData()
     setActiveChildState(child)
+    setParentUnlocked(false)          // máy giao cho con -> khoá khu vực phụ huynh
     setRole('child'); setView('home')
   }
   function switchChild() {
     setActiveChild(null)              // -> quay lại màn chọn con
     setActiveChildState(null)
+    setParentUnlocked(false)
     setRole('child'); setView('home')
   }
   function addChild(child) {
@@ -276,7 +288,7 @@ export default function App() {
       plan: pr.plan || children.length, children,
     }
     saveAccount(acc); setAccount(acc)
-    persistSession(true); setAuthed(true)
+    persistSession(true); setAuthed(true); setParentUnlocked(false)
     setActiveChild(null); setActiveChildState(null) // đăng ký xong -> màn chọn con (các con hiện ra)
   }
   function handleLogin(u, p) {
@@ -284,7 +296,7 @@ export default function App() {
     const okUser = acc && (u === acc.phone || u === acc.username)
     const okPass = acc && (p === acc.parentPass || p === acc.password)
     if (okUser && okPass) {
-      persistSession(true); setAuthed(true)
+      persistSession(true); setAuthed(true); setParentUnlocked(false)
       setActiveChild(null); setActiveChildState(null) // -> hiện màn chọn con
       return true
     }
@@ -294,7 +306,7 @@ export default function App() {
     const acc = account || normalizeAccount(loadAccount())
     if (acc && (phone === acc.phone || phone === acc.username)) {
       const next = { ...acc, parentPass: newPass, password: newPass }
-      saveAccount(next); setAccount(next); persistSession(true); setAuthed(true)
+      saveAccount(next); setAccount(next); persistSession(true); setAuthed(true); setParentUnlocked(false)
       setActiveChild(null); setActiveChildState(null)
       return true
     }
@@ -321,24 +333,40 @@ export default function App() {
     setView(role === 'child' ? 'home' : 'dashboard')
   }
   function logout() {
-    persistSession(false); setAuthed(false)
+    persistSession(false); setAuthed(false); setParentUnlocked(false)
     setActiveChild(null); setActiveChildState(null)
     setRole('child'); setView('home')
   }
 
-  // Cổng bảo mật: cần mật khẩu phụ huynh (8 số) mới vào khu vực phụ huynh.
+  // CỔNG PHỤ HUYNH: nhập MÃ PIN phụ huynh (1 chữ số — cùng PIN bật/tắt trắc nghiệm & xoá dữ liệu).
+  // Chưa có PIN -> đặt PIN ngay tại đây. Đã mở khoá trong lần này -> vào thẳng, không hỏi lại.
   function askParent(onOk) {
-    setGatePass(''); setGateErr('')
+    if (parentUnlocked) { onOk && onOk(); return }
+    setGatePass(''); setGatePwd(''); setGateErr('')
+    setGateStep(account?.pin ? 'enter' : 'set')
     setParentGate({ onOk })
   }
-  function submitParentGate() {
-    const ok = gatePass === (account?.parentPass || account?.password)
-    if (!ok) { setGateErr('Sai mật khẩu phụ huynh.'); return }
+  function passGate() {
     const cb = parentGate?.onOk
-    setParentGate(null); setGatePass(''); setGateErr('')
+    setParentGate(null); setGatePass(''); setGatePwd(''); setGateErr('')
+    setParentUnlocked(true)
     if (cb) cb()
   }
-  // Từ màn chọn con -> khu vực phụ huynh: nhập mật khẩu rồi mở báo cáo con đầu tiên.
+  function submitParentGate() {
+    if (gateStep === 'enter') {
+      if (gatePass === String(account?.pin ?? '')) passGate()
+      else setGateErr('Mã PIN chưa đúng.')
+    } else if (gateStep === 'set') {
+      if (!/^\d$/.test(gatePass)) { setGateErr('Mã PIN là 1 chữ số (0–9).'); return }
+      setParentPin(gatePass); passGate()
+    } else if (gateStep === 'forgot') {
+      // Quên PIN: xác minh bằng MẬT KHẨU tài khoản (chỉ phụ huynh biết), rồi đặt PIN mới.
+      if (gatePwd !== (account?.parentPass || account?.password)) { setGateErr('Mật khẩu tài khoản chưa đúng.'); return }
+      if (!/^\d$/.test(gatePass)) { setGateErr('Mã PIN mới là 1 chữ số (0–9).'); return }
+      setParentPin(gatePass); passGate()
+    }
+  }
+  // Từ màn chọn con -> khu vực phụ huynh: nhập PIN rồi mở báo cáo con đầu tiên.
   function enterParentArea() {
     askParent(() => {
       const first = (account?.children || [])[0]
@@ -349,6 +377,7 @@ export default function App() {
 
   function switchRole(r) {
     if (r === 'parent') { askParent(() => { setRole('parent'); setView('dashboard') }); return }
+    setParentUnlocked(false) // quay về vai Con -> khoá lại khu vực phụ huynh
     setRole(r); setView('home')
   }
 
@@ -464,11 +493,13 @@ export default function App() {
       sec: studySeconds,
     }))
     loadSecondsRef.current = 0 // đã cộng xong, tránh cộng trùng
-    const deltas = Object.entries(perConcept).map(([key, r]) => {
-      const old = mem.find((c) => c.id === key || c.name === key)
-      return { id: key, name: r.label || (old ? old.name : key), before: old ? old.mastery : 55, after: r.mastery }
+    // MỘT phép tính duy nhất cho cả màn "Thay đổi hôm nay" và bản đồ kiến thức -> báo cáo của con
+    // và của phụ huynh LUÔN KHỚP. Gộp chủ đề trùng (hoa/thường), tính từ điểm thật (không dùng mốc giả).
+    const { mem: nextMem, deltas } = applyReviewResults(mem, perConcept, {
+      choice: reviewMode !== 'typed', // tự gõ đáp án: +20/câu; trắc nghiệm & game: +14/câu
+      subject: reviewSubjectRef.current || '',
     })
-    setMem(applySession(mem, perConcept))
+    setMem(nextMem)
     setSession({ ...summary, deltas, studySeconds })
     setStreak((s) => s + 1)
     setView('result')
@@ -501,19 +532,43 @@ export default function App() {
   }
   const homeView = role === 'child' ? 'home' : 'dashboard'
 
-  // Cổng mật khẩu phụ huynh (hiện đè lên mọi màn).
+  // Cổng PIN phụ huynh (hiện đè lên mọi màn).
+  const onlyDigit = (v) => (v || '').replace(/\D+/g, '')
+  const gateEnterKey = (e) => { if (e.key === 'Enter') submitParentGate() }
   const gateModal = parentGate ? (
     <div className="modal-back" onClick={() => setParentGate(null)}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Khu vực phụ huynh</h3>
-        <p className="cr-hint">Nhập mật khẩu phụ huynh (8 số) để tiếp tục.</p>
-        <input className="auth-in" type="password" inputMode="numeric" maxLength={12} autoFocus placeholder="Mật khẩu phụ huynh"
-          value={gatePass} onChange={(e) => { setGatePass(e.target.value.replace(/\D+/g, '')); setGateErr('') }}
-          onKeyDown={(e) => e.key === 'Enter' && submitParentGate()} />
+        {gateStep === 'enter' && (
+          <>
+            <h3>Dành cho Phụ huynh</h3>
+            <p className="cr-hint">Nhập mã PIN phụ huynh (1 chữ số).</p>
+            <input className="auth-in pin-in" type="password" inputMode="numeric" maxLength={1} autoFocus placeholder="•"
+              value={gatePass} onChange={(e) => { setGatePass(onlyDigit(e.target.value)); setGateErr('') }} onKeyDown={gateEnterKey} />
+            <button className="linkbtn" onClick={() => { setGateStep('forgot'); setGatePass(''); setGatePwd(''); setGateErr('') }}>Quên mã PIN?</button>
+          </>
+        )}
+        {gateStep === 'set' && (
+          <>
+            <h3>Đặt mã PIN phụ huynh</h3>
+            <p className="cr-hint">Chưa có mã PIN. Đặt 1 chữ số — dùng để vào mục Dành cho Phụ huynh, bật/tắt trắc nghiệm và xoá dữ liệu.</p>
+            <input className="auth-in pin-in" type="password" inputMode="numeric" maxLength={1} autoFocus placeholder="•"
+              value={gatePass} onChange={(e) => { setGatePass(onlyDigit(e.target.value)); setGateErr('') }} onKeyDown={gateEnterKey} />
+          </>
+        )}
+        {gateStep === 'forgot' && (
+          <>
+            <h3>Đặt lại mã PIN</h3>
+            <p className="cr-hint">Nhập mật khẩu tài khoản (lúc đăng nhập), rồi đặt mã PIN mới.</p>
+            <input className="auth-in" type="password" inputMode="numeric" maxLength={12} autoFocus placeholder="Mật khẩu tài khoản"
+              value={gatePwd} onChange={(e) => { setGatePwd(onlyDigit(e.target.value)); setGateErr('') }} onKeyDown={gateEnterKey} />
+            <input className="auth-in pin-in" type="password" inputMode="numeric" maxLength={1} placeholder="PIN mới"
+              value={gatePass} onChange={(e) => { setGatePass(onlyDigit(e.target.value)); setGateErr('') }} onKeyDown={gateEnterKey} />
+          </>
+        )}
         {gateErr && <div className="err">{gateErr}</div>}
         <div className="modal-btns">
           <button className="cta ghost" onClick={() => setParentGate(null)}>Huỷ</button>
-          <button className="cta" onClick={submitParentGate}>Vào</button>
+          <button className="cta" onClick={submitParentGate}>{gateStep === 'enter' ? 'Vào' : 'Lưu & vào'}</button>
         </div>
       </div>
     </div>
@@ -534,7 +589,7 @@ export default function App() {
     return (
       <div className="stage">
         <div className="phone">
-          <ChildPicker account={account} onEnter={enterChild} onAddChild={addChild} onParent={enterParentArea} onLogout={logout} />
+          <ChildPicker account={account} onEnter={enterChild} onAddChild={addChild} onParent={enterParentArea} requireParent={askParent} onLogout={logout} />
           {gateModal}
         </div>
       </div>
@@ -543,7 +598,7 @@ export default function App() {
 
   let screen = null
   if (view === 'settings') {
-    screen = <Settings account={account} settings={settings} stats={stats}
+    screen = <Settings account={account} settings={settings} stats={stats} unlocked={parentUnlocked}
       onChangePassword={changePassword} onSaveEmail={saveEmail} onSetPin={setParentPin} onResetData={resetLearningData}
       onSetGoal={(min) => setStats((s) => setGoalMin(s, min))}
       onToggleChoice={(v) => setSettings((s) => ({ ...s, allowChoice: v }))}
