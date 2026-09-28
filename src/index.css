@@ -730,13 +730,13 @@ select.auth-in{appearance:auto;cursor:pointer}
 .pin-in{max-width:200px;text-align:center;letter-spacing:.5em;font-size:1.3rem;font-weight:800}
 .pick-parent{margin-top:14px}
 
-/* Sửa MÔN của một khái niệm trong bản đồ kiến thức (phụ huynh) */
-.krow-subj{display:flex;align-items:center;gap:7px;margin-top:8px;flex-wrap:wrap}
-.krow-subjlbl{font-size:.78rem;font-weight:700;color:var(--ink-soft)}
-.krow-subjsel{font-family:inherit;font-size:.82rem;color:var(--ink);background:#fff;
-  border:1px solid var(--border);border-radius:9px;padding:5px 9px;cursor:pointer}
-.krow-subjsel:focus{outline:none;border-color:var(--teal)}
-.krow-subjhint{font-size:.72rem;color:var(--muted)}
+/* Bản đồ kiến thức NHÓM THEO MÔN: TIẾNG ANH / TOÁN / LỊCH SỬ … */
+.kgroup{margin-top:16px}
+.kgroup:first-of-type{margin-top:6px}
+.kgroup-h{display:flex;align-items:center;gap:8px;padding:6px 2px 7px;margin-bottom:2px;border-bottom:2px solid var(--teal-soft)}
+.kgroup-ic{font-size:1.05rem;line-height:1}
+.kgroup-name{font-weight:900;font-size:.92rem;letter-spacing:.06em;text-transform:uppercase;color:var(--teal-dark)}
+.kgroup-count{margin-left:auto;font-size:.75rem;font-weight:700;color:var(--muted)}
 
 /* =========================================================
    ĐĂNG KÝ MỚI (gói 1-5, khối học sinh, icon, tick khối) + THANH TOÁN

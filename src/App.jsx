@@ -517,11 +517,6 @@ export default function App() {
     setPending(null)
     setView(role === 'child' ? 'home' : 'dashboard')
   }
-  // Phụ huynh SỬA môn của một khái niệm (nếu trước đây bị gán nhầm) -> báo cáo hết lẫn môn.
-  function setConceptSubject(id, subject) {
-    setMem((m) => m.map((c) => (c.id === id ? { ...c, subject, updatedAt: Date.now() } : c)))
-    setToast(`Đã chuyển khái niệm sang môn ${subject} ✓`)
-  }
   const retryReview = () => { if (lastReviewRef.current) startReview(lastReviewRef.current) }
   const goHomeFromError = () => { setGenError(false); setView('home') }
   const genOrScreen = (node) => {
@@ -642,7 +637,7 @@ export default function App() {
     }
   } else {
     // Phụ huynh chỉ xem báo cáo + vào Cài đặt (mục tiêu, bật/tắt trắc nghiệm).
-    screen = <ParentDashboard mem={mem} session={session} stats={stats} child={activeChild} onSettings={() => setView('settings')} onSetSubject={setConceptSubject} toast={toast} />
+    screen = <ParentDashboard mem={mem} session={session} stats={stats} child={activeChild} onSettings={() => setView('settings')} toast={toast} />
   }
 
   return (

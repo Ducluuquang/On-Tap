@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { BackHeader } from '../components.jsx'
 
-// Các môn tiểu học thường gặp — để phụ huynh CHỌN/SỬA nếu AI đoán sai môn.
-const COMMON_SUBJECTS = ['Toán', 'Tiếng Việt', 'Tiếng Anh', 'Khoa học', 'Lịch sử', 'Địa lý', 'Tự nhiên và Xã hội', 'Đạo đức', 'Tin học']
+// Các môn tiểu học thường gặp (tên CHUẨN) — dùng khi nội dung nhập vào KHÔNG ghi rõ môn.
+const COMMON_SUBJECTS = ['Toán', 'Tiếng Việt', 'Tiếng Anh', 'Khoa học', 'Lịch sử', 'Địa lý', 'Lịch sử và Địa lí', 'Tự nhiên và Xã hội', 'Đạo đức', 'Tin học']
 
 export default function ParentApprove({ pending, onSave, onBack }) {
   const [checked, setChecked] = useState(() =>
@@ -32,10 +32,15 @@ export default function ParentApprove({ pending, onSave, onBack }) {
         </div>
         <div className="u-row"><span>Chủ đề</span><b>{pending.topic}</b></div>
       </div>
-      {pending.subject && subject !== pending.subject && (
-        <p className="cr-hint">Đã đổi môn từ "{pending.subject}" (AI đoán) sang "{subject}".</p>
+      {pending.subjectFrom === 'label' && subject === pending.subject && (
+        <p className="cr-hint">✓ Môn <b>{pending.subject}</b> lấy đúng từ nội dung nhập vào{pending.grade ? ` (${pending.grade})` : ''}.</p>
       )}
-      <p className="cr-hint">💡 Kiểm tra <b>Môn</b> cho đúng trước khi lưu — để báo cáo từng môn không bị lẫn.</p>
+      {pending.subject && subject !== pending.subject && (
+        <p className="cr-hint">Đã đổi môn từ "{pending.subject}" sang "{subject}".</p>
+      )}
+      {!pending.subject && (
+        <p className="cr-hint">💡 Nội dung chưa ghi rõ môn — chọn <b>Môn</b> trước khi lưu. Mẹo: ghi tên môn ở đầu, vd “Tiếng Anh 7: Thì quá khứ đơn”, app sẽ tự nhận đúng môn.</p>
+      )}
 
       <h3 className="u-head">Các khái niệm tìm thấy</h3>
       <div className="concept-list">

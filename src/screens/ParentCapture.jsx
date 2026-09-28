@@ -1,15 +1,28 @@
 import { useState } from 'react'
 import { BackHeader } from '../components.jsx'
 import { extractFromFiles, extractFromText } from '../lib/aiClient.js'
+import { detectSubject, canonicalSubject } from '../lib/subjects.js'
 
-function withIds(result) {
+// Chuẩn hoá kết quả AI đọc được + GẮN MÔN TỪ CHÍNH NỘI DUNG NHẬP VÀO.
+// - Nội dung có NHÃN MÔN (vd "Tiếng Anh 7: Thì quá khứ đơn") -> lấy ĐÚNG môn đó (không thể nhầm).
+// - Không có nhãn -> dùng môn AI nhận ra (chuẩn hoá tên). AI không chắc -> để TRỐNG, phụ huynh chọn ở bước sau.
+// - TUYỆT ĐỐI không tự gán "Toán" khi không biết (trước đây là nguồn gây lẫn môn).
+function withIds(result, inputText = '') {
   const concepts = (result.concepts || []).map((c, i) => ({
     id: c.id || 'ai-' + i,
     name: c.name,
     difficulty: c.difficulty || 'Cơ bản',
     importance: c.importance || 'Quan trọng',
   }))
-  return { subject: result.subject || 'Toán', grade: result.grade || '', topic: result.topic || '', concepts }
+  const fromInput = detectSubject(inputText)   // nhãn môn trong chữ phụ huynh/con gõ
+  const fromTopic = detectSubject(result.topic) // nhãn môn AI đọc được trên trang (tiêu đề)
+  const label = fromInput || fromTopic
+  const subject = label ? label.subject : canonicalSubject(result.subject)
+  const grade = (label && label.grade) || result.grade || ''
+  let topic = String(result.topic || '').trim()
+  if (fromTopic && fromTopic.rest) topic = fromTopic.rest.split('\n')[0].trim() // bỏ tiền tố "Tiếng Anh 7:"
+  else if (!topic && fromInput && fromInput.rest) topic = fromInput.rest.split('\n')[0].trim().slice(0, 80)
+  return { subject, grade, topic, concepts, subjectFrom: label ? 'label' : (subject ? 'ai' : '') }
 }
 
 // Nhận diện khi người dùng DÁN ĐƯỜNG LINK — app chưa mở được nội dung bên trong link,
@@ -27,10 +40,10 @@ export default function ParentCapture({ onExtracted, onBack }) {
   const [reading, setReading] = useState(false)
   const [error, setError] = useState('')
 
-  async function run(fn) {
+  async function run(fn, inputText = '') {
     setError(''); setReading(true)
     try {
-      const res = withIds(await fn())
+      const res = withIds(await fn(), inputText)
       // KHÔNG bịa: nếu không tách được khái niệm nào -> báo để chụp ảnh/gõ trực tiếp, không lưu bừa.
       if (!res.concepts.length) { setReading(false); setError(EMPTY_MSG); return }
       onExtracted(res)
@@ -41,7 +54,7 @@ export default function ParentCapture({ onExtracted, onBack }) {
     const t = text.trim()
     if (!t) return
     if (looksLikeLink(t)) { setError(LINK_MSG); return }
-    run(() => extractFromText(t))
+    run(() => extractFromText(t), t)
   }
   const onFiles = (e) => {
     const fs = Array.from(e.target.files || [])

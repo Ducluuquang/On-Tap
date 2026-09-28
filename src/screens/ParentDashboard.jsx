@@ -5,8 +5,6 @@ import { last7, totalMinutes, todayMinutes, streakDays, dayReport } from '../lib
 import { subjectDisplayName, subjectIcon } from '../lib/subjects.js'
 
 const WD = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
-// Danh sách môn để phụ huynh SỬA nhanh môn của một khái niệm (nếu trước đây bị gán nhầm).
-const SUBJ_OPTS = ['Toán', 'Tiếng Việt', 'Tiếng Anh', 'Khoa học', 'Lịch sử', 'Địa lý', 'Tự nhiên và Xã hội', 'Đạo đức', 'Tin học', 'Môn khác']
 
 function hm(min) {
   const h = Math.floor(min / 60), m = min % 60
@@ -56,7 +54,7 @@ function StudyChart({ stats, sel, onSel }) {
 }
 
 // viewer = 'parent' (đầy đủ: sửa môn, vào cài đặt) | 'child' (học sinh CHỈ XEM báo cáo của mình).
-export default function ParentDashboard({ mem, stats, child, viewer = 'parent', onBack, onSettings, onSetSubject, toast }) {
+export default function ParentDashboard({ mem, stats, child, viewer = 'parent', onBack, onSettings, toast }) {
   const isKid = viewer === 'child'
   const childName = (child && child.name) || 'con'
   const allConcepts = conceptStatusList(mem)
@@ -67,9 +65,15 @@ export default function ParentDashboard({ mem, stats, child, viewer = 'parent', 
 
   // Lọc bản đồ kiến thức theo môn đang xem.
   const concepts = activeSubj === 'all' ? allConcepts : allConcepts.filter((c) => subjectDisplayName(c.subject) === activeSubj)
-  const kmapTitle = activeSubj !== 'all'
-    ? `Bản đồ kiến thức môn ${activeSubj}`
-    : (subjectNames.length === 1 ? `Bản đồ kiến thức môn ${subjectNames[0]}` : 'Bản đồ kiến thức')
+  // NHÓM THEO MÔN (TIẾNG ANH / TOÁN / LỊCH SỬ…). Danh sách đã xếp "mới nhất lên trên" nên môn nào
+  // con học/thêm gần nhất sẽ đứng đầu; trong mỗi môn, chủ đề mới nhất cũng đứng đầu.
+  const groups = []
+  const byName = new Map()
+  for (const c of concepts) {
+    const s = subjectDisplayName(c.subject)
+    if (!byName.has(s)) { const g = { subject: s, items: [] }; byName.set(s, g); groups.push(g) }
+    byName.get(s).items.push(c)
+  }
   const total = totalMinutes(stats)
   const todayM = todayMinutes(stats)
   const streak = streakDays(stats) // DÙNG CHUNG với thẻ phần thưởng -> luôn khớp nhau
@@ -153,33 +157,29 @@ export default function ParentDashboard({ mem, stats, child, viewer = 'parent', 
       </div>
 
       <section className="kmap">
-        <h3>{kmapTitle}</h3>
-        {concepts.length === 0 && <p className="cr-hint">Chưa có dữ liệu. Con chụp/thêm bài học để bắt đầu ghi bản đồ kiến thức.</p>}
-        {concepts.map((c) => {
-          const cur = subjectDisplayName(c.subject)
-          const opts = [...new Set([cur, ...SUBJ_OPTS])]
-          return (
-            <div className="krow" key={c.id}>
-              <div className="krow-top">
-                <span className="kname">{c.name}</span>
-                <StatusPill status={c.status} />
-              </div>
-              <div className="krow-bar">
-                <MasteryBar value={c.mastery} status={c.status} />
-                <span className="kpct">{c.mastery}%</span>
-              </div>
-              {!isKid && onSetSubject && (
-                <div className="krow-subj">
-                  <span className="krow-subjlbl">Môn:</span>
-                  <select className="krow-subjsel" value={cur} onChange={(e) => onSetSubject(c.id, e.target.value)}>
-                    {opts.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                  <span className="krow-subjhint">sửa nếu bị gán nhầm môn</span>
-                </div>
-              )}
+        <h3>Bản đồ kiến thức</h3>
+        {groups.length === 0 && <p className="cr-hint">Chưa có dữ liệu. Con chụp/thêm bài học để bắt đầu ghi bản đồ kiến thức.</p>}
+        {groups.map((g) => (
+          <div className="kgroup" key={g.subject}>
+            <div className="kgroup-h">
+              <span className="kgroup-ic">{subjectIcon(g.subject)}</span>
+              <span className="kgroup-name">{g.subject}</span>
+              <span className="kgroup-count">{g.items.length} chủ đề</span>
             </div>
-          )
-        })}
+            {g.items.map((c) => (
+              <div className="krow" key={c.id}>
+                <div className="krow-top">
+                  <span className="kname">{c.name}</span>
+                  <StatusPill status={c.status} />
+                </div>
+                <div className="krow-bar">
+                  <MasteryBar value={c.mastery} status={c.status} />
+                  <span className="kpct">{c.mastery}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
       </section>
 
       {/* Cài đặt (mục tiêu, bật/tắt trắc nghiệm) chỉ dành cho PHỤ HUYNH — học sinh chỉ xem báo cáo. */}
