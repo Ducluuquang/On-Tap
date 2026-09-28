@@ -95,17 +95,20 @@ export default function ParentDashboard({ mem, stats, child, kids = [], onViewCh
       {isKid ? (
         <BackHeader title="Báo cáo học tập" onBack={onBack} />
       ) : (
-        // Tab Phụ huynh: thay "ON TAP · Phụ huynh" + "Bố/Mẹ của …" bằng ICON + TÊN các con.
+        // Tab Phụ huynh: logo OT bên trái (như cũ, KHÔNG kèm chữ ON TAP) + ICON + TÊN các con.
         // Bấm icon con nào -> xem báo cáo con đó (dòng "Hôm nay của …" đổi theo).
-        <nav className="kidswitch" aria-label="Chọn con để xem báo cáo">
-          {kids.map((k) => (
-            <button key={k.id} type="button" className={'kid' + (child && k.id === child.id ? ' on' : '')}
-              aria-pressed={!!(child && k.id === child.id)} onClick={() => onViewChild && onViewChild(k)}>
-              <span className="kid-ava">{iconFor(k)}</span>
-              <span className="kid-name">{k.name}</span>
-            </button>
-          ))}
-        </nav>
+        <div className="parenthead">
+          <span className="brand-mark" aria-label="ON TAP">OT</span>
+          <nav className="kidswitch" aria-label="Chọn con để xem báo cáo">
+            {kids.map((k) => (
+              <button key={k.id} type="button" className={'kid' + (child && k.id === child.id ? ' on' : '')}
+                aria-pressed={!!(child && k.id === child.id)} onClick={() => onViewChild && onViewChild(k)}>
+                <span className="kid-ava">{iconFor(k)}</span>
+                <span className="kid-name">{k.name}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
       )}
 
       <section className="hello">

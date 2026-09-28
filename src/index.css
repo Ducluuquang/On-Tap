@@ -791,3 +791,8 @@ select.auth-in{appearance:auto;cursor:pointer}
 .kid.on .kid-ava{opacity:1;border-color:var(--teal);box-shadow:0 5px 14px rgba(15,118,110,.25);transform:scale(1.04)}
 .kid-name{font-size:.8rem;font-weight:700;color:var(--muted);max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .kid.on .kid-name{color:var(--teal-dark);font-weight:900}
+/* Logo OT bên trái hàng icon các con (tab Phụ huynh). Khoảng trống cân đối bên phải -> các con vẫn nằm GIỮA khung. */
+.parenthead{display:flex;align-items:flex-start;gap:6px}
+.parenthead > .brand-mark{flex:0 0 30px;margin-top:18px} /* tâm logo ngang tâm các icon con */
+.parenthead > .kidswitch{flex:1;min-width:0}
+.parenthead::after{content:'';flex:0 0 30px}
