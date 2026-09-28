@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Brand, BackHeader, StatusPill, MasteryBar, RewardTrack } from '../components.jsx'
+import { BackHeader, StatusPill, MasteryBar, RewardTrack } from '../components.jsx'
 import { conceptStatusList } from '../lib/mockAI.js'
 import { last7, totalMinutes, todayMinutes, streakDays, dayReport } from '../lib/stats.js'
 import { subjectDisplayName, subjectIcon } from '../lib/subjects.js'
+import { iconFor } from '../lib/icons.js'
 
 const WD = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
 
@@ -54,7 +55,8 @@ function StudyChart({ stats, sel, onSel }) {
 }
 
 // viewer = 'parent' (đầy đủ: sửa môn, vào cài đặt) | 'child' (học sinh CHỈ XEM báo cáo của mình).
-export default function ParentDashboard({ mem, stats, child, viewer = 'parent', onBack, onSettings, toast }) {
+// kids + onViewChild: hàng icon các con ở tab Phụ huynh — bấm icon để xem báo cáo của con đó.
+export default function ParentDashboard({ mem, stats, child, kids = [], onViewChild, viewer = 'parent', onBack, onSettings, toast }) {
   const isKid = viewer === 'child'
   const childName = (child && child.name) || 'con'
   const allConcepts = conceptStatusList(mem)
@@ -93,10 +95,17 @@ export default function ParentDashboard({ mem, stats, child, viewer = 'parent', 
       {isKid ? (
         <BackHeader title="Báo cáo học tập" onBack={onBack} />
       ) : (
-        <header className="topbar">
-          <Brand sub="· Phụ huynh" />
-          <span className="who-pill">Bố/Mẹ của {childName}</span>
-        </header>
+        // Tab Phụ huynh: thay "ON TAP · Phụ huynh" + "Bố/Mẹ của …" bằng ICON + TÊN các con.
+        // Bấm icon con nào -> xem báo cáo con đó (dòng "Hôm nay của …" đổi theo).
+        <nav className="kidswitch" aria-label="Chọn con để xem báo cáo">
+          {kids.map((k) => (
+            <button key={k.id} type="button" className={'kid' + (child && k.id === child.id ? ' on' : '')}
+              aria-pressed={!!(child && k.id === child.id)} onClick={() => onViewChild && onViewChild(k)}>
+              <span className="kid-ava">{iconFor(k)}</span>
+              <span className="kid-name">{k.name}</span>
+            </button>
+          ))}
+        </nav>
       )}
 
       <section className="hello">

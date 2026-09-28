@@ -215,6 +215,9 @@ export default function App() {
   // Đã mở khoá khu vực phụ huynh trong lần này -> bên trong (cài đặt) không hỏi PIN lại.
   // Tự khoá lại khi quay về vai Con / đổi người học / đăng xuất.
   const [parentUnlocked, setParentUnlocked] = useState(false)
+  // Bạn ĐANG HỌC lúc phụ huynh mở tab Phụ huynh — để khi bấm "Con" thì trả máy về đúng bạn đó
+  // (phụ huynh xem báo cáo con khác không làm đổi người học). null = vào từ màn chọn người học.
+  const [homeLearnerId, setHomeLearnerId] = useState(null)
   const [stats, setStats] = useState(loadStats)
   const [settings, setSettings] = useState(loadSettings)
 
@@ -263,7 +266,7 @@ export default function App() {
   function switchChild() {
     setActiveChild(null)              // -> quay lại màn chọn con
     setActiveChildState(null)
-    setParentUnlocked(false)
+    setParentUnlocked(false); setHomeLearnerId(null)
     setRole('child'); setView('home')
   }
   function addChild(child) {
@@ -329,11 +332,11 @@ export default function App() {
   function resetLearningData() {
     resetMemory(); resetStats(); resetRecent()
     setMem([]); setStats(loadStats()); setSession(null)
-    setToast('Đã xoá dữ liệu học tập của con này — bắt đầu lại từ đầu ✓')
+    setToast(`Đã xoá dữ liệu học tập của ${activeChild?.name || 'con'} — bắt đầu lại từ đầu ✓`)
     setView(role === 'child' ? 'home' : 'dashboard')
   }
   function logout() {
-    persistSession(false); setAuthed(false); setParentUnlocked(false)
+    persistSession(false); setAuthed(false); setParentUnlocked(false); setHomeLearnerId(null)
     setActiveChild(null); setActiveChildState(null)
     setRole('child'); setView('home')
   }
@@ -371,12 +374,34 @@ export default function App() {
     askParent(() => {
       const first = (account?.children || [])[0]
       if (first) { setActiveChild(first.id); reloadChildData(); setActiveChildState(first) }
+      setHomeLearnerId(null) // vào từ màn chọn -> chưa có ai đang học
       setRole('parent'); setView('dashboard')
     })
   }
 
+  // Tab Phụ huynh: bấm icon một con -> xem báo cáo của con đó ngay (không cần qua màn chọn người học).
+  // Cả khu phụ huynh (báo cáo, mục tiêu, xoá dữ liệu) đều theo ĐÚNG con đang xem.
+  function viewChildInParent(child) {
+    if (!child || (activeChild && child.id === activeChild.id)) return
+    setActiveChild(child.id)
+    reloadChildData()
+    setActiveChildState(child)
+  }
+
   function switchRole(r) {
-    if (r === 'parent') { askParent(() => { setRole('parent'); setView('dashboard') }); return }
+    if (r === 'parent') {
+      if (role === 'parent') { setView('dashboard'); return } // đang ở tab Phụ huynh -> giữ nguyên người học cũ
+      const learner = activeChild ? activeChild.id : null
+      askParent(() => { setHomeLearnerId(learner); setRole('parent'); setView('dashboard') })
+      return
+    }
+    if (role === 'parent') {
+      // Rời tab Phụ huynh -> trả máy về ĐÚNG bạn đang học trước đó (dù phụ huynh vừa xem báo cáo con khác).
+      const home = homeLearnerId && (account?.children || []).find((c) => c.id === homeLearnerId)
+      if (!home) { switchChild(); return } // vào từ màn chọn -> về màn chọn để con tự chọn + gõ PIN
+      if (!activeChild || activeChild.id !== home.id) { setActiveChild(home.id); reloadChildData(); setActiveChildState(home) }
+      setHomeLearnerId(null)
+    }
     setParentUnlocked(false) // quay về vai Con -> khoá lại khu vực phụ huynh
     setRole(r); setView('home')
   }
@@ -593,11 +618,11 @@ export default function App() {
 
   let screen = null
   if (view === 'settings') {
-    screen = <Settings account={account} settings={settings} stats={stats} unlocked={parentUnlocked}
+    screen = <Settings account={account} settings={settings} stats={stats} unlocked={parentUnlocked} childName={activeChild?.name || ''}
       onChangePassword={changePassword} onSaveEmail={saveEmail} onSetPin={setParentPin} onResetData={resetLearningData}
       onSetGoal={(min) => setStats((s) => setGoalMin(s, min))}
       onToggleChoice={(v) => setSettings((s) => ({ ...s, allowChoice: v }))}
-      onBack={() => setView(homeView)} />
+      onBack={() => { if (role === 'child') setParentUnlocked(false); setView(homeView) }} />
   } else if (role === 'child') {
     if (view === 'custom') {
       screen = <CustomReview mem={mem} allowChoice={settings.allowChoice} onStart={startReview} onBack={() => setView('home')} />
@@ -637,7 +662,9 @@ export default function App() {
     }
   } else {
     // Phụ huynh chỉ xem báo cáo + vào Cài đặt (mục tiêu, bật/tắt trắc nghiệm).
-    screen = <ParentDashboard mem={mem} session={session} stats={stats} child={activeChild} onSettings={() => setView('settings')} toast={toast} />
+    screen = <ParentDashboard key={activeChild?.id || 'none'} mem={mem} session={session} stats={stats} child={activeChild}
+      kids={account?.children || []} onViewChild={viewChildInParent}
+      onSettings={() => setView('settings')} toast={toast} />
   }
 
   return (

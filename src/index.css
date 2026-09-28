@@ -777,3 +777,17 @@ select.auth-in{appearance:auto;cursor:pointer}
 .pay-bank b{color:var(--ink)}
 .pay-bank i{color:var(--muted)}
 .pay-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* Tab Phụ huynh: hàng ICON + TÊN các con (bấm để xem báo cáo từng con) */
+.kidswitch{display:flex;gap:10px;overflow-x:auto;padding:4px 2px 8px;margin:-2px 0 0;scrollbar-width:none}
+.kidswitch::-webkit-scrollbar{display:none}
+.kidswitch > .kid:first-child{margin-left:auto}
+.kidswitch > .kid:last-child{margin-right:auto}
+.kid{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:5px;min-width:66px;padding:2px 4px;
+  background:none;border:0;cursor:pointer;font-family:inherit}
+.kid-ava{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;font-size:1.75rem;line-height:1;
+  background:var(--teal-soft);border:3px solid transparent;opacity:.72;transition:transform .12s,opacity .12s,border-color .12s}
+.kid:hover .kid-ava{opacity:1}
+.kid.on .kid-ava{opacity:1;border-color:var(--teal);box-shadow:0 5px 14px rgba(15,118,110,.25);transform:scale(1.04)}
+.kid-name{font-size:.8rem;font-weight:700;color:var(--muted);max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kid.on .kid-name{color:var(--teal-dark);font-weight:900}

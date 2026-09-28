@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { BackHeader } from '../components.jsx'
 
-export default function Settings({ account, settings, stats, unlocked = false, onChangePassword, onSaveEmail, onSetPin, onResetData, onSetGoal, onToggleChoice, onBack }) {
+export default function Settings({ account, settings, stats, unlocked = false, childName = '', onChangePassword, onSaveEmail, onSetPin, onResetData, onSetGoal, onToggleChoice, onBack }) {
+  // Mục tiêu & dữ liệu học tập là RIÊNG TỪNG CON -> ghi rõ tên con đang cài (tránh xoá nhầm con).
+  const forKid = childName ? ` · ${childName}` : ''
   const [confirmReset, setConfirmReset] = useState(false)
   const [cur, setCur] = useState('')
   const [np, setNp] = useState('')
@@ -95,7 +97,7 @@ export default function Settings({ account, settings, stats, unlocked = false, o
       </section>
 
       <section className="set-sec">
-        <h3>Mục tiêu học mỗi ngày</h3>
+        <h3>Mục tiêu học mỗi ngày{forKid}</h3>
         <div className="goal-row">
           <button className="goal-btn" onClick={() => changeGoal(Math.max(1, goalMin - 5))}>−</button>
           <div className="goal-val"><b>{goalMin}</b><span>phút / ngày</span></div>
@@ -118,12 +120,12 @@ export default function Settings({ account, settings, stats, unlocked = false, o
 
       {onResetData && (
         <section className="set-sec">
-          <h3>Dữ liệu học tập</h3>
+          <h3>Dữ liệu học tập{forKid}</h3>
           {!confirmReset ? (
             <button className="cta small ghost" onClick={() => setConfirmReset(true)}>🗑️ Xoá hết dữ liệu &amp; làm lại từ đầu</button>
           ) : (
             <>
-              <p className="cr-hint">Xoá toàn bộ bản đồ kiến thức, báo cáo, thời gian học của con và bắt đầu lại từ số 0. Không hoàn tác được.</p>
+              <p className="cr-hint">Xoá toàn bộ bản đồ kiến thức, báo cáo, thời gian học của <b>{childName || 'con'}</b> và bắt đầu lại từ số 0. Các con khác không bị ảnh hưởng. Không hoàn tác được.</p>
               <div className="modal-btns">
                 <button className="cta small ghost" onClick={() => setConfirmReset(false)}>Huỷ</button>
                 <button className="cta small danger" onClick={() => { setConfirmReset(false); openPin(null, 'reset') }}>Xoá &amp; làm lại</button>
