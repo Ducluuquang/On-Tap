@@ -1,4 +1,5 @@
 // Chọn khái niệm để ôn theo nhu cầu: thời gian, mức độ, hoặc yêu cầu gõ bằng lời.
+import { plainText, hasPhrase, parseRequest, isVocabItem, isGrammarItem } from './topics.js'
 
 function daysSince(dateStr) {
   if (!dateStr) return 99999
@@ -19,16 +20,13 @@ export function selectConcepts(mem, { time = 'all', level = 'all', text = '' } =
   const rawText = level === 'master' ? '' : (text || '').trim()
   const t = rawText.toLowerCase()
 
-  // 0) Nếu ô text là một CHỦ ĐỀ cụ thể (không phải từ khoá mức độ) -> ƯU TIÊN đúng chủ đề đó,
+  // 0) Nếu ô text là một CHỦ ĐỀ (không phải từ khoá mức độ) -> ƯU TIÊN đúng chủ đề đó,
   //    KHÔNG rơi về "phần yếu nhất". Đây là chỗ trước đây bị bỏ sót khiến câu hỏi lạc đề.
+  //    Hiểu đúng LỜI YÊU CẦU: "ôn từ vựng" = ôn các TỪ VỰNG trong bản đồ (không phải chủ đề "Ôn từ vựng").
   if (rawText && !LEVEL_KW.test(t)) {
-    const matched = mem.filter((c) => {
-      const n = (c.name || '').toLowerCase()
-      return n === t || n.includes(t) || t.includes(n)
-    })
-    if (matched.length) return matched.slice(0, 5).map((c) => c.name)
-    // Không khớp khái niệm nào trong bản đồ -> coi text là chủ đề mới, luyện đúng chủ đề đó.
-    return [rawText]
+    const picked = resolveTopic(rawText, mem)
+    if (picked.length) return picked
+    // Chỉ là lời yêu cầu chung ("ôn bài", "ôn tập") -> dùng bộ lọc mức độ bên dưới.
   }
 
   // 1) Lọc theo thời gian đã học
@@ -58,13 +56,64 @@ export function describeSelection({ time = 'all', level = 'all', text = '' } = {
     const mt = (text || '').trim()
     return mt ? `Master 🏆: ${mt}` : 'Master 🏆: phần yếu nhất'
   }
-  if (text && text.trim()) return `Ôn: ${text.trim()}`
+  if (text && text.trim()) {
+    const { topic, bucket } = parseRequest(text)
+    if (topic && bucket !== 'generic') return `Ôn: ${topic}` // "ôn từ vựng" -> "Ôn: từ vựng" (không lặp chữ "ôn")
+    if (!topic && bucket !== 'generic') return `Ôn: ${text.trim()}`
+  }
   const lv = {
     weak: 'phần yếu nhất', wrong: 'phần hay sai', new: 'phần chưa ôn',
-    notmastered: 'phần chưa thành thạo', all: 'ôn tổng hợp',
-  }[level] || 'ôn tổng hợp'
+    notmastered: 'phần chưa thành thạo', all: 'tổng hợp',
+  }[level] || 'tổng hợp'
   const tm = {
     week: ' · tuần này', month: ' · tháng này', two: ' · 2 tháng', three: ' · 3 tháng', all: '',
   }[time] || ''
   return `Ôn ${lv}${tm}`
+}
+
+// Khái niệm trong bản đồ KHỚP với chủ đề gõ tay (so không dấu, theo NGUYÊN CỤM TỪ).
+// Tên quá ngắn (vd từ "on", "in") chỉ khớp khi gõ ĐÚNG y tên đó — tránh "ôn …" khớp nhầm từ "on".
+function matchConcepts(list, p) {
+  if (!p) return []
+  const exact = []
+  const near = []
+  for (const c of list || []) {
+    const n = plainText(c && c.name)
+    if (!n) continue
+    if (n === p) { exact.push(c); continue }
+    const shortName = !n.includes(' ') && n.length < 4
+    if ((!shortName && hasPhrase(p, n)) || (p.length >= 3 && hasPhrase(n, p))) near.push(c)
+  }
+  return [...exact, ...near]
+}
+
+const weakFirst = (a, b) => (a.mastery || 0) - (b.mastery || 0)
+
+// HIỂU MỘT YÊU CẦU/CHỦ ĐỀ gõ tay -> danh sách tên khái niệm để ra đề.
+// - Gõ đúng tên khái niệm có trong bản đồ -> khái niệm đó.
+// - "ôn từ vựng" / "ôn ngữ pháp" -> các khái niệm TỪ VỰNG / NGỮ PHÁP của môn trong bản đồ (yếu trước).
+//   Bản đồ chưa có -> "Từ vựng"/"Ngữ pháp" (ôn chung; KHÔNG thành mục trong bản đồ kiến thức).
+// - "ôn phân số" -> các khái niệm có "phân số"; chưa có -> chủ đề mới "Phân số" (đã bỏ chữ "ôn").
+// - Lời chung chung ("ôn tập", "ôn bài") -> [] (để dùng bộ lọc mức độ).
+export function resolveTopic(text, mem, { limit = 5, vocabLimit = 15 } = {}) {
+  const raw = String(text || '').trim()
+  if (!raw) return []
+  const list = mem || []
+  const exact = list.filter((c) => plainText(c.name) === plainText(raw))
+  if (exact.length) return [exact[0].name]
+  const { topic, bucket } = parseRequest(raw)
+  if (bucket === 'vocab') {
+    const words = list.filter(isVocabItem).sort(weakFirst)
+    return words.length ? words.slice(0, vocabLimit).map((c) => c.name) : ['Từ vựng']
+  }
+  if (bucket === 'grammar') {
+    const gr = list.filter(isGrammarItem).sort(weakFirst)
+    return gr.length ? gr.slice(0, limit).map((c) => c.name) : ['Ngữ pháp']
+  }
+  if (bucket === 'generic') return []
+  const matched = matchConcepts(list, plainText(topic || raw))
+  if (matched.length) return matched.slice(0, limit).map((c) => c.name)
+  // Không khớp khái niệm nào trong bản đồ -> chủ đề mới (viết hoa chữ đầu), luyện đúng chủ đề đó.
+  const name = (topic || raw).trim()
+  return name ? [name.charAt(0).toLocaleUpperCase('vi') + name.slice(1)] : []
 }

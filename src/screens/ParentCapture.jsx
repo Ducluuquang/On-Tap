@@ -2,13 +2,16 @@ import { useState } from 'react'
 import { BackHeader } from '../components.jsx'
 import { extractFromFiles, extractFromText } from '../lib/aiClient.js'
 import { detectSubject, canonicalSubject } from '../lib/subjects.js'
+import { isVagueConcept } from '../lib/topics.js'
 
 // Chuẩn hoá kết quả AI đọc được + GẮN MÔN TỪ CHÍNH NỘI DUNG NHẬP VÀO.
 // - Nội dung có NHÃN MÔN (vd "Tiếng Anh 7: Thì quá khứ đơn") -> lấy ĐÚNG môn đó (không thể nhầm).
 // - Không có nhãn -> dùng môn AI nhận ra (chuẩn hoá tên). AI không chắc -> để TRỐNG, phụ huynh chọn ở bước sau.
 // - TUYỆT ĐỐI không tự gán "Toán" khi không biết (trước đây là nguồn gây lẫn môn).
 function withIds(result, inputText = '') {
-  const concepts = (result.concepts || []).map((c, i) => ({
+  const all = (result.concepts || []).filter((c) => c && String(c.name || '').trim())
+  // BỎ tên CHUNG CHUNG ("Từ vựng cơ bản", "Ngữ pháp cơ bản", "Ôn tập"…): không phải kiến thức cụ thể.
+  const concepts = all.filter((c) => !isVagueConcept(c.name)).map((c, i) => ({
     id: c.id || 'ai-' + i,
     name: c.name,
     difficulty: c.difficulty || 'Cơ bản',
@@ -22,7 +25,7 @@ function withIds(result, inputText = '') {
   let topic = String(result.topic || '').trim()
   if (fromTopic && fromTopic.rest) topic = fromTopic.rest.split('\n')[0].trim() // bỏ tiền tố "Tiếng Anh 7:"
   else if (!topic && fromInput && fromInput.rest) topic = fromInput.rest.split('\n')[0].trim().slice(0, 80)
-  return { subject, grade, topic, concepts, subjectFrom: label ? 'label' : (subject ? 'ai' : '') }
+  return { subject, grade, topic, concepts, onlyVague: !concepts.length && all.length > 0, subjectFrom: label ? 'label' : (subject ? 'ai' : '') }
 }
 
 // Nhận diện khi người dùng DÁN ĐƯỜNG LINK — app chưa mở được nội dung bên trong link,
@@ -33,6 +36,7 @@ function looksLikeLink(t) {
 }
 const LINK_MSG = 'App chưa mở được nội dung bên trong đường link (nhất là trang game như Wordwall). Anh/chị hãy CHỤP MÀN HÌNH trang đó rồi tải ảnh lên (nút 📷 ở bước trước), hoặc gõ/dán trực tiếp các từ vựng / nội dung vào ô này.'
 const EMPTY_MSG = 'Chưa đọc được nội dung bài học từ phần này. Anh/chị chụp màn hình rồi tải ảnh lên, hoặc gõ/dán trực tiếp các từ vựng / nội dung cần học (đừng chỉ dán đường link).'
+const VAGUE_MSG = 'Chưa thấy kiến thức CỤ THỂ trong phần này (vd danh sách từ vựng, tên điểm ngữ pháp, dạng toán) — app không lưu mục chung chung như “Từ vựng cơ bản”. Anh/chị gõ rõ nội dung, vd “Tiếng Anh 7: doctor, nurse, teacher” hoặc “Tiếng Anh 7: Thì quá khứ đơn”, hoặc chụp trang bài học.'
 
 export default function ParentCapture({ onExtracted, onBack }) {
   const [mode, setMode] = useState('choose') // choose | text
@@ -45,7 +49,7 @@ export default function ParentCapture({ onExtracted, onBack }) {
     try {
       const res = withIds(await fn(), inputText)
       // KHÔNG bịa: nếu không tách được khái niệm nào -> báo để chụp ảnh/gõ trực tiếp, không lưu bừa.
-      if (!res.concepts.length) { setReading(false); setError(EMPTY_MSG); return }
+      if (!res.concepts.length) { setReading(false); setError(res.onlyVague ? VAGUE_MSG : EMPTY_MSG); return }
       onExtracted(res)
     } catch (err) { setError(err.message || 'Có lỗi xảy ra.'); setReading(false) }
   }

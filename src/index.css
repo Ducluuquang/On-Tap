@@ -145,6 +145,17 @@ body{
 .fb-no b{color:var(--weak-tx)}
 .fb-hint{background:var(--dev-bg)}
 .fb-hint b{color:var(--dev-tx)}
+/* Giải thích khi làm SAI (mọi kiểu ôn & game) */
+.why{display:flex;flex-direction:column;gap:6px;text-align:left}
+.why-row{display:flex;gap:10px;align-items:baseline;font-size:.93rem;line-height:1.35}
+.why-k{flex:0 0 92px;color:var(--ink-soft);font-weight:600;font-size:.8rem}
+.why-v{flex:1;min-width:0;font-weight:700;overflow-wrap:anywhere}
+.why-v.bad{color:var(--weak-tx);text-decoration:line-through;text-decoration-thickness:1.5px}
+.why-v.none{color:var(--weak-tx);font-style:italic}
+.why-v.good{color:var(--mastered-tx)}
+.why-ex{margin-top:2px;background:#fff;border:1px solid #F3D3C2;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.why-h{font-weight:800;font-size:.88rem;color:var(--ink)}
+.fb .why-ex p{margin:0;font-size:.93rem;line-height:1.45;color:var(--ink)}
 
 /* Result */
 .result{align-items:stretch}
@@ -162,6 +173,7 @@ body{
 .delta-num{font-weight:700;font-size:.9rem;text-align:right;display:flex;flex-direction:column;align-items:flex-end}
 .delta-num.up{color:var(--mastered-tx)}
 .delta-num.down{color:var(--weak-tx)}
+.deltas-empty{margin:4px 0 0;font-size:.86rem;color:var(--ink-soft);line-height:1.45}
 .delta-to{font-weight:500;font-size:.76rem;color:var(--muted);font-variant-numeric:tabular-nums}
 
 /* Pills + mastery bars */

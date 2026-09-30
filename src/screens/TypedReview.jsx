@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { BackHeader } from '../components.jsx'
-import { nextMastery } from '../lib/memory.js'
+import { BackHeader, WrongWhy } from '../components.jsx'
+import { recordAnswer } from '../lib/memory.js'
 import { createActiveTimer } from '../lib/stats.js'
 import { localMatch } from '../lib/answerMatch.js'
 import { judgeAnswer } from '../lib/aiClient.js'
@@ -60,18 +60,7 @@ export default function TypedReview({ questions, mem, title = 'Điền đáp án
   }
 
   function next() {
-    const key = q.concept
-    const cur = results[key] || {
-      correct: 0, wrong: 0, label,
-      mastery: mem.find((c) => c.id === key || c.name === key)?.mastery ?? 55,
-    }
-    const updated = {
-      correct: cur.correct + (ok ? 1 : 0),
-      wrong: cur.wrong + (ok ? 0 : 1),
-      mastery: nextMastery(cur.mastery, { correct: ok, choice: false }),
-      label,
-    }
-    const newResults = { ...results, [key]: updated }
+    const newResults = recordAnswer(results, q.concept, ok, label)
     const newSolved = solved + (ok ? 1 : 0)
     setResults(newResults); setSolved(newSolved)
     if (index + 1 >= questions.length) {
@@ -113,8 +102,8 @@ export default function TypedReview({ questions, mem, title = 'Điền đáp án
         <div className={'fb ' + (ok ? 'fb-ok' : 'fb-no')}>
           <b>{ok ? 'Chính xác! 🎉' : 'Chưa đúng.'}</b>
           {ok && note && <p>{note}</p>}
-          {!ok && <p>Đáp án đúng: <b>{correctText}</b></p>}
-          {q.explain && <p>{q.explain}</p>}
+          {ok && q.explain && <p>{q.explain}</p>}
+          {!ok && <WrongWhy pickedLabel="Con trả lời" picked={val.trim()} correct={correctText} why={note} explain={q.explain} />}
           <button className="cta" onClick={next}>
             {index + 1 >= questions.length ? 'Xem kết quả' : 'Câu tiếp theo'}
           </button>

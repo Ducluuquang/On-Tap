@@ -26,21 +26,53 @@ export async function pickModel(key, { fast = false } = {}) {
   return find(/sonnet/i) || find(/opus/i) || find(/haiku/i) || ids[0] || 'claude-sonnet-5'
 }
 
+// TẮT/GIẢM "thinking": model đời mới mặc định suy nghĩ trước khi trả lời -> CHẬM và ăn hết token nên
+// câu hỏi bị CỤT/thiếu ("Chưa soạn được câu hỏi"). Mỗi ĐỜI model nhận một cách tắt KHÁC nhau:
+//  - model cũ (sonnet-5…): {type:'disabled'}
+//  - model mới (sonnet-5-5, ra 28/9/2026): KHÔNG nhận 'disabled' -> mức thấp nhất là {type:'between_tools'}
+//    (không có công cụ nên KHÔNG suy nghĩ). Trước đây gửi cứng 'disabled' -> model mới báo lỗi 400 -> app hỏng.
+// Nay THỬ LẦN LƯỢT và NHỚ cách chạy được cho từng model -> Anthropic ra model mới app vẫn chạy.
+const THINKING_OPTIONS = [{ type: 'disabled' }, { type: 'between_tools' }, null]
+const thinkingOk = new Map() // model -> vị trí cách tắt thinking đã chạy được
+
+async function askModel(key, model, content, max) {
+  for (let i = thinkingOk.get(model) ?? 0; i < THINKING_OPTIONS.length; i++) {
+    const body = { model, max_tokens: max, messages: [{ role: 'user', content }] }
+    if (THINKING_OPTIONS[i]) body.thinking = THINKING_OPTIONS[i]
+    const r = await fetch(API, { method: 'POST', headers: H(key), body: JSON.stringify(body) })
+    const d = await r.json()
+    if (d.error) {
+      const msg = String(d.error.message || '')
+      // Model không nhận kiểu tắt thinking này -> thử kiểu kế tiếp (không coi là lỗi).
+      if (/thinking/i.test(msg) && i < THINKING_OPTIONS.length - 1) continue
+      const err = new Error(msg || JSON.stringify(d.error))
+      err.type = d.error.type
+      throw err
+    }
+    thinkingOk.set(model, i)
+    return (d.content || []).filter((b) => b.type === 'text').map((b) => b.text || '').join('')
+  }
+  throw new Error('Không gọi được model ' + model)
+}
+
 async function ask(key, content, max = 2500, { fast = false } = {}) {
   const model = await pickModel(key, { fast })
-  // TẮT "thinking": model đời mới (sonnet-5…) mặc định suy nghĩ trước khi trả lời -> CHẬM và
-  // ăn hết token nên câu hỏi bị CỤT/thiếu, dẫn tới "Chưa soạn được câu hỏi" (timeout 60s).
-  // Tắt đi thì trả JSON thẳng: nhanh hơn nhiều và đủ câu. Vẫn giữ chính xác nhờ quy tắc tự kiểm trong prompt.
-  const r = await fetch(API, {
-    method: 'POST', headers: H(key),
-    body: JSON.stringify({ model, max_tokens: max, thinking: { type: 'disabled' }, messages: [{ role: 'user', content }] }),
-  })
-  const d = await r.json()
-  if (d.error) throw new Error(d.error.message || JSON.stringify(d.error))
-  return d.content.map((b) => b.text || '').join('')
+  try {
+    return await askModel(key, model, content, max)
+  } catch (e) {
+    // Model vừa chọn không dùng được (bị gỡ/quá tải/lỗi lạ) -> thử MỘT model dự phòng đang có.
+    const ids = await modelIds(key)
+    const backup = [/sonnet/i, /opus/i, /haiku/i].map((re) => ids.find((i) => re.test(i) && i !== model)).find(Boolean)
+    if (!backup) throw e
+    return askModel(key, backup, content, max)
+  }
 }
 
 const parseJSON = (s) => JSON.parse((s.match(/\{[\s\S]*\}/) || [s])[0])
+
+// Tên khái niệm phải là kiến thức CỤ THỂ (chốt 29/9/2026) — tránh mục vô nghĩa kiểu "Từ vựng cơ bản".
+const SPECIFIC_RULE =
+`TÊN KHÁI NIỆM PHẢI CỤ THỂ: mỗi "name" là MỘT kiến thức có thể ra câu hỏi ngay — một từ vựng, một điểm ngữ pháp có tên riêng (vd "Thì quá khứ đơn", "Mạo từ a/an"), một dạng toán (vd "Rút gọn phân số"), một sự kiện/nhân vật. TUYỆT ĐỐI KHÔNG dùng tên chung chung như "Từ vựng", "Từ vựng cơ bản", "Từ mới", "Ngữ pháp", "Ngữ pháp cơ bản", "Kiến thức chung", "Ôn tập", "Luyện tập", "Bài tập", "Tổng hợp". Không thấy kiến thức cụ thể thì KHÔNG bịa — bỏ qua (có thể trả "concepts" rỗng).`
 
 // Đọc MỘT hoặc NHIỀU ảnh/file (PDF) bài học → tách khái niệm.
 // items: [{ type:'image'|'document', b64, media }]. Cũng nhận cách gọi cũ (imageB64, media).
@@ -60,6 +92,7 @@ export async function extractConcepts(key, items, mediaLegacy = 'image/jpeg') {
 {"subject":"","grade":"","topic":"","concepts":[{"name":"","difficulty":"Cơ bản|Nâng cao","importance":"Rất quan trọng|Quan trọng|Bình thường"}]}
 "subject" phải là ĐÚNG môn của bài. ƯU TIÊN SỐ 1: nếu trên trang có GHI TÊN MÔN (tiêu đề, đầu trang, tên sách/vở, vd "Tiếng Anh 7", "Toán 4", "Lịch sử và Địa lí 5") thì "subject" PHẢI đúng môn đó (chỉ ghi tên môn; số lớp đưa vào "grade"), và "topic" là tên bài KHÔNG kèm tên môn. Chỉ khi trang KHÔNG ghi tên môn mới suy từ NỘI DUNG: bài có phép tính/hình = Toán; từ vựng/ngữ pháp tiếng Anh = Tiếng Anh; chính tả/từ loại tiếng Việt = Tiếng Việt; sự kiện/nhân vật/năm tháng lịch sử = Lịch sử (KHÔNG coi là Toán chỉ vì có con số). Không chắc môn thì để "subject" rỗng. Nếu nhiều môn, chọn môn CHÍNH. Tất cả khái niệm trong 1 lần đọc thuộc CÙNG "subject" này.
 Nếu môn TIẾNG ANH: "concepts" gồm các TỪ VỰNG (mỗi từ/cụm là 1 concept, "name" = chính từ tiếng Anh đó, KHÔNG cần ghi nghĩa) và các ĐIỂM NGỮ PHÁP LỚN (vd "Thì hiện tại đơn", "Thì quá khứ đơn"). Môn khác: tách khái niệm như thường.
+${SPECIFIC_RULE}
 Tối đa ${many ? 12 : 8} khái niệm (riêng từ vựng tiếng Anh tối đa 15 từ), gộp trùng lặp. "name" bằng tiếng Việt (trừ từ vựng tiếng Anh giữ nguyên tiếng Anh). Chỉ JSON.`
   const out = await ask(key, [...blocks, { type: 'text', text: prompt }], many ? 1500 : 900, { fast: true })
   return parseJSON(out)
@@ -71,9 +104,10 @@ export async function extractFromText(key, text) {
 `Một học sinh tiểu học Việt Nam mô tả nội dung vừa học ở trường: "${text}".
 Suy ra và trả về DUY NHẤT JSON:
 {"subject":"","grade":"","topic":"","concepts":[{"name":"","difficulty":"Cơ bản|Nâng cao","importance":"Rất quan trọng|Quan trọng|Bình thường"}]}
-QUAN TRỌNG: nếu nội dung trên chỉ là một ĐƯỜNG LINK/URL, một chuỗi vô nghĩa, hoặc KHÔNG đủ thông tin để biết bài học gì, hãy trả về đúng {"subject":"","grade":"","topic":"","concepts":[]} — TUYỆT ĐỐI KHÔNG tự bịa chủ đề, đặc biệt KHÔNG tự ý ra chủ đề Toán.
+QUAN TRỌNG: nếu nội dung trên chỉ là một ĐƯỜNG LINK/URL, một chuỗi vô nghĩa, CHỈ ghi tên môn/lớp/số bài (vd "Tiếng Anh 7", "Unit 3", "ôn từ vựng") mà không nêu kiến thức cụ thể, hoặc KHÔNG đủ thông tin để biết bài học gì, hãy trả về đúng {"subject":"","grade":"","topic":"","concepts":[]} — TUYỆT ĐỐI KHÔNG tự bịa chủ đề, đặc biệt KHÔNG tự ý ra chủ đề Toán.
 MÔN ("subject"): nếu nội dung có GHI TÊN MÔN (vd "Tiếng Anh 7: Thì quá khứ đơn") thì lấy ĐÚNG môn đó (số lớp đưa vào "grade"); không ghi thì suy từ nội dung; không chắc thì để rỗng. "topic" là tên bài KHÔNG kèm tên môn.
 Nếu môn TIẾNG ANH: "concepts" gồm các TỪ VỰNG (mỗi từ/cụm là 1 concept, "name" = chính từ tiếng Anh đó, KHÔNG cần nghĩa) và các ĐIỂM NGỮ PHÁP LỚN (vd "Thì hiện tại đơn"). Môn khác: tách khái niệm như thường.
+${SPECIFIC_RULE}
 Tối đa 8 khái niệm (riêng từ vựng tiếng Anh tối đa 12 từ), đúng với mô tả. "name" bằng tiếng Việt (trừ từ vựng tiếng Anh giữ nguyên). Chỉ JSON.`
   const out = await ask(key, [{ type: 'text', text: prompt }], 900, { fast: true })
   return parseJSON(out)
@@ -90,9 +124,10 @@ Học sinh trả lời: "${answer}"
 Câu trả lời của học sinh có ĐÚNG về GIÁ TRỊ / NỘI DUNG không?
 - CHẤP NHẬN mọi cách diễn đạt/đọc khác nhau nhưng cùng nghĩa. Ví dụ: số 4 đọc "bốn" hay "tư" đều đúng; "nghìn"="ngàn"; "linh"="lẻ" (VD "năm trăm linh bảy"="năm trăm lẻ bảy"); "1/2"="một phần hai"="một nửa"; thiếu/thừa dấu cách, viết hoa/thường, thứ tự trình bày khác nhau; số viết bằng chữ hay bằng chữ số.
 - KHÔNG chấp nhận nếu SAI giá trị/nội dung (đọc/tính sai con số, sai ý).
-Trả về DUY NHẤT JSON: {"correct": true, "note": "giải thích RẤT ngắn bằng tiếng Việt (≤14 từ)"}
+Trả về DUY NHẤT JSON: {"correct": true, "note": ""}
+"note" (tiếng Việt, ≤25 từ, lời dễ hiểu cho học sinh tiểu học): nếu ĐÚNG -> xác nhận rất ngắn; nếu SAI -> nói RÕ học sinh sai ở CHỖ NÀO và VÌ SAO (vd "Con thiếu mạo từ 'a' trước 'doctor'", "Con tính nhầm: 7 × 8 = 56, không phải 54").
 Chỉ JSON.`
-  const out = await ask(key, [{ type: 'text', text: prompt }], 300)
+  const out = await ask(key, [{ type: 'text', text: prompt }], 400)
   return parseJSON(out)
 }
 
@@ -127,7 +162,7 @@ export function subjectRules(subject, grade, enLang = 'vi') {
       ? 'Phần YÊU CẦU/câu hỏi VÀ các đáp án đều viết bằng TIẾNG ANH.'
       : 'Phần YÊU CẦU/câu hỏi viết bằng TIẾNG VIỆT cho con dễ hiểu; NHƯNG từ vựng/cụm cần học và 4 ĐÁP ÁN giữ nguyên TIẾNG ANH (vd: «Chọn dạng quá khứ đúng của "go":» rồi 4 đáp án tiếng Anh). Con chỉ cần chọn đáp án đúng.'
     return `- Tiếng Anh (học sinh tiểu học Việt Nam): từ vựng, ngữ pháp cơ bản, mẫu câu, chính tả.
-- ${askLine} Phần "explain" giải thích ngắn bằng tiếng Việt.
+- ${askLine} Phần "explain" viết bằng TIẾNG VIỆT (được trích từ/cụm tiếng Anh), nêu rõ quy tắc/nghĩa và lỗi sai của các lựa chọn khác.
 - Từ vựng/ngữ pháp đúng CHUẨN; chỉ 1 đáp án đúng; độ khó hợp lớp ${grade}.`
   }
   // Khung CHUNG cho mọi môn khác (Khoa học, Lịch sử, Địa lý…).
@@ -161,7 +196,8 @@ async function genChunk(key, { subject, grade, topic, concepts, format, fast = f
     : `\n- ĐA DẠNG: mỗi câu một nội dung/đối tượng/số liệu KHÁC nhau; không hỏi lại cùng một thứ.`
   // BẮT BUỘC đúng chủ đề: tránh lạc đề (đang ôn phép chia lại ra phép nhân, ôn số tự nhiên lại ra phân số…).
   const topicRule =
-`QUAN TRỌNG — ĐÚNG CHỦ ĐỀ: CHỈ ra câu luyện đúng các khái niệm đang ôn: ${names} (thuộc chủ đề "${topic}"). TUYỆT ĐỐI KHÔNG ra câu thuộc khái niệm/dạng KHÁC. Ví dụ: đang ôn "ước lượng thương / phép chia" thì KHÔNG hỏi phép nhân hay cách đọc số; đang ôn "số tự nhiên" thì KHÔNG hỏi phân số. Mỗi câu phải trực tiếp luyện đúng các khái niệm trên.`
+`QUAN TRỌNG — ĐÚNG CHỦ ĐỀ: CHỈ ra câu luyện đúng các khái niệm đang ôn: ${names} (thuộc chủ đề "${topic}"). TUYỆT ĐỐI KHÔNG ra câu thuộc khái niệm/dạng KHÁC. Ví dụ: đang ôn "ước lượng thương / phép chia" thì KHÔNG hỏi phép nhân hay cách đọc số; đang ôn "số tự nhiên" thì KHÔNG hỏi phân số. Mỗi câu phải trực tiếp luyện đúng các khái niệm trên.
+KHÔNG ra câu cần "nhìn tranh/xem hình" hay nghe âm thanh — app chỉ hiện CHỮ.`
   const kindOpen = master ? 'câu hỏi NÂNG CAO để học sinh TỰ ĐIỀN đáp án (KHÔNG có lựa chọn sẵn)' : 'câu hỏi để học sinh TỰ ĐIỀN đáp án (KHÔNG có lựa chọn sẵn)'
   const kindChoice = master ? 'câu hỏi trắc nghiệm NÂNG CAO, KẾT HỢP nhiều khái niệm, mỗi câu 4 lựa chọn' : 'câu hỏi trắc nghiệm KHÁC NHAU cho học sinh ôn tập, mỗi câu 4 lựa chọn'
   const prompt = salt + (open
@@ -177,7 +213,7 @@ ${subjRule}
 Với mỗi câu, tự kiểm tra kỹ để đáp án chắc chắn đúng.
 Trả DUY NHẤT JSON:
 {"questions":[{"concept":"","q":"","answer":"","explain":""}]}
-"answer" là đáp án đúng viết ngắn gọn (số, phân số, hoặc cụm từ). "explain" giải thích ngắn gọn ≤20 từ. Tiếng Việt, chính xác. Chỉ JSON.`
+"answer" là đáp án đúng viết ngắn gọn (số, phân số, hoặc cụm từ). "explain" BẮT BUỘC, ≤30 từ, lời dễ hiểu cho học sinh tiểu học: cách làm / lý do ra đáp án đúng và lỗi hay mắc — để con làm SAI hiểu VÌ SAO sai. Tiếng Việt, chính xác. Chỉ JSON.`
     : `Môn ${subject}, lớp ${grade}, chủ đề "${topic}". Các khái niệm: ${names}.
 Tạo ${n} ${kindChoice}.${mrule}${combineRule}
 ${topicRule}${distinctRule}
@@ -188,9 +224,10 @@ QUY TẮC BẮT BUỘC:
 - 4 "options" phải KHÁC NHAU rõ ràng và CHỈ có ĐÚNG 1 đáp án đúng. Ba lựa chọn sai phải SAI GIÁ TRỊ thật sự.
 - (Toán) Bài ĐỌC SỐ: các lựa chọn sai phải đọc SAI (sai chữ số/giá trị). TUYỆT ĐỐI không tạo lựa chọn chỉ khác CÁCH ĐỌC của đáp án đúng (thêm/bớt "không trăm", "tư"="bốn", "linh"="lẻ", "nghìn"="ngàn") — vì sẽ thành 2 đáp án cùng đúng.
 ${subjRule}
-- "explain" ≤20 từ, phải khớp với "answer". Tự tính lại để chắc chắn "answer" đúng.
+- "explain" BẮT BUỘC (tiếng Việt, ≤30 từ, lời dễ hiểu cho học sinh tiểu học): nêu VÌ SAO đáp án đúng, VÀ chỉ ra LỖI SAI của các lựa chọn còn lại (vd thiếu mạo từ "a", sai thì, chia động từ sai, tính nhầm…) — để con chọn sai hiểu mình SAI Ở ĐÂU. Phải khớp với "answer". Tự tính lại để chắc chắn "answer" đúng.
 Tiếng Việt, chính xác. Chỉ JSON.`)
-  const max = Math.min(4000, (master ? 900 : 700) + n * (master ? 330 : 260))
+  // Lời giải thích dài hơn (nêu cả lỗi sai) -> nới trần token để JSON KHÔNG bị cụt.
+  const max = Math.min(5200, (master ? 900 : 700) + n * (master ? 380 : 310))
   const out = await ask(key, [{ type: 'text', text: prompt }], max, { fast })
   return parseJSON(out).questions || []
 }

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { BackHeader } from '../components.jsx'
-import { nextMastery } from '../lib/memory.js'
+import { BackHeader, WrongWhy } from '../components.jsx'
+import { recordAnswer } from '../lib/memory.js'
 import { createActiveTimer } from '../lib/stats.js'
 import { CONCEPT_NAME } from '../data/content.js'
 import { audioCtx, playSmash, playHurt } from '../lib/sound.js'
@@ -50,16 +50,7 @@ export default function BossBattle({ questions, mem, title = 'Boss Battle', onFi
     audioCtx()
     setPicked(i); setResolved(true)
     const ok = i === q.answer
-    const key = q.concept
-    const prev = resultsRef.current[key] ||
-      { correct: 0, wrong: 0, mastery: (mem.find((c) => c.id === key || c.name === key)?.mastery ?? 55), label }
-    resultsRef.current = {
-      ...resultsRef.current,
-      [key]: {
-        correct: prev.correct + (ok ? 1 : 0), wrong: prev.wrong + (ok ? 0 : 1),
-        mastery: nextMastery(prev.mastery, { correct: ok, choice: true }), label,
-      },
-    }
+    resultsRef.current = recordAnswer(resultsRef.current, q.concept, ok, label)
     if (ok) {
       // ĐÚNG: nghe tiếng smash, mặt Boss rung mạnh, hiện "SMASH!".
       playSmash()
@@ -133,6 +124,7 @@ export default function BossBattle({ questions, mem, title = 'Boss Battle', onFi
       {resolved && (
         <div className={'fb ' + (isCorrect ? 'fb-ok' : 'fb-no')}>
           <b>{isCorrect ? 'Trúng Boss! 💥 −1 máu' : 'Trượt! Boss phản đòn 😤 −1 ❤️'}</b>
+          {!isCorrect && <WrongWhy picked={q.options[picked]} correct={q.options[q.answer]} explain={q.explain} />}
           <button className="cta" onClick={next}>{index + 1 >= total || hearts <= 0 || hp <= 0 ? 'Kết thúc' : 'Đánh tiếp'}</button>
         </div>
       )}

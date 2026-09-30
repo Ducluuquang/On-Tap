@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
-import { BackHeader } from '../components.jsx'
-import { nextMastery } from '../lib/memory.js'
+import { BackHeader, WrongWhy } from '../components.jsx'
+import { recordAnswer } from '../lib/memory.js'
 import { fmt } from '../lib/num.js'
 import { createActiveTimer } from '../lib/stats.js'
 import { CONCEPT_NAME } from '../data/content.js'
@@ -65,16 +65,7 @@ export default function SushiGame({ questions, mem, title = 'Xếp sushi', onFin
       playWobble(); setCombo(0); setWobble(true)
       setTimeout(() => setWobble(false), 500)
     }
-    const key = q.concept
-    const prev = resultsRef.current[key] ||
-      { correct: 0, wrong: 0, mastery: (mem.find((c) => c.id === key || c.name === key)?.mastery ?? 55), label }
-    resultsRef.current = {
-      ...resultsRef.current,
-      [key]: {
-        correct: prev.correct + (ok ? 1 : 0), wrong: prev.wrong + (ok ? 0 : 1),
-        mastery: nextMastery(prev.mastery, { correct: ok, choice: true }), label,
-      },
-    }
+    resultsRef.current = recordAnswer(resultsRef.current, q.concept, ok, label)
   }
 
   function next() {
@@ -127,7 +118,7 @@ export default function SushiGame({ questions, mem, title = 'Xếp sushi', onFin
       {resolved && (
         <div className={'fb ' + (isCorrect ? 'fb-ok' : 'fb-no')}>
           <b>{isCorrect ? 'Ngon! Thêm 1 miếng sushi 🍣' : 'Hụt rồi — tháp lung lay 😅'}</b>
-          {!isCorrect && q.explain && <p>{q.explain}</p>}
+          {!isCorrect && <WrongWhy picked={q.options[picked]} correct={q.options[q.answer]} explain={q.explain} />}
           <button className="cta" onClick={next}>{index + 1 >= questions.length ? 'Xem kết quả' : 'Miếng tiếp theo'}</button>
         </div>
       )}

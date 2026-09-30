@@ -5,6 +5,7 @@
 import { CONCEPTS } from '../data/content.js'
 import { subjectKey } from './subjects.js'
 import { scopedKey } from './active.js'
+import { isVagueConcept } from './topics.js'
 
 // v2: bỏ dữ liệu DEMO cũ — bắt đầu THẬT từ số 0 (bản đồ kiến thức trống, tự tích luỹ theo bài con học).
 // Mỗi CON có bản đồ riêng -> khoá lưu gắn theo con (scopedKey).
@@ -37,7 +38,7 @@ export function pruneExpired(mem, todayDate = new Date()) {
 
 // 3 mức (chốt Sep 2026): Thành thạo (~100%) → Vững (80%) → Cần ôn (dưới 80%).
 export function statusOf(m) {
-  if (m >= 90) return 'mastered' // Thành thạo: đạt ~100% (7 câu trắc nghiệm hoặc 5 câu tự gõ đúng)
+  if (m >= 90) return 'mastered' // Thành thạo: ≥90% (vd 7 câu trắc nghiệm / 5 câu tự gõ ĐÚNG liên tiếp)
   if (m >= 80) return 'strong'   // Vững: từ 80%
   return 'weak'                  // Cần ôn: dưới 80%
 }
@@ -72,19 +73,62 @@ export function prettyName(name) {
   return s.charAt(0).toLocaleUpperCase('vi') + s.slice(1)
 }
 
+// ===================== ĐỘ THÀNH THẠO (chốt 29/9/2026) =====================
+// Trước đây: đúng +14%, SAI giữ nguyên -> đúng 4 / sai 21 câu vẫn báo 56% (vô lý).
+// Nay % thành thạo = MIN( điểm tích luỹ , tỉ lệ ĐÚNG trong 30 câu gần nhất ):
+//  - Điểm tích luỹ (pts): mỗi câu đúng +14 (trắc nghiệm/game) hoặc +20 (tự gõ), tối đa 100
+//    -> vẫn cần đủ số câu đúng mới lên Thành thạo (7 câu trắc nghiệm / 5 câu tự gõ đúng liên tiếp).
+//  - Tỉ lệ đúng gần đây (hist): câu SAI kéo tỉ lệ xuống -> đúng 4/25 câu = 16%, KHỚP báo cáo theo ngày.
+// 30 câu = đủ chứa trọn một buổi ôn dài nhất (25 câu).
+export const RECENT_WINDOW = 30
+
+// Rải đều `ones` câu đúng trong `len` câu (khi chỉ biết SỐ câu đúng/sai, không biết thứ tự).
+export function spreadSeq(ones, len) {
+  let s = ''
+  for (let i = 0; i < len; i++) s += Math.floor(((i + 1) * ones) / len) > Math.floor((i * ones) / len) ? '1' : '0'
+  return s
+}
+
+// % thành thạo từ điểm tích luỹ + chuỗi đúng/sai gần đây ('1' = đúng, '0' = sai).
+export function masteryFrom(pts, hist) {
+  const p = Math.max(0, Math.min(100, Number(pts) || 0))
+  const h = String(hist || '')
+  if (!h) return Math.round(p) // chưa làm câu nào
+  let ones = 0
+  for (const ch of h) if (ch === '1') ones++
+  return Math.round(Math.min(p, (ones / h.length) * 100))
+}
+
+// NÂNG CẤP dữ liệu CŨ (chỉ có "mastery" = điểm cộng dồn): điểm cũ -> pts, số câu đúng/sai -> hist.
+// Vd dữ liệu cũ 56% với 4 đúng / 21 sai -> nay 16%.
+export function upgradeConcept(c) {
+  if (!c || typeof c.hist === 'string') return c
+  const cor = Math.max(0, Number(c.correct) || 0)
+  const wr = Math.max(0, Number(c.wrong) || 0)
+  const total = cor + wr
+  const len = Math.min(total, RECENT_WINDOW)
+  const hist = total ? spreadSeq(Math.round((cor * len) / total), len) : ''
+  const pts = Math.max(0, Math.min(100, Number(c.mastery) || 0))
+  return { ...c, pts, hist, mastery: masteryFrom(pts, hist) }
+}
+
 // GỘP các khái niệm TRÙNG (cùng nghĩa theo conceptKey) thành MỘT -> bản đồ kiến thức không bị lặp.
-// Giữ tên đầy đủ hơn (viết hoa chữ đầu), mastery cao nhất, cộng dồn số lần ôn/đúng/sai, giữ ngày gần nhất.
+// Giữ tên đầy đủ hơn (viết hoa chữ đầu), điểm cao nhất, nối lịch sử đúng/sai, cộng dồn số lần ôn, giữ ngày gần nhất.
 export function dedupeMem(mem) {
   const byKey = new Map()
   const out = []
-  for (const c of mem || []) {
+  for (const raw of mem || []) {
+    const c = upgradeConcept(raw)
     const k = conceptKey(c && c.name)
     if (!k) { out.push(c); continue } // tên rỗng -> giữ nguyên, không gộp
     const prev = byKey.get(k)
     if (!prev) { const nc = { ...c, name: prettyName(c.name) }; byKey.set(k, nc); out.push(nc); continue }
     // Đã có khái niệm CÙNG NGHĨA -> gộp vào (không thêm dòng mới).
     if ((c.name || '').trim().length > (prev.name || '').length) prev.name = prettyName(c.name) // tên đầy đủ hơn thì giữ
-    prev.mastery = Math.max(prev.mastery || 0, c.mastery || 0)
+    const newer = (c.updatedAt || 0) > (prev.updatedAt || 0)
+    prev.pts = Math.max(prev.pts || 0, c.pts || 0)
+    prev.hist = (newer ? (prev.hist || '') + (c.hist || '') : (c.hist || '') + (prev.hist || '')).slice(-RECENT_WINDOW)
+    prev.mastery = masteryFrom(prev.pts, prev.hist)
     prev.reviews = (prev.reviews || 0) + (c.reviews || 0)
     prev.correct = (prev.correct || 0) + (c.correct || 0)
     prev.wrong = (prev.wrong || 0) + (c.wrong || 0)
@@ -93,6 +137,17 @@ export function dedupeMem(mem) {
     prev.updatedAt = Math.max(prev.updatedAt || 0, c.updatedAt || 0) || prev.updatedAt
   }
   return out
+}
+
+// Mỗi khái niệm một id RIÊNG (dữ liệu cũ có thể trùng id "ai-0", "ai-1"… giữa các lần thêm bài).
+function uniqueIds(mem) {
+  const seen = new Set()
+  return (mem || []).map((c, i) => {
+    let id = (c && c.id) || 'c-' + i
+    if (seen.has(id)) { let n = 2; while (seen.has(id + '-' + n)) n++; id = id + '-' + n }
+    seen.add(id)
+    return id === (c && c.id) ? c : { ...c, id }
+  })
 }
 
 // Trạng thái khởi tạo: giả lập con đã học mấy khái niệm này rồi, mức độ khác nhau.
@@ -123,8 +178,12 @@ function seed() {
 export function loadMemory() {
   try {
     const raw = localStorage.getItem(scopedKey(KEY))
-    // Mỗi lần mở app: bỏ kiến thức QUÁ HẠN + GỘP các khái niệm TRÙNG (không để lặp trong bản đồ).
-    if (raw) return dedupeMem(pruneExpired(JSON.parse(raw)))
+    // Mỗi lần mở app: nâng cấp cách tính % (dữ liệu cũ) + bỏ mục CHUNG CHUNG không phải kiến thức
+    // ("Ôn từ vựng", "Từ vựng cơ bản"…) + bỏ kiến thức QUÁ HẠN + GỘP khái niệm TRÙNG + id không trùng.
+    if (raw) {
+      const list = (JSON.parse(raw) || []).filter((c) => c && !isVagueConcept(c.name)).map(upgradeConcept)
+      return uniqueIds(dedupeMem(pruneExpired(list)))
+    }
   } catch (e) { /* bỏ qua */ }
   return [] // BẢN THẬT: bắt đầu trống, không còn khái niệm demo
 }
@@ -138,91 +197,102 @@ export function resetMemory() {
   return []
 }
 
-// Cập nhật độ thành thạo sau MỘT câu trả lời (chốt Sep 2026).
+// ĐIỂM TÍCH LUỸ sau MỘT câu trả lời (chốt Sep 2026):
 // - ĐÚNG trắc nghiệm/game (có sẵn lựa chọn): +14  -> 7 câu đúng = 98% ≈ Thành thạo.
 // - ĐÚNG tự gõ đáp án (khó hơn, không gợi ý):  +20  -> 5 câu đúng = 100% Thành thạo.
-// - SAI: GIỮ NGUYÊN điểm (không trừ) — theo yêu cầu của phụ huynh.
-// Cộng dồn qua NHIỀU lần ôn, tối đa 100. Vững = 80%, Cần ôn = dưới 80%.
+// - SAI: không trừ điểm tích luỹ, NHƯNG làm giảm tỉ lệ đúng gần đây -> % thành thạo giảm (xem masteryFrom).
 export function nextMastery(m, { correct, choice = false } = {}) {
   const v = m || 0
-  if (!correct) return v // SAI -> giữ nguyên (không trừ điểm)
+  if (!correct) return v
   return Math.min(100, Math.round(v + (choice ? 14 : 20)))
 }
 
-// Ôn xong: cập nhật một concept trong bộ nhớ với kết quả buổi ôn.
-export function applySession(mem, perConcept) {
-  const today = new Date().toISOString().slice(0, 10)
-  const now = Date.now() // mốc thời gian CHI TIẾT -> khái niệm vừa ôn nhảy lên đầu báo cáo
-  return mem.map((c) => {
-    const r = perConcept[c.id] || perConcept[c.name]
-    if (!r) return c
-    return {
-      ...c,
-      mastery: r.mastery,
-      reviews: (c.reviews || 0) + 1,
-      correct: (c.correct || 0) + r.correct,
-      wrong: (c.wrong || 0) + r.wrong,
-      lastReviewed: today,
-      updatedAt: now,
-      newToday: false,
-    }
-  })
+// Ghi MỘT câu trả lời vào kết quả buổi ôn — DÙNG CHUNG cho mọi kiểu ôn & game.
+// Lưu cả THỨ TỰ đúng/sai (seq) để tính "tỉ lệ đúng gần đây" cho chính xác.
+export function recordAnswer(results, key, ok, label) {
+  const prev = (results && results[key]) || { correct: 0, wrong: 0, seq: '', label }
+  return {
+    ...(results || {}),
+    [key]: {
+      correct: (prev.correct || 0) + (ok ? 1 : 0),
+      wrong: (prev.wrong || 0) + (ok ? 0 : 1),
+      seq: (prev.seq || '') + (ok ? '1' : '0'),
+      label: prev.label || label,
+    },
+  }
+}
+
+// id chưa có trong danh sách (tránh trùng id -> hiển thị lẫn dòng).
+function freeId(list, base) {
+  const used = new Set((list || []).map((c) => c && c.id))
+  if (!used.has(base)) return base
+  let n = 2
+  while (used.has(base + '-' + n)) n++
+  return base + '-' + n
 }
 
 // ÔN XONG — GHI KẾT QUẢ (một phép tính DUY NHẤT cho cả màn "Thay đổi hôm nay" lẫn bản đồ kiến thức,
 // nên báo cáo của con và của phụ huynh LUÔN KHỚP nhau).
 // - Gộp kết quả theo KHÁI NIỆM (không phân biệt hoa/thường): "conditional 0" + "Conditional 0" = 1 dòng.
-// - Tính lại điểm từ điểm THẬT đang có trong bản đồ (không dùng mốc giả 55%). Sai thì giữ nguyên điểm.
-// - Chủ đề con vừa ôn mà CHƯA có trong bản đồ -> thêm mới (bắt đầu 0%) để phụ huynh cũng thấy.
+// - % mới = MIN(điểm tích luỹ, tỉ lệ đúng 30 câu gần nhất) -> câu SAI được tính (4 đúng/25 câu = 16%).
+// - Chủ đề CỤ THỂ con vừa ôn mà chưa có trong bản đồ (vd gõ "Conditional 0") -> thêm mới.
+//   Tên CHUNG CHUNG ("Ôn từ vựng", "Từ vựng", "Ôn tập"…) thì KHÔNG thêm — đó không phải kiến thức;
+//   kết quả vẫn được tính trong báo cáo theo ngày.
 // choice = true (trắc nghiệm/game: +14/câu đúng) | false (tự gõ đáp án: +20/câu đúng).
 // Trả về { mem: bản đồ mới, deltas: [{ id, name, before, after, correct, wrong }] }.
 export function applyReviewResults(mem, perConcept, { choice = true, subject = '' } = {}) {
   const today = new Date().toISOString().slice(0, 10)
   const now = Date.now()
-  const out = (mem || []).map((c) => ({ ...c }))
+  const step = choice ? 14 : 20
+  const out = (mem || []).map((c) => upgradeConcept({ ...c }))
   const idx = new Map(out.map((c, i) => [conceptKey(c.name), i]))
 
   // 1) Gộp các nhóm kết quả CÙNG khái niệm (khoá do màn ôn đặt có thể là id hoặc tên, hoa hay thường).
-  const groups = new Map() // khoá khái niệm -> { name, correct, wrong }
+  const groups = new Map() // khoá khái niệm -> { name, correct, wrong, seq }
   for (const [rawKey, r] of Object.entries(perConcept || {})) {
     if (!r) continue
     const byId = out.find((c) => c.id === rawKey)
     const name = byId ? byId.name : (r.label || rawKey)
     const k = conceptKey(name)
     if (!k) continue
-    const g = groups.get(k) || { name, correct: 0, wrong: 0 }
-    g.correct += r.correct || 0
-    g.wrong += r.wrong || 0
+    const cor = Math.max(0, r.correct || 0)
+    const wr = Math.max(0, r.wrong || 0)
+    const seq = typeof r.seq === 'string' && r.seq.length === cor + wr ? r.seq : spreadSeq(cor, cor + wr)
+    const g = groups.get(k) || { name, correct: 0, wrong: 0, seq: '' }
+    g.correct += cor
+    g.wrong += wr
+    g.seq += seq
     groups.set(k, g)
   }
 
-  // 2) Ghi vào ĐÚNG khái niệm trong bản đồ, tính điểm từ điểm thật.
+  // 2) Ghi vào ĐÚNG khái niệm trong bản đồ.
   const deltas = []
   for (const [k, g] of groups) {
+    if (!g.correct && !g.wrong) continue
     let i = idx.get(k)
-    let before
     if (i == null) {
       const name = prettyName(g.name)
+      if (isVagueConcept(name)) continue // "Ôn từ vựng", "Ôn tập"… -> không phải một kiến thức
       out.push({
-        id: slug(name) + '-' + now.toString(36), name, difficulty: 'Cơ bản',
+        id: freeId(out, slug(name) + '-' + now.toString(36)), name, difficulty: 'Cơ bản',
         subject: subject || 'Môn khác', topic: '',
-        mastery: 0, reviews: 0, correct: 0, wrong: 0,
+        mastery: 0, pts: 0, hist: '', reviews: 0, correct: 0, wrong: 0,
         learnedOn: today, updatedAt: now, learnedInApp: true,
       })
       i = out.length - 1
       idx.set(k, i)
-      before = 0
-    } else {
-      before = out[i].mastery || 0
     }
-    let after = before
-    for (let n = 0; n < g.correct; n++) after = nextMastery(after, { correct: true, choice })
+    const c = out[i]
+    const before = c.mastery || 0
+    const pts = Math.min(100, (c.pts || 0) + g.correct * step)
+    const hist = ((c.hist || '') + g.seq).slice(-RECENT_WINDOW)
+    const after = masteryFrom(pts, hist)
     out[i] = {
-      ...out[i],
-      mastery: after,
-      reviews: (out[i].reviews || 0) + 1,
-      correct: (out[i].correct || 0) + g.correct,
-      wrong: (out[i].wrong || 0) + g.wrong,
+      ...c,
+      pts, hist, mastery: after,
+      reviews: (c.reviews || 0) + 1,
+      correct: (c.correct || 0) + g.correct,
+      wrong: (c.wrong || 0) + g.wrong,
       lastReviewed: today,
       updatedAt: now,
       newToday: false,
@@ -247,6 +317,7 @@ function slug(s) {
 }
 
 // Thêm/cập nhật khái niệm (từ ảnh AI đọc được) vào bộ nhớ của con.
+// Bỏ qua tên CHUNG CHUNG ("Từ vựng cơ bản", "Ngữ pháp cơ bản"…) — không phải kiến thức cụ thể.
 export function addConcepts(mem, concepts) {
   const today = new Date().toISOString().slice(0, 10)
   const now = Date.now()
@@ -254,18 +325,20 @@ export function addConcepts(mem, concepts) {
   const idx = new Map(out.map((c, i) => [conceptKey(c.name), i]))
   for (const c of concepts) {
     const name = prettyName(c.name) // viết hoa chữ đầu, thống nhất một kiểu
-    if (!name) continue
+    if (!name || isVagueConcept(name)) continue
     const key = conceptKey(name)
     if (idx.has(key)) {
       // Đã có khái niệm CÙNG NGHĨA (dù viết khác) -> chỉ cập nhật, KHÔNG thêm trùng vào bản đồ.
       const i = idx.get(key)
       out[i] = { ...out[i], learnedOn: today, updatedAt: now, newToday: true }
     } else {
+      // id RIÊNG cho mỗi khái niệm (id tạm "ai-0", "ai-1"… của từng lần đọc bài sẽ trùng giữa các lần).
+      const base = c.id && !/^ai-\d+$/.test(c.id) ? c.id : slug(name) + '-' + now.toString(36)
       const nc = {
-        id: c.id || slug(name), name, difficulty: c.difficulty || 'Cơ bản',
+        id: freeId(out, base), name, difficulty: c.difficulty || 'Cơ bản',
         // KHÔNG mặc định 'Toán' -> tránh khái niệm môn khác bị gán nhầm vào Toán (lẫn môn trong báo cáo).
         subject: c.subject || 'Môn khác', topic: c.topic || '',
-        mastery: 0, reviews: 0, correct: 0, wrong: 0, // MỚI: chưa ôn -> 0% (không "cho" 50% ảo)
+        mastery: 0, pts: 0, hist: '', reviews: 0, correct: 0, wrong: 0, // MỚI: chưa ôn -> 0%
         learnedOn: today, updatedAt: now, newToday: true, learnedInApp: true,
       }
       out.push(nc)
@@ -275,23 +348,24 @@ export function addConcepts(mem, concepts) {
   return out
 }
 
-// Ghi nhận chỗ con làm sai (Error Memory): hạ mastery + đánh dấu cần ôn lại.
+// Ghi nhận chỗ con làm sai (Error Memory): thêm một câu SAI vào lịch sử -> % giảm + cần ôn lại.
 export function recordErrors(mem, conceptNames) {
   const today = new Date().toISOString().slice(0, 10)
   const now = Date.now()
-  const out = mem.map((c) => ({ ...c }))
+  const out = mem.map((c) => upgradeConcept({ ...c }))
   const idx = new Map(out.map((c, i) => [conceptKey(c.name), i]))
   for (const raw of conceptNames) {
-    const name = (raw || '').trim()
-    if (!name) continue
+    const name = prettyName(raw)
+    if (!name || isVagueConcept(name)) continue
     const key = conceptKey(name)
     if (idx.has(key)) {
       const i = idx.get(key)
-      out[i] = { ...out[i], mastery: Math.max(0, out[i].mastery - 8), wrong: (out[i].wrong || 0) + 1, reviews: (out[i].reviews || 0) + 1, newToday: true, lastReviewed: today, updatedAt: now }
+      const hist = ((out[i].hist || '') + '0').slice(-RECENT_WINDOW)
+      out[i] = { ...out[i], hist, mastery: masteryFrom(out[i].pts, hist), wrong: (out[i].wrong || 0) + 1, reviews: (out[i].reviews || 0) + 1, newToday: true, lastReviewed: today, updatedAt: now }
     } else {
       out.push({
-        id: slug(name), name, difficulty: 'Cơ bản', subject: 'Môn khác', topic: '',
-        mastery: 30, reviews: 1, correct: 0, wrong: 1, newToday: true, learnedInApp: true, updatedAt: now,
+        id: freeId(out, slug(name) + '-' + now.toString(36)), name, difficulty: 'Cơ bản', subject: 'Môn khác', topic: '',
+        mastery: 0, pts: 0, hist: '0', reviews: 1, correct: 0, wrong: 1, newToday: true, learnedInApp: true, updatedAt: now,
       })
       idx.set(key, out.length - 1)
     }

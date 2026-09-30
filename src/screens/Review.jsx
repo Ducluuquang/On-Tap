@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { BackHeader } from '../components.jsx'
-import { nextMastery } from '../lib/memory.js'
+import { BackHeader, WrongWhy } from '../components.jsx'
+import { recordAnswer } from '../lib/memory.js'
 import { createActiveTimer } from '../lib/stats.js'
 import { CONCEPT_NAME } from '../data/content.js'
 
@@ -43,18 +43,7 @@ export default function Review({ questions, mem, title = 'Ôn tập hôm nay', h
   }
 
   function next() {
-    const key = q.concept
-    const cur = results[key] || {
-      correct: 0, wrong: 0, label,
-      mastery: results[key]?.mastery ?? (mem.find((c) => c.id === key || c.name === key)?.mastery ?? 55),
-    }
-    const updated = {
-      correct: cur.correct + (isCorrect ? 1 : 0),
-      wrong: cur.wrong + (isCorrect ? 0 : 1),
-      mastery: nextMastery(cur.mastery, { correct: isCorrect, choice: true }),
-      label,
-    }
-    const newResults = { ...results, [key]: updated }
+    const newResults = recordAnswer(results, q.concept, isCorrect, label)
     const newSolved = solved + (isCorrect ? 1 : 0)
     setResults(newResults); setSolved(newSolved)
     if (index + 1 >= questions.length) {
@@ -93,8 +82,10 @@ export default function Review({ questions, mem, title = 'Ôn tập hôm nay', h
 
       {resolved && (
         <div className={'fb ' + (isCorrect ? 'fb-ok' : 'fb-no')}>
-          <b>{isCorrect ? 'Chính xác! 🎉' : 'Sai rồi — đáp án đúng đã hiện ở trên.'}</b>
-          {q.explain && <p>{q.explain}</p>}
+          <b>{isCorrect ? 'Chính xác! 🎉' : 'Sai rồi!'}</b>
+          {isCorrect
+            ? (q.explain && <p>{q.explain}</p>)
+            : <WrongWhy picked={q.options[picked]} correct={q.options[q.answer]} explain={q.explain} />}
           <button className="cta" onClick={next}>
             {index + 1 >= questions.length ? 'Xem kết quả' : 'Câu tiếp theo'}
           </button>

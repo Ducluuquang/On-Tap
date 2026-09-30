@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { BackHeader } from '../components.jsx'
-import { nextMastery } from '../lib/memory.js'
+import { BackHeader, WrongWhy } from '../components.jsx'
+import { recordAnswer } from '../lib/memory.js'
 import { fmt } from '../lib/num.js'
 import { createActiveTimer } from '../lib/stats.js'
 import { CONCEPT_NAME } from '../data/content.js'
@@ -91,16 +91,7 @@ export default function QuickFire({ questions, mem, title = 'Quick Fire', onFini
     } else {
       setCombo(0)
     }
-    const key = q.concept
-    const prev = resultsRef.current[key] ||
-      { correct: 0, wrong: 0, mastery: (mem.find((c) => c.id === key || c.name === key)?.mastery ?? 55), label }
-    resultsRef.current = {
-      ...resultsRef.current,
-      [key]: {
-        correct: prev.correct + (ok ? 1 : 0), wrong: prev.wrong + (ok ? 0 : 1),
-        mastery: nextMastery(prev.mastery, { correct: ok, choice: true }), label,
-      },
-    }
+    resultsRef.current = recordAnswer(resultsRef.current, q.concept, ok, label)
     if (ok) {
       // Đúng: giữ nhịp nhanh, tự chạy tiếp (đồng hồ vẫn chạy).
       setTimeout(() => {
@@ -163,8 +154,7 @@ export default function QuickFire({ questions, mem, title = 'Quick Fire', onFini
       {fb ? (
         <div className="fb fb-no">
           <b>Chưa đúng.</b>
-          <p>Đáp án đúng: <b>{q.options[q.answer]}</b></p>
-          {q.explain && <p>{q.explain}</p>}
+          <WrongWhy picked={flash && flash.i != null ? q.options[flash.i] : null} correct={q.options[q.answer]} explain={q.explain} />
           <button className="cta" onClick={continueFromFb}>{index + 1 >= questions.length ? 'Xem kết quả' : 'Tiếp tục'}</button>
         </div>
       ) : (

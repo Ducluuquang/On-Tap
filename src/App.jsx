@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { loadMemory, saveMemory, applyReviewResults, addConcepts, resetMemory, conceptKey, prettyName } from './lib/memory.js'
 import { subjectModes, subjectDisplayName } from './lib/subjects.js'
+import { resolveTopic } from './lib/review.js'
+import { plainText, hasPhrase, isVocabItem } from './lib/topics.js'
 import { buildReview } from './lib/mockAI.js'
 import { generateQuestions } from './lib/aiClient.js'
 import { loadAccount, saveAccount, loadSession, setSession as persistSession, normalizeAccount, newChildId } from './lib/auth.js'
@@ -134,6 +136,8 @@ function normalizeQs(qs, recent = null) {
       idx = rawOpts.findIndex((o) => localMatch(String(q.answer), o))
     }
     if (idx < 0 || idx > 3) continue // đáp án không nằm trong 4 lựa chọn -> bỏ câu
+    // BẮT BUỘC có lời giải thích: con làm SAI câu nào cũng phải được giải thích VÌ SAO sai.
+    if (!String(q.explain || '').trim()) continue
     const key = canon(q.q)
     if (!key || seenQ.has(key)) continue // câu lặp -> bỏ
     seenQ.add(key)
@@ -153,6 +157,7 @@ function normalizeOpen(qs, recent = null) {
   for (const q of qs) {
     if (!q || !q.q || q.answer === undefined || String(q.answer).trim() === '') continue
     if (/trong (các|những)[^.?!]{0,40}(sau|dưới đây)/i.test(q.q)) continue
+    if (!String(q.explain || '').trim()) continue // BẮT BUỘC có lời giải thích (sai là phải biết vì sao)
     const key = canon(q.q)
     if (!key || seenQ.has(key)) continue
     seenQ.add(key)
@@ -164,7 +169,10 @@ function normalizeOpen(qs, recent = null) {
 // CỘNG DỒN QUA NHIỀU LẦN ÔN: gán nhãn "concept" của mỗi câu về ĐÚNG tên khái niệm trong bộ nhớ
 // (khớp theo nghĩa bằng conceptKey), để điểm thành thạo cộng dồn vào đúng khái niệm ở mọi lần học —
 // không bị lệch nhãn (AI ghi tên hơi khác) rồi tính lại từ đầu mỗi lần.
-function remapConcept(qs, memList, askedConcepts) {
+// Nhãn lạ -> tìm khái niệm đang ôn có tên nằm TRONG nhãn / câu hỏi / đáp án (vd câu hỏi về "doctor");
+// vẫn không rõ thì KHÔNG đoán bừa vào khái niệm khác (trước đây dồn hết vào khái niệm đầu tiên
+// -> sai số liệu): gán nhãn chung (vd "Ôn tập") — nhãn chung không ghi vào bản đồ kiến thức.
+function remapConcept(qs, memList, askedConcepts, generic = 'Ôn tập') {
   const byKey = new Map()
   // Ưu tiên khớp về khái niệm ĐÃ CÓ trong bộ nhớ (để cộng dồn vào lịch sử cũ).
   for (const c of memList || []) {
@@ -176,13 +184,29 @@ function remapConcept(qs, memList, askedConcepts) {
     const k = conceptKey(name)
     if (k && !byKey.has(k)) byKey.set(k, prettyName(name))
   }
-  // Câu hỏi có nhãn lạ -> gán về chủ đề ĐẦU TIÊN đang ôn, nhưng theo ĐÚNG tên trong bản đồ
-  // (trước đây dùng nguyên chữ gõ tay, vd "conditional 0" viết thường -> bị tách thành 2 chủ đề).
-  const fk = conceptKey((askedConcepts && askedConcepts[0]) || '')
-  const fallback = (fk && byKey.get(fk)) || prettyName((askedConcepts && askedConcepts[0]) || '') || 'Ôn tập'
+  // Các khái niệm ĐANG ÔN (tên chuẩn theo bản đồ) + dạng không dấu để dò trong nhãn/câu hỏi.
+  const asked = []
+  for (const n of askedConcepts || []) {
+    const name = byKey.get(conceptKey(n)) || prettyName(n)
+    const p = plainText(name)
+    if (p && !asked.some((a) => a.p === p)) asked.push({ name, p })
+  }
+  // Khái niệm đang ôn có tên nằm trong đoạn chữ (ưu tiên tên DÀI nhất, vd "rút gọn phân số" hơn "phân số").
+  const findIn = (text) => {
+    const t = plainText(text)
+    if (!t) return null
+    const hits = asked.filter((a) => (a.p.includes(' ') || a.p.length >= 3) && hasPhrase(t, a.p))
+    if (!hits.length) return null
+    hits.sort((x, y) => y.p.length - x.p.length)
+    return hits[0].name
+  }
+  const answerText = (q) => (typeof q.answer === 'number' && Array.isArray(q.options) ? q.options[q.answer] : q.answer)
   return qs.map((q) => {
     const k = conceptKey(q.concept || '')
-    const mapped = (k && byKey.get(k)) || fallback
+    const mapped = (k && byKey.get(k))
+      || findIn(q.concept)                                   // nhãn chứa tên khái niệm đang ôn
+      || findIn(`${q.q || ''} ${answerText(q) || ''}`)       // câu hỏi/đáp án nhắc tới khái niệm đang ôn
+      || (asked.length === 1 ? asked[0].name : generic)      // chỉ ôn 1 chủ đề -> chắc chắn thuộc chủ đề đó
     return { ...q, concept: mapped }
   })
 }
@@ -434,9 +458,13 @@ export default function App() {
     let subject, topic, concepts
     if (master && mt) {
       subject = subjectOpt || (mem.find((c) => c.name === names[0])?.subject) || 'Môn khác'
-      const topics = mt.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean)
-      concepts = topics.length ? topics : [mt]
-      topic = topics.length > 1 ? `Kết hợp: ${topics.join(' + ')}` : (topics[0] || mt)
+      // Hiểu từng chủ đề gõ tay: bỏ chữ "ôn/luyện…", khớp khái niệm trong bản đồ của MÔN này,
+      // "từ vựng"/"ngữ pháp" -> các từ vựng/điểm ngữ pháp con đã học. Lời chung chung -> phần yếu nhất.
+      const subjMem = mem.filter((c) => subjectDisplayName(c.subject) === subjectDisplayName(subject))
+      const topics = [...new Set(mt.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean)
+        .flatMap((t) => resolveTopic(t, subjMem, { limit: 5, vocabLimit: 8 })))]
+      concepts = topics.length ? topics : names
+      topic = concepts.length > 1 ? `Kết hợp: ${concepts.join(' + ')}` : (concepts[0] || mt)
     } else {
       // Lấy đúng MÔN + CHỦ ĐỀ của khái niệm đang ôn (không mặc định "Phân số" nữa),
       // để câu hỏi ra đúng nội dung con đang học (số tự nhiên, hình học…).
@@ -494,7 +522,9 @@ export default function App() {
     }
     // Gán nhãn khái niệm của từng câu về ĐÚNG khái niệm trong bộ nhớ (khớp theo nghĩa)
     // -> điểm thành thạo CỘNG DỒN vào đúng khái niệm qua các lần ôn khác nhau.
-    qs = remapConcept(qs, mem, concepts)
+    // Nhãn chung khi câu hỏi không rõ thuộc khái niệm nào: buổi ôn TỪ VỰNG -> "Từ vựng", còn lại "Ôn tập".
+    const generic = concepts.length && concepts.every((n) => n === 'Từ vựng' || isVocabItem({ name: n })) ? 'Từ vựng' : 'Ôn tập'
+    qs = remapConcept(qs, mem, concepts, generic)
     // Ghi nhớ các câu đã dùng để lần sau không lặp lại y hệt.
     pushRecent(qs.map((q) => q._k).filter(Boolean))
     // KHÔNG nhân bản câu để "cho đủ" nữa — thà ít câu chứ tuyệt đối không để TRÙNG câu hỏi.

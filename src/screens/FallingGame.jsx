@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { BackHeader } from '../components.jsx'
-import { nextMastery } from '../lib/memory.js'
+import { BackHeader, WrongWhy } from '../components.jsx'
+import { recordAnswer } from '../lib/memory.js'
 import { fmt } from '../lib/num.js'
 import { createActiveTimer } from '../lib/stats.js'
 import { CONCEPT_NAME } from '../data/content.js'
@@ -71,16 +71,7 @@ export default function FallingGame({ questions, mem, title = 'Thả rơi', onFi
     const ok = picked != null && picked === q.answer
     setFlash({ ok, i: picked })
     if (ok) { const ns = scoreRef.current + 100; scoreRef.current = ns; setScore(ns) }
-    const key = q.concept
-    const prev = resultsRef.current[key] ||
-      { correct: 0, wrong: 0, mastery: (mem.find((c) => c.id === key || c.name === key)?.mastery ?? 55), label: CONCEPT_NAME[key] || key }
-    resultsRef.current = {
-      ...resultsRef.current,
-      [key]: {
-        correct: prev.correct + (ok ? 1 : 0), wrong: prev.wrong + (ok ? 0 : 1),
-        mastery: nextMastery(prev.mastery, { correct: ok, choice: true }), label: prev.label,
-      },
-    }
+    resultsRef.current = recordAnswer(resultsRef.current, q.concept, ok, CONCEPT_NAME[q.concept] || q.concept)
     // Đúng: tự chạy tiếp. SAI: DỪNG LẠI giải thích cho con hiểu, chờ bấm "Tiếp tục".
     if (ok) setTimeout(advance, 750)
     else setFb(true)
@@ -139,9 +130,8 @@ export default function FallingGame({ questions, mem, title = 'Thả rơi', onFi
       </div>
       {fb ? (
         <div className="fb fb-no">
-          <b>Chưa đúng.</b>
-          <p>Đáp án đúng: <b>{q.options[q.answer]}</b></p>
-          {q.explain && <p>{q.explain}</p>}
+          <b>{flash && flash.i == null ? 'Hết giờ!' : 'Chưa đúng.'}</b>
+          <WrongWhy picked={flash && flash.i != null ? q.options[flash.i] : null} correct={q.options[q.answer]} explain={q.explain} />
           <button className="cta" onClick={advance}>{index + 1 >= questions.length ? 'Xem kết quả' : 'Tiếp tục'}</button>
         </div>
       ) : (

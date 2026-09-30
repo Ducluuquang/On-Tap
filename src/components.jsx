@@ -1,5 +1,44 @@
+import { useEffect, useRef } from 'react'
 import { STATUS_LABEL } from './lib/memory.js'
 import { streakDays, nextReward, prevReward } from './lib/stats.js'
+
+// GIẢI THÍCH KHI LÀM SAI — dùng CHUNG cho MỌI kiểu ôn & game (chốt 29/9/2026):
+// làm sai lúc nào cũng hiện: con chọn gì · đáp án đúng · VÌ SAO sai.
+// picked: đáp án con chọn/gõ (null = hết giờ chưa chọn) · correct: đáp án đúng
+// why: lý do riêng cho câu con trả lời (AI chấm bài tự gõ) · explain: lời giải của câu hỏi.
+export function WrongWhy({ picked, correct, explain = '', why = '', pickedLabel = 'Con chọn' }) {
+  const ref = useRef(null)
+  // Tự cuộn cho con THẤY phần giải thích + nút đi tiếp (không bị khuất dưới màn hình).
+  useEffect(() => {
+    const box = ref.current && (ref.current.closest('.fb') || ref.current)
+    if (box && box.scrollIntoView) { try { box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) } catch { /* noop */ } }
+  }, [])
+  const p = picked == null ? '' : String(picked).trim()
+  const c = String(correct == null ? '' : correct).trim()
+  const w = String(why || '').trim()
+  const ex = String(explain || '').trim()
+  const lines = []
+  if (w) lines.push(w)
+  if (ex && ex !== w) lines.push(ex)
+  // Dự phòng (hiếm): câu hỏi không kèm lời giải -> vẫn nói rõ đúng/sai ở đâu.
+  if (!lines.length) lines.push(p ? `Đáp án đúng là “${c}”, không phải “${p}”. Con đọc kỹ lại câu hỏi và so sánh hai đáp án nhé.` : `Đáp án đúng là “${c}”.`)
+  return (
+    <div className="why" ref={ref}>
+      <div className="why-row">
+        <span className="why-k">{pickedLabel}</span>
+        <span className={'why-v' + (p ? ' bad' : ' none')}>{p || 'Hết giờ — con chưa chọn'}</span>
+      </div>
+      <div className="why-row">
+        <span className="why-k">Đáp án đúng</span>
+        <span className="why-v good">{c}</span>
+      </div>
+      <div className="why-ex">
+        <span className="why-h">💡 Vì sao sai?</span>
+        {lines.map((t, i) => <p key={i}>{t}</p>)}
+      </div>
+    </div>
+  )
+}
 
 export function Brand({ sub }) {
   return (

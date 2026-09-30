@@ -34,7 +34,10 @@ export default function Result({ session, onHome, onReport }) {
 
       <section className="deltas">
         <h3>Thay đổi hôm nay</h3>
-        {deltas.map((d) => {
+        {(!deltas || deltas.length === 0) && (
+          <p className="deltas-empty">Buổi này là ôn chung, chưa gắn với chủ đề cụ thể trong bản đồ kiến thức. Số câu đúng/sai vẫn được ghi vào báo cáo theo ngày.</p>
+        )}
+        {(deltas || []).map((d) => {
           const diff = d.after - d.before
           return (
             <div className="delta" key={d.id}>
