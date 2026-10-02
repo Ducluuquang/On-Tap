@@ -1,5 +1,5 @@
 // Chọn khái niệm để ôn theo nhu cầu: thời gian, mức độ, hoặc yêu cầu gõ bằng lời.
-import { plainText, hasPhrase, parseRequest, isVocabItem, isGrammarItem } from './topics.js'
+import { plainText, hasPhrase, parseRequest, isVocabItem, isGrammarItem, isVocabGroup } from './topics.js'
 
 function daysSince(dateStr) {
   if (!dateStr) return 99999
@@ -111,8 +111,13 @@ export function resolveTopic(text, mem, { limit = 5, vocabLimit = 15 } = {}) {
     return gr.length ? gr.slice(0, limit).map((c) => c.name) : ['Ngữ pháp']
   }
   if (bucket === 'generic') return []
-  const matched = matchConcepts(list, plainText(topic || raw))
+  const tp = plainText(topic || raw)
+  const matched = matchConcepts(list, tp)
   if (matched.length) return matched.slice(0, limit).map((c) => c.name)
+  // Gõ MỘT từ đã nằm trong nhóm từ vựng (vd "doctor" thuộc "Từ vựng: Nghề nghiệp") -> ôn cả nhóm đó
+  // (10 câu chỉ về một từ thì vô nghĩa; kết quả vẫn ghi vào đúng mục lớn).
+  const inGroup = list.filter((c) => isVocabGroup(c.name) && (c.details || []).some((d) => plainText(d) === tp))
+  if (inGroup.length) return inGroup.slice(0, limit).map((c) => c.name)
   // Không khớp khái niệm nào trong bản đồ -> chủ đề mới (viết hoa chữ đầu), luyện đúng chủ đề đó.
   const name = (topic || raw).trim()
   return name ? [name.charAt(0).toLocaleUpperCase('vi') + name.slice(1)] : []

@@ -3,6 +3,8 @@
 // "Từ vựng cơ bản", "Ngữ pháp cơ bản", "Ôn tập", "Bài tập"… cũng KHÔNG phải kiến thức cụ thể
 // -> không bao giờ được thành một mục trong bản đồ kiến thức.
 
+import { subjectKey } from './subjects.js'
+
 // Bỏ dấu, thường hoá, chỉ giữ chữ/số (GIỮ thứ tự từ).
 export function plainText(s) {
   return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd')
@@ -139,4 +141,127 @@ export function isGrammarItem(c) {
   if (!p) return false
   if (!/[^\x00-\x7F]/.test(name)) return GRAMMAR_EN.test(p)
   return GRAMMAR_VI.test(p)
+}
+
+// ===================== CHỦ ĐỀ LỚN (chốt 2/10/2026) =====================
+// Bản đồ kiến thức chỉ ghi MỤC LỚN. Ý nhỏ (câu mẫu, từ lẻ, loại nhỏ) gộp vào chủ đề lớn, lưu ở "details".
+// VD 8 câu "Never have I seen…", "Hardly had I…" = MỘT mục "Câu đảo ngữ (Inversion)".
+// (AI đã được dặn gộp sẵn; đây là lớp an toàn trên máy + dọn dữ liệu cũ. Chỉ áp dụng cho môn Tiếng Anh,
+//  vì cùng chữ "đảo ngữ"/"điều kiện" ở môn khác có nghĩa khác.)
+
+const AUX_RE = /\b(am|is|are|was|were|have|has|had|do|does|did|will|would|shall|should|can|could|may|might|must)\b/
+const INVERSION_START = /^(never|hardly|rarely|seldom|scarcely|barely|little|no sooner|not until|not only|not once|only (after|when|if|by|then|once|in|with|later|because)|under no circumstances|on no account|in no way|at no time|in no case|nowhere|neither|nor)\b/
+const FAMILIES = [
+  {
+    name: 'Câu đảo ngữ (Inversion)',
+    label: /\b(cau dao ngu|dao ngu|inversions?)\b/,
+    instance: (p) => INVERSION_START.test(p) && AUX_RE.test(p.replace(INVERSION_START, '')),
+  },
+  {
+    name: 'Câu điều kiện (Conditional)',
+    label: /\b(cau dieu kien|conditionals?|if clauses?|menh de if)\b/,
+    instance: (p) => /^(if|unless)\b/.test(p) && /\b(will|would|can|could|might|may|should|must|shall)\b/.test(p),
+  },
+]
+// Chữ "chỉ là tên nhóm" (bỏ đi mà không còn gì -> tên đó chính là chủ đề lớn, không phải ý nhỏ).
+const FAMILY_FILLER = new Set(['cau', 'cac', 'sentence', 'sentences', 'clause', 'clauses', 'type', 'types', 'structure', 'structures', 'grammar', 'ngu', 'phap'])
+
+// Ý nhỏ này thuộc CHỦ ĐỀ LỚN nào (chỉ môn Tiếng Anh). Trả { name, isLabel } hoặc null.
+// isLabel = true: chính là tên chủ đề lớn (vd "Đảo ngữ", "Inversion") -> không cần lưu thành ý nhỏ.
+export function topicFamilyOf(name, subject) {
+  if (subjectKey(subject) !== 'tieng-anh') return null
+  const p = plainText(name)
+  if (!p) return null
+  for (const f of FAMILIES) {
+    if (f.label.test(p)) {
+      const rest = p.replace(new RegExp(f.label.source, 'g'), ' ').split(' ').filter((w) => w && !FAMILY_FILLER.has(w))
+      return { name: f.name, isLabel: rest.length === 0 }
+    }
+    if (f.instance(p)) return { name: f.name, isLabel: false }
+  }
+  return null
+}
+
+// Nhóm từ vựng ("Từ vựng: Nghề nghiệp")?
+export function isVocabGroup(name) {
+  return /^(tu vung|tu moi|vocabulary)\b/.test(plainText(name))
+}
+
+// Một TỪ/CỤM TỪ tiếng Anh lẻ (không phải điểm ngữ pháp, không phải câu mẫu của nhóm ngữ pháp) — chỉ môn Tiếng Anh.
+export function isLooseEnglishWord(name, subject) {
+  if (subjectKey(subject) !== 'tieng-anh') return false
+  const s = String(name || '').trim()
+  if (!s || /[^\x00-\x7F]/.test(s) || !/[a-z]/i.test(s)) return false
+  if (topicFamilyOf(s, subject)) return false
+  const p = plainText(s)
+  if (GRAMMAR_EN.test(p)) return false
+  return p.split(' ').length <= 4 // từ / cụm ngắn; câu dài không coi là "một từ vựng"
+}
+
+// Tên nhóm từ vựng theo CHỦ ĐỀ bài; không rõ chủ đề thì nêu vài từ đầu.
+export function vocabGroupName(topic, words = []) {
+  const t = String(topic || '').replace(/^\s*(từ vựng|tu vung|vocabulary)\s*[:\-–]?\s*/i, '').trim()
+  if (t) return 'Từ vựng: ' + t
+  const w = words.map((x) => String(x || '').trim()).filter(Boolean)
+  return 'Từ vựng: ' + w.slice(0, 3).join(', ') + (w.length > 3 ? '…' : '')
+}
+
+// Làm sạch danh sách ý nhỏ: chuỗi ngắn, không trùng (không phân biệt hoa/thường, dấu), tối đa `max`.
+export function cleanDetails(list, max = 30) {
+  const out = []
+  const seen = new Set()
+  for (const d of Array.isArray(list) ? list : []) {
+    const s = String(d == null ? '' : d).replace(/\s+/g, ' ').trim().slice(0, 90)
+    const k = plainText(s)
+    if (!s || !k || seen.has(k)) continue
+    seen.add(k)
+    out.push(s)
+    if (out.length >= max) break
+  }
+  return out
+}
+
+const RANK_DIFF = { 'Nâng cao': 2, 'Cơ bản': 1 }
+const RANK_IMP = { 'Rất quan trọng': 3, 'Quan trọng': 2, 'Bình thường': 1 }
+
+// GỘP danh sách khái niệm (vừa đọc từ bài học) về CHỦ ĐỀ LỚN:
+//  - câu mẫu / tên loại thuộc nhóm ngữ pháp lớn (đảo ngữ, câu điều kiện) -> một mục của nhóm đó;
+//  - từ tiếng Anh lẻ -> một mục "Từ vựng: <chủ đề bài>" (hoặc thành ý nhỏ của chủ đề trùng tên bài);
+//  - các mục còn lại giữ nguyên (AI đã gộp sẵn), ý nhỏ của mục trùng tên được nối lại.
+export function groupConcepts(list, { subject = '', topic = '' } = {}) {
+  const out = []
+  const byKey = new Map()
+  const put = (name, details, base) => {
+    const k = plainText(name)
+    let it = byKey.get(k)
+    if (!it) {
+      it = { ...base, name, details: [] }
+      byKey.set(k, it)
+      out.push(it)
+    } else if (base) {
+      if ((RANK_DIFF[base.difficulty] || 0) > (RANK_DIFF[it.difficulty] || 0)) it.difficulty = base.difficulty
+      if ((RANK_IMP[base.importance] || 0) > (RANK_IMP[it.importance] || 0)) it.importance = base.importance
+    }
+    it.details = cleanDetails([...(it.details || []), ...details])
+    return it
+  }
+  const loose = []
+  for (const c of list || []) {
+    const name = String((c && c.name) || '').replace(/\s+/g, ' ').trim()
+    if (!name) continue
+    const details = cleanDetails(c.details)
+    const fam = topicFamilyOf(name, subject)
+    if (fam) { put(fam.name, fam.isLabel ? details : [name, ...details], c); continue }
+    if (isLooseEnglishWord(name, subject)) { loose.push({ ...c, name }); continue }
+    put(name, details, c)
+  }
+  if (loose.length) {
+    const words = loose.map((c) => c.name)
+    // Tên bài trùng một chủ đề trong danh sách (vd bài "Thì quá khứ đơn" có từ "went") -> từ lẻ là ví dụ của chủ đề đó.
+    const sameAsTopic = topic && out.find((x) => plainText(x.name) === plainText(topic))
+    const vocab = sameAsTopic || out.find((x) => isVocabGroup(x.name))
+    if (vocab) put(vocab.name, words, null)
+    else put(vocabGroupName(topic, words), words, loose[0])
+  }
+  return out
 }

@@ -72,7 +72,21 @@ const parseJSON = (s) => JSON.parse((s.match(/\{[\s\S]*\}/) || [s])[0])
 
 // Tên khái niệm phải là kiến thức CỤ THỂ (chốt 29/9/2026) — tránh mục vô nghĩa kiểu "Từ vựng cơ bản".
 const SPECIFIC_RULE =
-`TÊN KHÁI NIỆM PHẢI CỤ THỂ: mỗi "name" là MỘT kiến thức có thể ra câu hỏi ngay — một từ vựng, một điểm ngữ pháp có tên riêng (vd "Thì quá khứ đơn", "Mạo từ a/an"), một dạng toán (vd "Rút gọn phân số"), một sự kiện/nhân vật. TUYỆT ĐỐI KHÔNG dùng tên chung chung như "Từ vựng", "Từ vựng cơ bản", "Từ mới", "Ngữ pháp", "Ngữ pháp cơ bản", "Kiến thức chung", "Ôn tập", "Luyện tập", "Bài tập", "Tổng hợp". Không thấy kiến thức cụ thể thì KHÔNG bịa — bỏ qua (có thể trả "concepts" rỗng).`
+`TÊN CHỦ ĐỀ PHẢI CỤ THỂ: mỗi "name" là một chủ đề có thể ra câu hỏi ngay — một điểm ngữ pháp có tên riêng (vd "Thì quá khứ đơn", "Câu đảo ngữ (Inversion)"), một nhóm từ vựng CÓ GHI CHỦ ĐỀ (vd "Từ vựng: Nghề nghiệp"), một dạng toán (vd "Rút gọn phân số"), một bài/sự kiện (vd "Khởi nghĩa Hai Bà Trưng"). TUYỆT ĐỐI KHÔNG dùng tên chung chung như "Từ vựng", "Từ vựng cơ bản", "Từ mới", "Ngữ pháp", "Ngữ pháp cơ bản", "Kiến thức chung", "Ôn tập", "Luyện tập", "Bài tập", "Tổng hợp". Không thấy kiến thức cụ thể thì KHÔNG bịa — trả "concepts" rỗng.`
+
+// CHỈ GHI MỤC LỚN (chốt 2/10/2026): bản đồ kiến thức phải GỌN — ý nhỏ/ví dụ/câu mẫu/từ lẻ đưa vào "details",
+// KHÔNG thành mục riêng. VD 8 câu "Never have I seen…", "Hardly had I…" = MỘT mục "Câu đảo ngữ (Inversion)".
+const BIG_TOPIC_RULE =
+`CHỈ GHI MỤC LỚN — bản đồ kiến thức phải GỌN, áp dụng cho MỌI môn:
+- Mỗi concept là MỘT chủ đề LỚN. Các ý nhỏ, ví dụ, câu mẫu, từ lẻ, loại nhỏ thuộc chủ đề đó KHÔNG thành concept riêng mà đưa vào "details" của chủ đề (tối đa 20 ý, mỗi ý ngắn gọn, giữ nguyên chữ trong bài).
+- VD: các câu "Never have I seen…", "Hardly had I…", "Rarely do we…", "No sooner had… than…", "Not until… did…", "Only after… did…", "Under no circumstances should…" -> MỘT concept "Câu đảo ngữ (Inversion)", details = các mẫu câu đó.
+- Tiếng Anh: từ vựng gộp theo CHỦ ĐỀ -> MỘT concept "Từ vựng: <chủ đề>" (vd "Từ vựng: Nghề nghiệp"), details = các từ/cụm từ (giữ nguyên tiếng Anh, không cần nghĩa). Mỗi điểm ngữ pháp lớn là một concept (vd "Thì quá khứ đơn", "Câu bị động", "Câu điều kiện (Conditional)" — các loại 0/1/2/3 hay câu ví dụ đưa vào details).
+- Toán: theo DẠNG BÀI lớn (vd "Rút gọn phân số", "Nhân số có hai chữ số"), details = bài/ví dụ cụ thể trong bài.
+- Tiếng Việt: theo chủ điểm lớn (vd "Từ đồng nghĩa", "Câu kể Ai làm gì?", "Chính tả s/x"), details = ví dụ.
+- Lịch sử, Địa lí, Khoa học và các môn khác: theo BÀI/SỰ KIỆN/CHỦ ĐỀ lớn (vd "Khởi nghĩa Hai Bà Trưng"), details = ý chính (năm, địa điểm, nhân vật, kết quả…).
+- Một bài thường chỉ 1–4 concept (tối đa 6). KHÔNG tách một chủ đề thành nhiều concept.`
+
+const EXTRACT_SCHEMA = '{"subject":"","grade":"","topic":"","concepts":[{"name":"","details":[""],"difficulty":"Cơ bản|Nâng cao","importance":"Rất quan trọng|Quan trọng|Bình thường"}]}'
 
 // Đọc MỘT hoặc NHIỀU ảnh/file (PDF) bài học → tách khái niệm.
 // items: [{ type:'image'|'document', b64, media }]. Cũng nhận cách gọi cũ (imageB64, media).
@@ -89,12 +103,12 @@ export async function extractConcepts(key, items, mediaLegacy = 'image/jpeg') {
   const prompt =
 `Đây là ${many ? `${blocks.length} ảnh/trang` : 'ảnh một trang'} bài/phiếu bài tập của học sinh tiểu học Việt Nam (có thể bị xoay).${many ? ' Các trang có thể cùng một bài hoặc nhiều bài khác nhau — tổng hợp lại.' : ''}
 Đọc và trả về DUY NHẤT JSON:
-{"subject":"","grade":"","topic":"","concepts":[{"name":"","difficulty":"Cơ bản|Nâng cao","importance":"Rất quan trọng|Quan trọng|Bình thường"}]}
+${EXTRACT_SCHEMA}
 "subject" phải là ĐÚNG môn của bài. ƯU TIÊN SỐ 1: nếu trên trang có GHI TÊN MÔN (tiêu đề, đầu trang, tên sách/vở, vd "Tiếng Anh 7", "Toán 4", "Lịch sử và Địa lí 5") thì "subject" PHẢI đúng môn đó (chỉ ghi tên môn; số lớp đưa vào "grade"), và "topic" là tên bài KHÔNG kèm tên môn. Chỉ khi trang KHÔNG ghi tên môn mới suy từ NỘI DUNG: bài có phép tính/hình = Toán; từ vựng/ngữ pháp tiếng Anh = Tiếng Anh; chính tả/từ loại tiếng Việt = Tiếng Việt; sự kiện/nhân vật/năm tháng lịch sử = Lịch sử (KHÔNG coi là Toán chỉ vì có con số). Không chắc môn thì để "subject" rỗng. Nếu nhiều môn, chọn môn CHÍNH. Tất cả khái niệm trong 1 lần đọc thuộc CÙNG "subject" này.
-Nếu môn TIẾNG ANH: "concepts" gồm các TỪ VỰNG (mỗi từ/cụm là 1 concept, "name" = chính từ tiếng Anh đó, KHÔNG cần ghi nghĩa) và các ĐIỂM NGỮ PHÁP LỚN (vd "Thì hiện tại đơn", "Thì quá khứ đơn"). Môn khác: tách khái niệm như thường.
+${BIG_TOPIC_RULE}
 ${SPECIFIC_RULE}
-Tối đa ${many ? 12 : 8} khái niệm (riêng từ vựng tiếng Anh tối đa 15 từ), gộp trùng lặp. "name" bằng tiếng Việt (trừ từ vựng tiếng Anh giữ nguyên tiếng Anh). Chỉ JSON.`
-  const out = await ask(key, [...blocks, { type: 'text', text: prompt }], many ? 1500 : 900, { fast: true })
+Gộp trùng lặp${many ? ' (nhiều trang cùng chủ đề thì gộp làm một concept)' : ''}. "name" bằng tiếng Việt (được kèm tên tiếng Anh trong ngoặc, vd "Câu đảo ngữ (Inversion)"); "details" giữ nguyên chữ trong bài (từ/câu tiếng Anh giữ tiếng Anh). Chỉ JSON.`
+  const out = await ask(key, [...blocks, { type: 'text', text: prompt }], many ? 2200 : 1300, { fast: true })
   return parseJSON(out)
 }
 
@@ -103,13 +117,13 @@ export async function extractFromText(key, text) {
   const prompt =
 `Một học sinh tiểu học Việt Nam mô tả nội dung vừa học ở trường: "${text}".
 Suy ra và trả về DUY NHẤT JSON:
-{"subject":"","grade":"","topic":"","concepts":[{"name":"","difficulty":"Cơ bản|Nâng cao","importance":"Rất quan trọng|Quan trọng|Bình thường"}]}
+${EXTRACT_SCHEMA}
 QUAN TRỌNG: nếu nội dung trên chỉ là một ĐƯỜNG LINK/URL, một chuỗi vô nghĩa, CHỈ ghi tên môn/lớp/số bài (vd "Tiếng Anh 7", "Unit 3", "ôn từ vựng") mà không nêu kiến thức cụ thể, hoặc KHÔNG đủ thông tin để biết bài học gì, hãy trả về đúng {"subject":"","grade":"","topic":"","concepts":[]} — TUYỆT ĐỐI KHÔNG tự bịa chủ đề, đặc biệt KHÔNG tự ý ra chủ đề Toán.
 MÔN ("subject"): nếu nội dung có GHI TÊN MÔN (vd "Tiếng Anh 7: Thì quá khứ đơn") thì lấy ĐÚNG môn đó (số lớp đưa vào "grade"); không ghi thì suy từ nội dung; không chắc thì để rỗng. "topic" là tên bài KHÔNG kèm tên môn.
-Nếu môn TIẾNG ANH: "concepts" gồm các TỪ VỰNG (mỗi từ/cụm là 1 concept, "name" = chính từ tiếng Anh đó, KHÔNG cần nghĩa) và các ĐIỂM NGỮ PHÁP LỚN (vd "Thì hiện tại đơn"). Môn khác: tách khái niệm như thường.
+${BIG_TOPIC_RULE}
 ${SPECIFIC_RULE}
-Tối đa 8 khái niệm (riêng từ vựng tiếng Anh tối đa 12 từ), đúng với mô tả. "name" bằng tiếng Việt (trừ từ vựng tiếng Anh giữ nguyên). Chỉ JSON.`
-  const out = await ask(key, [{ type: 'text', text: prompt }], 900, { fast: true })
+Đúng với mô tả, gộp trùng lặp. "name" bằng tiếng Việt (được kèm tên tiếng Anh trong ngoặc); "details" giữ nguyên chữ con gõ (từ/câu tiếng Anh giữ tiếng Anh). Chỉ JSON.`
+  const out = await ask(key, [{ type: 'text', text: prompt }], 1300, { fast: true })
   return parseJSON(out)
 }
 
@@ -181,6 +195,18 @@ const masterRule = (grade) =>
 // Soạn MỘT đợt câu hỏi (dùng cho chạy song song).
 async function genChunk(key, { subject, grade, topic, concepts, format, fast = false, master = false, enLang = 'vi' }, n, salt = '') {
   const names = concepts.map((c) => (typeof c === 'string' ? c : c.name)).join(', ')
+  // Chủ đề LỚN kèm các Ý NHỎ con đã học (details: câu mẫu, từ vựng, ví dụ) -> câu hỏi bám đúng nội dung bài.
+  const cleanDetails = (c) => (c && typeof c === 'object' && Array.isArray(c.details) ? c.details : [])
+    .map((d) => String(d || '').replace(/\s+/g, ' ').trim().slice(0, 90)).filter(Boolean).slice(0, 20)
+  const hasDetails = concepts.some((c) => cleanDetails(c).length)
+  const listing = concepts.map((c) => {
+    const name = typeof c === 'string' ? c : c.name
+    const d = cleanDetails(c)
+    return d.length ? `${name} (gồm: ${d.join('; ')})` : name
+  }).join(' | ')
+  const detailRule = hasDetails
+    ? `\n- Phần "(gồm: …)" là các ý/câu mẫu/từ vựng con ĐÃ HỌC trong chủ đề: ra câu bám SÁT các ý đó (dùng đúng các từ, mẫu câu, dạng bài đó). "concept" của mỗi câu PHẢI ghi ĐÚNG TÊN chủ đề lớn (phần trước dấu ngoặc), KHÔNG ghi tên ý nhỏ.`
+    : ''
   const open = format === 'open'
   const mrule = master ? '\n' + masterRule(grade) : ''
   const subjRule = subjectRules(subject, grade, enLang) // quy tắc ra đề riêng theo môn (kèm ngôn ngữ đề Tiếng Anh)
@@ -192,7 +218,7 @@ async function genChunk(key, { subject, grade, topic, concepts, format, fast = f
   // Chống LẶP: mỗi câu một nội dung khác nhau. Với môn ngôn ngữ, cấm hỏi lại cùng một từ.
   const isLang = subjKey(subject) === 'tieng-anh' || subjKey(subject) === 'tieng-viet'
   const distinctRule = isLang
-    ? `\n- ĐA DẠNG BẮT BUỘC: mỗi câu về một TỪ VỰNG / ĐIỂM NGỮ PHÁP KHÁC nhau; TUYỆT ĐỐI KHÔNG hỏi lại cùng một từ (vd cùng chữ "trim") ở hai câu trong ${n} câu này.`
+    ? `\n- ĐA DẠNG BẮT BUỘC: mỗi câu về một TỪ VỰNG / MẪU CÂU / Ý KHÁC nhau (một chủ đề ngữ pháp thì đổi mẫu câu, đổi ngữ cảnh); TUYỆT ĐỐI KHÔNG hỏi lại cùng một từ (vd cùng chữ "trim") ở hai câu trong ${n} câu này.`
     : `\n- ĐA DẠNG: mỗi câu một nội dung/đối tượng/số liệu KHÁC nhau; không hỏi lại cùng một thứ.`
   // BẮT BUỘC đúng chủ đề: tránh lạc đề (đang ôn phép chia lại ra phép nhân, ôn số tự nhiên lại ra phân số…).
   const topicRule =
@@ -201,9 +227,9 @@ KHÔNG ra câu cần "nhìn tranh/xem hình" hay nghe âm thanh — app chỉ hi
   const kindOpen = master ? 'câu hỏi NÂNG CAO để học sinh TỰ ĐIỀN đáp án (KHÔNG có lựa chọn sẵn)' : 'câu hỏi để học sinh TỰ ĐIỀN đáp án (KHÔNG có lựa chọn sẵn)'
   const kindChoice = master ? 'câu hỏi trắc nghiệm NÂNG CAO, KẾT HỢP nhiều khái niệm, mỗi câu 4 lựa chọn' : 'câu hỏi trắc nghiệm KHÁC NHAU cho học sinh ôn tập, mỗi câu 4 lựa chọn'
   const prompt = salt + (open
-    ? `Môn ${subject}, lớp ${grade}, chủ đề "${topic}". Các khái niệm: ${names}.
+    ? `Môn ${subject}, lớp ${grade}, chủ đề "${topic}". Các khái niệm: ${listing}.
 Tạo ${n} ${kindOpen}.${mrule}${combineRule}
-${topicRule}${distinctRule}
+${topicRule}${distinctRule}${detailRule}
 QUY TẮC BẮT BUỘC:
 - Mỗi câu phải TỰ CHỨA đầy đủ dữ kiện và chỉ có MỘT đáp án đúng để con tự tính/viết ra.
 - TUYỆT ĐỐI KHÔNG dùng dạng "trong các ... sau", "phân số nào", "đáp án nào", "số nào", không liệt kê lựa chọn, không hỏi kiểu chọn 1 trong nhiều. Vì không hiển thị lựa chọn nên câu đó sẽ không trả lời được.
@@ -214,14 +240,15 @@ Với mỗi câu, tự kiểm tra kỹ để đáp án chắc chắn đúng.
 Trả DUY NHẤT JSON:
 {"questions":[{"concept":"","q":"","answer":"","explain":""}]}
 "answer" là đáp án đúng viết ngắn gọn (số, phân số, hoặc cụm từ). "explain" BẮT BUỘC, ≤30 từ, lời dễ hiểu cho học sinh tiểu học: cách làm / lý do ra đáp án đúng và lỗi hay mắc — để con làm SAI hiểu VÌ SAO sai. Tiếng Việt, chính xác. Chỉ JSON.`
-    : `Môn ${subject}, lớp ${grade}, chủ đề "${topic}". Các khái niệm: ${names}.
+    : `Môn ${subject}, lớp ${grade}, chủ đề "${topic}". Các khái niệm: ${listing}.
 Tạo ${n} ${kindChoice}.${mrule}${combineRule}
-${topicRule}${distinctRule}
+${topicRule}${distinctRule}${detailRule}
 Trả DUY NHẤT JSON:
 {"questions":[{"concept":"","q":"","options":["","","",""],"answer":"","explain":""}]}
 QUY TẮC BẮT BUỘC:
 - "answer": GHI NGUYÊN VĂN giá trị đáp án đúng, phải TRÙNG KHÍT một trong 4 "options" (KHÔNG ghi số thứ tự 0-3).
 - 4 "options" phải KHÁC NHAU rõ ràng và CHỈ có ĐÚNG 1 đáp án đúng. Ba lựa chọn sai phải SAI GIÁ TRỊ thật sự.
+- Câu điền chỗ trống: chỉ MỘT chỗ trống "___" và ghép đáp án vào phải thành câu đúng, trọn nghĩa; nếu cần 2 chỗ trống thì mỗi lựa chọn ghi đủ 2 phần, cách nhau bằng " / ".
 - (Toán) Bài ĐỌC SỐ: các lựa chọn sai phải đọc SAI (sai chữ số/giá trị). TUYỆT ĐỐI không tạo lựa chọn chỉ khác CÁCH ĐỌC của đáp án đúng (thêm/bớt "không trăm", "tư"="bốn", "linh"="lẻ", "nghìn"="ngàn") — vì sẽ thành 2 đáp án cùng đúng.
 ${subjRule}
 - "explain" BẮT BUỘC (tiếng Việt, ≤30 từ, lời dễ hiểu cho học sinh tiểu học): nêu VÌ SAO đáp án đúng, VÀ chỉ ra LỖI SAI của các lựa chọn còn lại (vd thiếu mạo từ "a", sai thì, chia động từ sai, tính nhầm…) — để con chọn sai hiểu mình SAI Ở ĐÂU. Phải khớp với "answer". Tự tính lại để chắc chắn "answer" đúng.

@@ -5,7 +5,7 @@
 import { CONCEPTS } from '../data/content.js'
 import { subjectKey } from './subjects.js'
 import { scopedKey } from './active.js'
-import { isVagueConcept } from './topics.js'
+import { isVagueConcept, topicFamilyOf, isLooseEnglishWord, isVocabGroup, vocabGroupName, cleanDetails, groupConcepts, plainText } from './topics.js'
 
 // v2: bỏ dữ liệu DEMO cũ — bắt đầu THẬT từ số 0 (bản đồ kiến thức trống, tự tích luỹ theo bài con học).
 // Mỗi CON có bản đồ riêng -> khoá lưu gắn theo con (scopedKey).
@@ -132,11 +132,103 @@ export function dedupeMem(mem) {
     prev.reviews = (prev.reviews || 0) + (c.reviews || 0)
     prev.correct = (prev.correct || 0) + (c.correct || 0)
     prev.wrong = (prev.wrong || 0) + (c.wrong || 0)
+    if ((prev.details && prev.details.length) || (c.details && c.details.length)) prev.details = cleanDetails([...(prev.details || []), ...(c.details || [])])
     prev.learnedOn = [prev.learnedOn, c.learnedOn].filter(Boolean).sort().pop() || prev.learnedOn
     prev.lastReviewed = [prev.lastReviewed, c.lastReviewed].filter(Boolean).sort().pop() || prev.lastReviewed
     prev.updatedAt = Math.max(prev.updatedAt || 0, c.updatedAt || 0) || prev.updatedAt
   }
   return out
+}
+
+const RANK_DIFF = { 'Nâng cao': 2, 'Cơ bản': 1 }
+const RANK_IMP = { 'Rất quan trọng': 3, 'Quan trọng': 2, 'Bình thường': 1 }
+const latest = (vals) => vals.filter(Boolean).sort().pop()
+
+// Gộp NHIỀU mục nhỏ thành MỘT mục lớn — KHÔNG mất dữ liệu học:
+// điểm tích luỹ cộng dồn (tối đa 100), lịch sử đúng/sai nối theo thời gian, số câu đúng/sai cộng lại.
+function mergeMembers(name, members, extraDetails = []) {
+  const ms = [...members].sort((a, b) => (a.updatedAt || 0) - (b.updatedAt || 0)) // cũ trước, mới sau
+  const base = members[0]
+  const pts = Math.min(100, ms.reduce((t, m) => t + (m.pts || 0), 0))
+  const hist = ms.map((m) => m.hist || '').join('').slice(-RECENT_WINDOW)
+  const pick = (key, rank) => ms.map((m) => m[key]).filter(Boolean).sort((a, b) => (rank[b] || 0) - (rank[a] || 0))[0] || base[key]
+  return {
+    ...base,
+    name,
+    details: cleanDetails([...members.flatMap((m) => m.details || []), ...extraDetails]),
+    pts, hist, mastery: masteryFrom(pts, hist),
+    reviews: Math.max(0, ...ms.map((m) => m.reviews || 0)),
+    correct: ms.reduce((t, m) => t + (m.correct || 0), 0),
+    wrong: ms.reduce((t, m) => t + (m.wrong || 0), 0),
+    difficulty: pick('difficulty', RANK_DIFF),
+    importance: pick('importance', RANK_IMP),
+    learnedOn: latest(ms.map((m) => m.learnedOn)) || base.learnedOn,
+    lastReviewed: latest(ms.map((m) => m.lastReviewed)) || base.lastReviewed,
+    updatedAt: Math.max(0, ...ms.map((m) => m.updatedAt || 0)) || base.updatedAt,
+    newToday: ms.some((m) => m.newToday),
+  }
+}
+
+// GỘP DỮ LIỆU CŨ VỀ CHỦ ĐỀ LỚN (chốt 2/10/2026): bản đồ chỉ ghi mục lớn.
+// - Câu mẫu đảo ngữ lẻ ("Never have I seen", "Hardly had I"…) -> "Câu đảo ngữ (Inversion)";
+//   "Conditional 0/1/2/3", "Câu điều kiện loại 1"… -> "Câu điều kiện (Conditional)" (môn Tiếng Anh).
+// - Từ tiếng Anh lẻ ("doctor", "nurse"…) -> "Từ vựng: <chủ đề bài>".
+// Ý nhỏ lưu lại trong "details" (vẫn dùng để ra đề đúng nội dung đã học).
+export function consolidateMem(mem) {
+  const list = (mem || []).map(upgradeConcept).filter(Boolean)
+  const slots = []
+  const byKey = new Map()
+  const slotFor = (key, make) => {
+    let sl = byKey.get(key)
+    if (!sl) { sl = make(); byKey.set(key, sl); slots.push(sl) }
+    return sl
+  }
+  // Nhóm từ vựng ĐÃ CÓ theo (môn + chủ đề bài): từ lẻ cùng bài sẽ nhập vào nhóm đó (nếu chỉ có đúng 1 nhóm).
+  const groupsOfTopic = new Map()
+  for (const c of list) {
+    if (!isVocabGroup(c.name)) continue
+    const k = subjectKey(c.subject) + '|' + plainText(c.topic || '')
+    groupsOfTopic.set(k, [...(groupsOfTopic.get(k) || []), conceptKey(c.name)])
+  }
+  for (const c of list) {
+    const subj = subjectKey(c.subject)
+    const fam = topicFamilyOf(c.name, c.subject)
+    if (fam) {
+      const sl = slotFor('fam|' + subj + '|' + fam.name, () => ({ name: fam.name, members: [], details: [] }))
+      sl.members.push(c)
+      if (!fam.isLabel) sl.details.push(c.name)
+      continue
+    }
+    if (isVocabGroup(c.name)) {
+      const sl = slotFor('grp|' + subj + '|' + conceptKey(c.name), () => ({ name: c.name, members: [], details: [] }))
+      sl.members.push(c)
+      continue
+    }
+    if (isLooseEnglishWord(c.name, c.subject)) {
+      const t = String(c.topic || '').trim()
+      const tk = subj + '|' + plainText(t)
+      const own = groupsOfTopic.get(tk)
+      const sl = own && own.length === 1
+        ? slotFor('grp|' + subj + '|' + own[0], () => ({ name: '', members: [], details: [] }))
+        : slotFor('voc|' + tk, () => ({ vocabTopic: t, members: [], details: [] }))
+      sl.members.push(c)
+      sl.details.push(c.name)
+      continue
+    }
+    slots.push({ name: c.name, members: [c], details: [], single: true })
+  }
+  return slots.map((sl) => {
+    if (sl.single) return sl.members[0]
+    // Tên nhóm: tên nhóm từ vựng đã có (nếu có) / tên chủ đề lớn / "Từ vựng: <chủ đề bài>".
+    const groupItem = sl.members.find((m) => isVocabGroup(m.name))
+    const name = sl.name || (groupItem && groupItem.name) || vocabGroupName(sl.vocabTopic, sl.details)
+    // Cùng MỘT ý nhỏ bị lưu trùng (vd "conditional 0" và "Conditional 0") -> gộp trùng trước (lấy điểm cao nhất),
+    // rồi mới cộng dồn các ý nhỏ KHÁC nhau vào mục lớn.
+    const members = dedupeMem(sl.members)
+    const only = members.length === 1 ? members[0] : null
+    if (only && only.name === name && !sl.details.length) return only // đã gọn sẵn
+    return mergeMembers(name, members, sl.details)
+  })
 }
 
 // Mỗi khái niệm một id RIÊNG (dữ liệu cũ có thể trùng id "ai-0", "ai-1"… giữa các lần thêm bài).
@@ -179,10 +271,11 @@ export function loadMemory() {
   try {
     const raw = localStorage.getItem(scopedKey(KEY))
     // Mỗi lần mở app: nâng cấp cách tính % (dữ liệu cũ) + bỏ mục CHUNG CHUNG không phải kiến thức
-    // ("Ôn từ vựng", "Từ vựng cơ bản"…) + bỏ kiến thức QUÁ HẠN + GỘP khái niệm TRÙNG + id không trùng.
+    // ("Ôn từ vựng", "Từ vựng cơ bản"…) + GỘP mục nhỏ về CHỦ ĐỀ LỚN + bỏ kiến thức QUÁ HẠN
+    // + GỘP khái niệm TRÙNG + id không trùng.
     if (raw) {
       const list = (JSON.parse(raw) || []).filter((c) => c && !isVagueConcept(c.name)).map(upgradeConcept)
-      return uniqueIds(dedupeMem(pruneExpired(list)))
+      return uniqueIds(dedupeMem(pruneExpired(consolidateMem(list))))
     }
   } catch (e) { /* bỏ qua */ }
   return [] // BẢN THẬT: bắt đầu trống, không còn khái niệm demo
@@ -246,36 +339,56 @@ export function applyReviewResults(mem, perConcept, { choice = true, subject = '
   const step = choice ? 14 : 20
   const out = (mem || []).map((c) => upgradeConcept({ ...c }))
   const idx = new Map(out.map((c, i) => [conceptKey(c.name), i]))
+  // Ý nhỏ (details) -> mục lớn chứa nó (vd câu "Never have I seen" -> "Câu đảo ngữ (Inversion)").
+  const owner = new Map()
+  out.forEach((c, i) => (c.details || []).forEach((d) => { const p = plainText(d); if (p && !owner.has(p)) owner.set(p, i) }))
 
-  // 1) Gộp các nhóm kết quả CÙNG khái niệm (khoá do màn ôn đặt có thể là id hoặc tên, hoa hay thường).
-  const groups = new Map() // khoá khái niệm -> { name, correct, wrong, seq }
+  // Câu trả lời thuộc MỤC LỚN nào: đúng tên trong bản đồ > ý nhỏ của một mục > nhóm ngữ pháp lớn > từ vựng lẻ > tên mới.
+  // Trả { key, name, detail } (detail = ý nhỏ cần ghi thêm vào mục lớn) hoặc null (tên chung chung -> không ghi bản đồ).
+  function targetOf(name) {
+    const k = conceptKey(name)
+    if (!k) return null
+    if (idx.has(k)) return { key: k, name: out[idx.get(k)].name }
+    const o = owner.get(plainText(name))
+    if (o != null) return { key: conceptKey(out[o].name), name: out[o].name }
+    const fam = topicFamilyOf(name, subject)
+    if (fam) return { key: conceptKey(fam.name), name: fam.name, detail: fam.isLabel ? null : prettyName(name) }
+    if (isLooseEnglishWord(name, subject)) {
+      const grp = vocabGroupName('', [name])
+      return { key: conceptKey(grp), name: grp, detail: String(name).trim() }
+    }
+    const nm = prettyName(name)
+    if (isVagueConcept(nm)) return null // "Ôn từ vựng", "Ôn tập"… -> không phải một kiến thức
+    return { key: k, name: nm }
+  }
+
+  // 1) Gộp kết quả theo MỤC LỚN (nhiều nhãn khác nhau cùng thuộc một mục -> một dòng duy nhất).
+  const groups = new Map() // khoá mục -> { name, correct, wrong, seq, details }
   for (const [rawKey, r] of Object.entries(perConcept || {})) {
     if (!r) continue
     const byId = out.find((c) => c.id === rawKey)
-    const name = byId ? byId.name : (r.label || rawKey)
-    const k = conceptKey(name)
-    if (!k) continue
+    const t = targetOf(byId ? byId.name : (r.label || rawKey))
+    if (!t) continue
     const cor = Math.max(0, r.correct || 0)
     const wr = Math.max(0, r.wrong || 0)
     const seq = typeof r.seq === 'string' && r.seq.length === cor + wr ? r.seq : spreadSeq(cor, cor + wr)
-    const g = groups.get(k) || { name, correct: 0, wrong: 0, seq: '' }
+    const g = groups.get(t.key) || { name: t.name, correct: 0, wrong: 0, seq: '', details: [] }
     g.correct += cor
     g.wrong += wr
     g.seq += seq
-    groups.set(k, g)
+    if (t.detail) g.details.push(t.detail)
+    groups.set(t.key, g)
   }
 
-  // 2) Ghi vào ĐÚNG khái niệm trong bản đồ.
+  // 2) Ghi vào ĐÚNG mục trong bản đồ (chưa có thì thêm mục lớn mới).
   const deltas = []
   for (const [k, g] of groups) {
     if (!g.correct && !g.wrong) continue
     let i = idx.get(k)
     if (i == null) {
-      const name = prettyName(g.name)
-      if (isVagueConcept(name)) continue // "Ôn từ vựng", "Ôn tập"… -> không phải một kiến thức
       out.push({
-        id: freeId(out, slug(name) + '-' + now.toString(36)), name, difficulty: 'Cơ bản',
-        subject: subject || 'Môn khác', topic: '',
+        id: freeId(out, slug(g.name) + '-' + now.toString(36)), name: g.name, difficulty: 'Cơ bản',
+        subject: subject || 'Môn khác', topic: '', details: [],
         mastery: 0, pts: 0, hist: '', reviews: 0, correct: 0, wrong: 0,
         learnedOn: today, updatedAt: now, learnedInApp: true,
       })
@@ -297,6 +410,7 @@ export function applyReviewResults(mem, perConcept, { choice = true, subject = '
       updatedAt: now,
       newToday: false,
     }
+    if (g.details.length) out[i].details = cleanDetails([...(c.details || []), ...g.details])
     deltas.push({ id: out[i].id, name: out[i].name, before, after, correct: g.correct, wrong: g.wrong })
   }
   return { mem: out, deltas }
@@ -317,27 +431,32 @@ function slug(s) {
 }
 
 // Thêm/cập nhật khái niệm (từ ảnh AI đọc được) vào bộ nhớ của con.
-// Bỏ qua tên CHUNG CHUNG ("Từ vựng cơ bản", "Ngữ pháp cơ bản"…) — không phải kiến thức cụ thể.
+// - CHỈ GHI MỤC LỚN: ý nhỏ (câu mẫu, từ lẻ) gộp về chủ đề lớn, lưu trong "details" (chốt 2/10/2026).
+// - Bỏ qua tên CHUNG CHUNG ("Từ vựng cơ bản", "Ngữ pháp cơ bản"…) — không phải kiến thức cụ thể.
 export function addConcepts(mem, concepts) {
   const today = new Date().toISOString().slice(0, 10)
   const now = Date.now()
   const out = mem.map((c) => ({ ...c }))
   const idx = new Map(out.map((c, i) => [conceptKey(c.name), i]))
-  for (const c of concepts) {
+  const first = (concepts || [])[0] || {}
+  const grouped = groupConcepts(concepts || [], { subject: first.subject || '', topic: first.topic || '' })
+  for (const c of grouped) {
     const name = prettyName(c.name) // viết hoa chữ đầu, thống nhất một kiểu
     if (!name || isVagueConcept(name)) continue
     const key = conceptKey(name)
+    const details = cleanDetails(c.details)
     if (idx.has(key)) {
-      // Đã có khái niệm CÙNG NGHĨA (dù viết khác) -> chỉ cập nhật, KHÔNG thêm trùng vào bản đồ.
+      // Đã có khái niệm CÙNG NGHĨA (dù viết khác) -> chỉ cập nhật + nối thêm ý nhỏ, KHÔNG thêm trùng vào bản đồ.
       const i = idx.get(key)
       out[i] = { ...out[i], learnedOn: today, updatedAt: now, newToday: true }
+      if (details.length) out[i].details = cleanDetails([...(out[i].details || []), ...details])
     } else {
       // id RIÊNG cho mỗi khái niệm (id tạm "ai-0", "ai-1"… của từng lần đọc bài sẽ trùng giữa các lần).
       const base = c.id && !/^ai-\d+$/.test(c.id) ? c.id : slug(name) + '-' + now.toString(36)
       const nc = {
-        id: freeId(out, base), name, difficulty: c.difficulty || 'Cơ bản',
+        id: freeId(out, base), name, difficulty: c.difficulty || 'Cơ bản', importance: c.importance || 'Quan trọng',
         // KHÔNG mặc định 'Toán' -> tránh khái niệm môn khác bị gán nhầm vào Toán (lẫn môn trong báo cáo).
-        subject: c.subject || 'Môn khác', topic: c.topic || '',
+        subject: c.subject || 'Môn khác', topic: c.topic || '', details,
         mastery: 0, pts: 0, hist: '', reviews: 0, correct: 0, wrong: 0, // MỚI: chưa ôn -> 0%
         learnedOn: today, updatedAt: now, newToday: true, learnedInApp: true,
       }

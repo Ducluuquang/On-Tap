@@ -4,6 +4,7 @@ import { conceptStatusList } from '../lib/mockAI.js'
 import { last7, totalMinutes, todayMinutes, streakDays, dayReport } from '../lib/stats.js'
 import { subjectDisplayName, subjectIcon } from '../lib/subjects.js'
 import { iconFor } from '../lib/icons.js'
+import { isVocabGroup } from '../lib/topics.js'
 
 const WD = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
 
@@ -184,6 +185,9 @@ export default function ParentDashboard({ mem, stats, child, kids = [], onViewCh
                   <span className="kname">{c.name}</span>
                   <StatusPill status={c.status} />
                 </div>
+                {c.details && c.details.length > 0 && (
+                  <div className="kdet" title={c.details.join(' · ')}>{c.details.length} {isVocabGroup(c.name) ? 'từ' : 'ý'}: {c.details.join(' · ')}</div>
+                )}
                 <div className="krow-bar">
                   <MasteryBar value={c.mastery} status={c.status} />
                   <span className="kpct">{c.mastery}%</span>

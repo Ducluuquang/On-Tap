@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { BackHeader } from '../components.jsx'
 import { extractFromFiles, extractFromText } from '../lib/aiClient.js'
 import { detectSubject, canonicalSubject } from '../lib/subjects.js'
-import { isVagueConcept } from '../lib/topics.js'
+import { isVagueConcept, groupConcepts } from '../lib/topics.js'
 
 // Chuẩn hoá kết quả AI đọc được + GẮN MÔN TỪ CHÍNH NỘI DUNG NHẬP VÀO.
 // - Nội dung có NHÃN MÔN (vd "Tiếng Anh 7: Thì quá khứ đơn") -> lấy ĐÚNG môn đó (không thể nhầm).
@@ -10,13 +10,6 @@ import { isVagueConcept } from '../lib/topics.js'
 // - TUYỆT ĐỐI không tự gán "Toán" khi không biết (trước đây là nguồn gây lẫn môn).
 function withIds(result, inputText = '') {
   const all = (result.concepts || []).filter((c) => c && String(c.name || '').trim())
-  // BỎ tên CHUNG CHUNG ("Từ vựng cơ bản", "Ngữ pháp cơ bản", "Ôn tập"…): không phải kiến thức cụ thể.
-  const concepts = all.filter((c) => !isVagueConcept(c.name)).map((c, i) => ({
-    id: c.id || 'ai-' + i,
-    name: c.name,
-    difficulty: c.difficulty || 'Cơ bản',
-    importance: c.importance || 'Quan trọng',
-  }))
   const fromInput = detectSubject(inputText)   // nhãn môn trong chữ phụ huynh/con gõ
   const fromTopic = detectSubject(result.topic) // nhãn môn AI đọc được trên trang (tiêu đề)
   const label = fromInput || fromTopic
@@ -25,6 +18,16 @@ function withIds(result, inputText = '') {
   let topic = String(result.topic || '').trim()
   if (fromTopic && fromTopic.rest) topic = fromTopic.rest.split('\n')[0].trim() // bỏ tiền tố "Tiếng Anh 7:"
   else if (!topic && fromInput && fromInput.rest) topic = fromInput.rest.split('\n')[0].trim().slice(0, 80)
+  // BỎ tên CHUNG CHUNG ("Từ vựng cơ bản", "Ngữ pháp cơ bản", "Ôn tập"…): không phải kiến thức cụ thể.
+  // CHỈ GHI MỤC LỚN: câu mẫu / từ lẻ gộp về chủ đề lớn (vd 8 câu đảo ngữ -> "Câu đảo ngữ (Inversion)").
+  const grouped = groupConcepts(all.filter((c) => !isVagueConcept(c.name)), { subject, topic })
+  const concepts = grouped.filter((c) => !isVagueConcept(c.name)).map((c, i) => ({
+    id: 'ai-' + i,
+    name: c.name,
+    details: c.details || [],
+    difficulty: c.difficulty || 'Cơ bản',
+    importance: c.importance || 'Quan trọng',
+  }))
   return { subject, grade, topic, concepts, onlyVague: !concepts.length && all.length > 0, subjectFrom: label ? 'label' : (subject ? 'ai' : '') }
 }
 
