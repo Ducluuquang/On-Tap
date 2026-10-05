@@ -800,20 +800,27 @@ select.auth-in{appearance:auto;cursor:pointer}
 .kidswitch > .kid:last-child{margin-right:auto}
 .kid{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:5px;min-width:66px;padding:2px 4px;
   background:none;border:0;cursor:pointer;font-family:inherit}
-.kid-ava{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;font-size:1.75rem;line-height:1;
+.kid-ava{width:var(--ava,54px);height:var(--ava,54px);border-radius:50%;display:grid;place-items:center;font-size:1.75rem;line-height:1;
   background:var(--teal-soft);border:3px solid transparent;opacity:.72;transition:transform .12s,opacity .12s,border-color .12s}
 .kid:hover .kid-ava{opacity:1}
 .kid.on .kid-ava{opacity:1;border-color:var(--teal);box-shadow:0 5px 14px rgba(15,118,110,.25);transform:scale(1.04)}
 .kid-name{font-size:.8rem;font-weight:700;color:var(--muted);max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .kid.on .kid-name{color:var(--teal-dark);font-weight:900}
-/* Logo OT bên trái hàng icon các con (tab Phụ huynh). Khoảng trống cân đối bên phải -> các con vẫn nằm GIỮA khung. */
-.parenthead{display:flex;align-items:flex-start;gap:6px}
-.parenthead > .logo-mark{flex:0 0 36px;width:36px;height:36px;object-fit:contain;margin-top:15px} /* tâm logo ngang tâm các icon con */
-.parenthead > .kidswitch{flex:1;min-width:0}
-.parenthead::after{content:'';flex:0 0 36px}
-/* Màn hẹp (≤380px): logo nhỏ lại chút để 3 con vẫn nằm giữa, không phải cuộn ngang */
+/* Logo bên trái hàng icon các con (tab Phụ huynh) — TO BẰNG icon các con (chốt 5/10/2026):
+   cao đúng bằng vòng tròn icon con (--ava), tâm ngang tâm các vòng tròn (ảnh logo đã cắt sát hình).
+   Khoảng trống bên phải rộng bằng logo -> các con nằm GIỮA khung. Màn hẹp: khoảng trống này tự co lại
+   (các con dịch sang phải chút) để 3 con vẫn vừa một hàng; nhiều con quá thì hàng icon cuộn ngang như cũ. */
+.parenthead{--ava:54px;--logo-w:calc(var(--ava) * 192 / 167);display:flex;align-items:flex-start;gap:6px}
+.parenthead > .logo-mark{flex:0 0 var(--logo-w);width:var(--logo-w);height:var(--ava);object-fit:contain;margin-top:4px}
+.parenthead > .kidswitch{flex:1 0 auto;min-width:0;max-width:calc(100% - var(--logo-w) - 12px)}
+.parenthead::after{content:'';flex:0 1 var(--logo-w)}
 @media (max-width: 380px){
-  .parenthead > .logo-mark{flex-basis:30px;width:30px;height:30px;margin-top:18px}
-  .parenthead::after{flex-basis:30px}
   .kidswitch{gap:6px}
+}
+/* Màn rất hẹp (≤340px): icon con và logo cùng nhỏ lại một chút (vẫn TO BẰNG nhau) để 3 con vừa một hàng */
+@media (max-width: 340px){
+  .parenthead{--ava:46px}
+  .kid{min-width:56px}
+  .kid-ava{font-size:1.5rem}
+  .kidswitch{gap:4px}
 }
