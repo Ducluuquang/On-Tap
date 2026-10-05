@@ -1,12 +1,29 @@
 {
-  "name": "ON TAP",
-  "short_name": "ON TAP",
+  "name": "Ôn Tập",
+  "short_name": "Ôn Tập",
   "description": "Bạn học AI giúp con ôn bài mỗi ngày",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F4F9F8",
   "theme_color": "#0F766E",
   "icons": [
-    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }

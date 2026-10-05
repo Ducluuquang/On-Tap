@@ -5,6 +5,7 @@ import { last7, totalMinutes, todayMinutes, streakDays, dayReport } from '../lib
 import { subjectDisplayName, subjectIcon } from '../lib/subjects.js'
 import { iconFor } from '../lib/icons.js'
 import { isVocabGroup } from '../lib/topics.js'
+import logoMark from '../assets/logo-mark.png'
 
 const WD = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
 
@@ -96,10 +97,10 @@ export default function ParentDashboard({ mem, stats, child, kids = [], onViewCh
       {isKid ? (
         <BackHeader title="Báo cáo học tập" onBack={onBack} />
       ) : (
-        // Tab Phụ huynh: logo OT bên trái (như cũ, KHÔNG kèm chữ ON TAP) + ICON + TÊN các con.
+        // Tab Phụ huynh: BIỂU TƯỢNG logo bên trái (không kèm chữ) + ICON + TÊN các con.
         // Bấm icon con nào -> xem báo cáo con đó (dòng "Hôm nay của …" đổi theo).
         <div className="parenthead">
-          <span className="brand-mark" aria-label="ON TAP">OT</span>
+          <img className="logo-mark" src={logoMark} alt="Ôn Tập" />
           <nav className="kidswitch" aria-label="Chọn con để xem báo cáo">
             {kids.map((k) => (
               <button key={k.id} type="button" className={'kid' + (child && k.id === child.id ? ' on' : '')}

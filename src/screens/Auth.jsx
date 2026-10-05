@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { CHILD_ICONS } from '../lib/icons.js'
+import logoFull from '../assets/logo-full.png'
 
 // 4 khối trường (bấm tick để chọn).
 const SCHOOL_TYPES = ['Công lập', 'Tư thục', 'Song ngữ', 'Quốc tế (đơn ngữ)']
@@ -110,14 +111,14 @@ export default function Auth({ account, onRegister, onLogin, onReset }) {
     if (!onReset(ph, np)) { setErr('Số điện thoại này chưa được đăng ký trên máy.') }
   }
 
-  const Brandline = () => <div className="auth-brand"><span className="mark">OT</span><span className="nm">ON&nbsp;TAP</span></div>
+  const Brandline = ({ big = false }) => <div className="auth-brand"><img className={'auth-logo' + (big ? ' big' : '')} src={logoFull} alt="Ôn Tập" /></div>
 
   // ================= MÀN ĐẦU =================
   if (mode === 'landing') {
     return (
       <div className="auth">
         <div className="auth-card auth-landing">
-          <Brandline />
+          <Brandline big />
           <h1>Ôn tập thông minh cho con</h1>
           <p className="auth-sub">Chọn một trong hai để bắt đầu.</p>
           <button className="cta" onClick={() => { setMode('login'); setErr('') }}>Đăng nhập</button>

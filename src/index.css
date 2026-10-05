@@ -66,6 +66,7 @@ body{
 .brand{display:flex;align-items:center;gap:9px}
 .brand-mark{width:30px;height:30px;border-radius:8px;background:var(--teal);color:#fff;display:grid;place-items:center;font-weight:800;font-size:.72rem}
 .brand-name{font-weight:800;font-size:.82rem;letter-spacing:.15em;color:var(--ink)}
+.brand-logo{height:38px;width:auto;display:block}
 .brand-name em{font-style:normal;font-weight:600;letter-spacing:.02em;color:var(--muted)}
 .streak{background:#FFF3E0;color:#9A5A12;font-weight:700;font-size:.82rem;padding:6px 12px;border-radius:999px;border:1px solid #F6E2C4}
 .who-pill{background:var(--teal-soft);color:var(--teal-dark);font-weight:600;font-size:.76rem;padding:6px 12px;border-radius:999px}
@@ -348,8 +349,8 @@ body{
 .auth{padding:34px 24px 40px;display:flex;flex-direction:column;min-height:640px;justify-content:center}
 .auth-card{display:flex;flex-direction:column;gap:11px}
 .auth-brand{display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:6px}
-.auth-brand .mark{width:42px;height:42px;border-radius:12px;background:var(--teal);color:#fff;display:grid;place-items:center;font-weight:800;font-size:.92rem}
-.auth-brand .nm{font-weight:800;letter-spacing:.16em;font-size:1.08rem;color:var(--ink)}
+.auth-logo{height:92px;width:auto;display:block}
+.auth-logo.big{height:150px}
 .auth h1{margin:2px 0 0;text-align:center;font-size:1.4rem;font-weight:800}
 .auth-sub{margin:0 0 6px;text-align:center;color:var(--ink-soft);font-size:.9rem;line-height:1.5}
 .auth-lbl{font-size:.76rem;font-weight:700;color:var(--muted);letter-spacing:.04em;margin-top:2px}
@@ -807,6 +808,12 @@ select.auth-in{appearance:auto;cursor:pointer}
 .kid.on .kid-name{color:var(--teal-dark);font-weight:900}
 /* Logo OT bên trái hàng icon các con (tab Phụ huynh). Khoảng trống cân đối bên phải -> các con vẫn nằm GIỮA khung. */
 .parenthead{display:flex;align-items:flex-start;gap:6px}
-.parenthead > .brand-mark{flex:0 0 30px;margin-top:18px} /* tâm logo ngang tâm các icon con */
+.parenthead > .logo-mark{flex:0 0 36px;width:36px;height:36px;object-fit:contain;margin-top:15px} /* tâm logo ngang tâm các icon con */
 .parenthead > .kidswitch{flex:1;min-width:0}
-.parenthead::after{content:'';flex:0 0 30px}
+.parenthead::after{content:'';flex:0 0 36px}
+/* Màn hẹp (≤380px): logo nhỏ lại chút để 3 con vẫn nằm giữa, không phải cuộn ngang */
+@media (max-width: 380px){
+  .parenthead > .logo-mark{flex-basis:30px;width:30px;height:30px;margin-top:18px}
+  .parenthead::after{flex-basis:30px}
+  .kidswitch{gap:6px}
+}

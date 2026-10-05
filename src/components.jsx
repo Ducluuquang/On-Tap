@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { STATUS_LABEL } from './lib/memory.js'
 import { streakDays, nextReward, prevReward } from './lib/stats.js'
+import logoRow from './assets/logo-row.png'
 
 // GIẢI THÍCH KHI LÀM SAI — dùng CHUNG cho MỌI kiểu ôn & game (chốt 29/9/2026):
 // làm sai lúc nào cũng hiện: con chọn gì · đáp án đúng · VÌ SAO sai.
@@ -40,11 +41,12 @@ export function WrongWhy({ picked, correct, explain = '', why = '', pickedLabel 
   )
 }
 
+// Logo ngang (biểu tượng + chữ "Ôn Tập") — thanh trên cùng màn Con / màn chọn người học.
 export function Brand({ sub }) {
   return (
     <div className="brand">
-      <span className="brand-mark">OT</span>
-      <span className="brand-name">ON&nbsp;TAP{sub && <em> {sub}</em>}</span>
+      <img className="brand-logo" src={logoRow} alt="Ôn Tập" />
+      {sub && <span className="brand-name"><em>{sub}</em></span>}
     </div>
   )
 }
