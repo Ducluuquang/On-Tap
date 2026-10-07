@@ -107,3 +107,8 @@ export async function gradeImage(file) {
   const { b64, media } = await imageToBase64(file)
   return callApi({ action: 'grade', image: b64, media })
 }
+
+// SỔ TỪ VỰNG: tra MỘT lần các từ tiếng Anh trong bài (nghĩa, phiên âm, câu ví dụ, dạng từ…).
+export async function lookupVocab(payload) {
+  return callApi({ action: 'vocab', payload })
+}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { loadMemory, saveMemory, applyReviewResults, addConcepts, resetMemory, conceptKey, prettyName } from './lib/memory.js'
-import { subjectModes, subjectDisplayName } from './lib/subjects.js'
+import { subjectModes, subjectDisplayName, subjectKey } from './lib/subjects.js'
 import { resolveTopic } from './lib/review.js'
 import { plainText, hasPhrase, isVocabItem, topicFamilyOf } from './lib/topics.js'
 import { buildReview } from './lib/mockAI.js'
@@ -12,6 +12,9 @@ import { loadSettings, saveSettings } from './lib/settings.js'
 import { canon, localMatch } from './lib/answerMatch.js'
 import { dotNumbers } from './lib/num.js'
 import { loadRecent, pushRecent, resetRecent } from './lib/recent.js'
+import { vocabGroupsOf, collectWords, pickWords, buildItems, loadVStats, saveVStats, resetVStats, applyWordResults, loadDict, needsLookup, entryOf, gradeNum, vocabGame } from './lib/vocab.js'
+import { ensureEntries } from './lib/vocabFetch.js'
+import { unlockSpeech } from './lib/speech.js'
 
 import Auth from './screens/Auth.jsx'
 import ChildPicker from './screens/ChildPicker.jsx'
@@ -30,6 +33,47 @@ import Result from './screens/Result.jsx'
 import ParentCapture from './screens/ParentCapture.jsx'
 import ParentApprove from './screens/ParentApprove.jsx'
 import ParentDashboard from './screens/ParentDashboard.jsx'
+import VocabHub from './screens/VocabHub.jsx'
+import VocabGame from './screens/VocabGame.jsx'
+import TrueFalseGame from './screens/TrueFalseGame.jsx'
+
+const nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
+
+// Trò chơi từ vựng: đang tra sổ từ (lần đầu với các từ mới) — chỉ tra MỘT lần cho mỗi từ.
+function VocabLoading({ msg }) {
+  return (
+    <div className="screen center">
+      <div className="reading">
+        <div className="spinner" />
+        <h2>Đang chuẩn bị trò chơi…</h2>
+        <p>{msg || 'Chọn từ con cần ôn nhất.'}</p>
+      </div>
+    </div>
+  )
+}
+
+// Trò chơi từ vựng chưa chơi được: mạng lỗi khi tra từ, hoặc chưa đủ từ phù hợp với trò này.
+function VocabProblem({ kind, gameName, onRetry, onBack }) {
+  const text = kind === 'fetch'
+    ? { ic: '😅', h: 'Chưa tra được từ điển', p: 'Mạng hơi chậm hoặc đang bận. Con bấm “Thử lại” nhé — từ nào tra xong sẽ được lưu, lần sau chơi ngay.' }
+    : kind === 'empty'
+      ? { ic: '🔤', h: 'Chưa có từ vựng để chơi', p: 'Con thêm bài tiếng Anh có từ vựng trước nhé.' }
+      : { ic: '🧩', h: `Chưa đủ từ cho trò “${gameName}”`, p: gameName === 'Biến đổi từ'
+        ? 'Các từ con đã học chưa có dạng biến đổi (vd success → successful, care → careful). Con thử trò khác nhé!'
+        : gameName === 'Đúng hay sai' ? 'Trò này cần ít nhất 4 từ đã có nghĩa. Con thêm bài từ vựng hoặc thử trò khác nhé!'
+          : 'Các từ con chọn chưa có câu phù hợp cho trò này. Con thử trò khác nhé!' }
+  return (
+    <div className="screen center">
+      <div className="reading">
+        <div className="gen-fail-ic">{text.ic}</div>
+        <h2>{text.h}</h2>
+        <p>{text.p}</p>
+        {kind === 'fetch' && <button className="cta" onClick={onRetry}>🔄 Thử lại</button>}
+        <button className="cta small ghost" onClick={onBack}>Chọn trò khác</button>
+      </div>
+    </div>
+  )
+}
 
 function GeneratingScreen() {
   return (
@@ -282,6 +326,13 @@ export default function App() {
   // Môn của buổi ôn hiện tại — để ghi nhật ký theo môn cho phụ huynh xem.
   const reviewSubjectRef = useRef('Toán')
   const lastReviewRef = useRef(null) // yêu cầu ôn gần nhất — để bấm "Thử lại"
+  // TRÒ CHƠI TỪ VỰNG: { id, game, loading, msg, error, items }; vocabFrom = màn mở trò (để nút ← quay về đúng chỗ).
+  const [vocab, setVocab] = useState(null)
+  const [vocabFrom, setVocabFrom] = useState('home')
+  // Từ trò chơi từ vựng quay về "Bắt đầu ôn" -> giữ môn Tiếng Anh đang chọn (không nhảy về môn đầu danh sách).
+  const [crSubject, setCrSubject] = useState(null)
+  const lastVocabRef = useRef(null)
+  const vocabSeq = useRef(0)
 
   useEffect(() => { saveMemory(mem) }, [mem])
   useEffect(() => { saveStats(stats) }, [stats])
@@ -372,7 +423,7 @@ export default function App() {
   }
   // Xoá dữ liệu học tập CỦA CON ĐANG HỌC (bản đồ kiến thức, báo cáo, thời gian, lịch sử câu) — làm lại từ đầu.
   function resetLearningData() {
-    resetMemory(); resetStats(); resetRecent()
+    resetMemory(); resetStats(); resetRecent(); resetVStats()
     setMem([]); setStats(loadStats()); setSession(null)
     setToast(`Đã xoá dữ liệu học tập của ${activeChild?.name || 'con'} — bắt đầu lại từ đầu ✓`)
     setView(role === 'child' ? 'home' : 'dashboard')
@@ -585,6 +636,100 @@ export default function App() {
     setView('result')
   }
 
+  // ===== TRÒ CHƠI TỪ VỰNG (chốt 6/10/2026) =====
+  function openVocab(from) { setVocabFrom(from || 'home'); setView('vocabhub') }
+
+  // Tra trước (chạy nền) các từ CHƯA có trong sổ -> con bấm chơi là chơi ngay. Lỗi mạng: bỏ qua, lần sau tra lại.
+  function prefetchVocab(words, max = 30) {
+    if (words && words.length) ensureEntries(words, { max }).catch(() => {})
+  }
+
+  // opts: { game, groupNames, level, count, keys? } — keys: chơi lại đúng các từ này (vd "Làm lại các từ sai").
+  async function startVocabGame(opts = {}) {
+    const { game, groupNames = null, level = 'weak', count = 10, keys = null } = opts
+    const info = vocabGame(game)
+    if (!info) return
+    unlockSpeech() // iPhone: phải "mở loa" ngay trong cú chạm thì sau đó app mới tự đọc từ được
+    lastVocabRef.current = opts
+    const id = ++vocabSeq.current
+    setVocab({ id, game, loading: true, msg: '' })
+    setView('vocab')
+    const t0 = nowMs()
+    const groups = vocabGroupsOf(mem).filter((c) => !groupNames || !groupNames.length || groupNames.includes(c.name))
+    const all = collectWords(groups)
+    const vstats = loadVStats()
+    let ordered
+    if (keys && keys.length) {
+      const byKey = new Map(collectWords(vocabGroupsOf(mem)).map((w) => [w.key, w]))
+      ordered = keys.map((k) => byKey.get(k)).filter(Boolean)
+    } else {
+      ordered = pickWords(all, vstats, { level, count: all.length }) // xếp TẤT CẢ theo ưu tiên (từ hay sai / từ mới trước)
+    }
+    if (!ordered.length) { setVocab({ id, game, loading: false, error: 'empty' }); return }
+    // Lấy dư một chút: không phải từ nào cũng có câu ví dụ / dạng biến đổi.
+    const want = game === 'truefalse' ? Math.max(16, count) : (game === 'cloze' || game === 'wordform') ? count * 2 + 4 : count + 3
+    const head = ordered.slice(0, want)
+    let dict = loadDict()
+    const missing = head.filter((x) => needsLookup(dict, x.key)).length
+    if (missing) {
+      setVocab({ id, game, loading: true, msg: `Đang tra từ điển cho ${missing} từ mới — mỗi từ chỉ tra một lần, lần sau chơi ngay.` })
+      dict = await ensureEntries(head, { max: want })
+    }
+    if (vocabSeq.current !== id) return // con đã thoát/chọn trò khác trong lúc chờ
+    const grade = gradeNum(activeChild && activeChild.grade)
+    const items = game === 'truefalse'
+      ? buildItems('spell', head, dict, vstats, { count: head.length, grade }) // "bể từ" để ghép cặp Đúng/Sai
+      : buildItems(game, head, dict, vstats, { count, grade })
+    if (items.length < (game === 'truefalse' ? 4 : 1)) {
+      const stillMissing = head.some((x) => needsLookup(dict, x.key))
+      setVocab({ id, game, loading: false, error: stillMissing ? 'fetch' : 'notenough' })
+      return
+    }
+    loadSecondsRef.current = Math.min(180, (nowMs() - t0) / 1000)
+    reviewSubjectRef.current = 'Tiếng Anh'
+    setVocab({ id, game, loading: false, items })
+  }
+
+  // Xong một lượt trò chơi từ vựng: ghi đúng/sai TỪNG TỪ + nhật ký theo ngày + % thành thạo của CHỦ ĐỀ.
+  // "Đúng hay sai" là trò khởi động -> KHÔNG tính vào % thành thạo (đoán 50/50 sẽ làm % ảo).
+  function handleVocabFinish(summary, perConcept, wordResults) {
+    const game = vocab && vocab.game
+    const info = vocabGame(game) || {}
+    const loadSec = loadSecondsRef.current || 0
+    loadSecondsRef.current = 0
+    vocabSeq.current += 1
+    if (wordResults && wordResults.length) saveVStats(applyWordResults(loadVStats(), wordResults, loadDict()))
+    const total = summary.total || 0
+    if (!total) {
+      setToast('Lượt này chưa trả lời câu nào nên không tính nhé.')
+      setView('vocabhub')
+      return
+    }
+    const studySeconds = Math.round((summary.activeSeconds || 0) + loadSec)
+    setStats((s) => addSession(addSeconds(s, studySeconds), {
+      subject: 'Tiếng Anh', total, correct: summary.correct || 0, sec: studySeconds,
+    }))
+    let deltas = []
+    if (info.mastery && info.mastery !== 'none' && perConcept && Object.keys(perConcept).length) {
+      const r = applyReviewResults(mem, perConcept, { choice: info.mastery === 'choice', subject: 'Tiếng Anh' })
+      setMem(r.mem)
+      deltas = r.deltas
+    }
+    const dict = loadDict()
+    const wrongKeys = [...new Set((wordResults || []).filter((r) => r && !r.ok).map((r) => r.key))]
+    const wrong = wrongKeys.map((k) => { const e = entryOf(dict, k); return e ? { key: k, w: e.w, mean: e.mean[0] } : null }).filter(Boolean)
+    setSession({ ...summary, total, deltas, studySeconds, vocab: { game, name: info.name, wrong, warmup: info.mastery === 'none' } })
+    setStreak((s) => s + 1)
+    setView('result')
+  }
+  function retryWrongWords() {
+    const v = session && session.vocab
+    if (!v || !v.wrong || !v.wrong.length) return
+    // Sai ở "Đúng hay sai" -> luyện lại bằng "Gõ nghĩa" (nhớ chủ động); trò khác -> chơi lại đúng trò đó.
+    const game = v.game === 'truefalse' ? 'meaning' : v.game
+    startVocabGame({ game, keys: v.wrong.map((x) => x.key), count: v.wrong.length })
+  }
+
   function onExtracted(result) { setPending(result); setView('approve') }
   function onSaveApprove(checked, subject) {
     // Dùng MÔN phụ huynh đã chọn/xác nhận (tránh AI đoán sai -> Toán lẫn vào Tiếng Anh).
@@ -592,7 +737,10 @@ export default function App() {
     const chosen = (pending?.concepts || [])
       .filter((c) => checked[c.id])
       .map((c) => ({ ...c, subject: subj, topic: pending.topic }))
-    setMem((m) => addConcepts(m, chosen))
+    const nextMem = addConcepts(mem, chosen)
+    setMem(nextMem)
+    // Bài TIẾNG ANH có từ vựng -> tra trước sổ từ (chạy nền) để trò chơi từ vựng mở ra là chơi ngay.
+    if (subjectKey(subj) === 'tieng-anh') prefetchVocab(collectWords(vocabGroupsOf(nextMem)), 40)
     setToast(`Đã lưu ${chosen.length} chủ đề vào bộ nhớ của con ✓`)
     setPending(null)
     setView(role === 'child' ? 'home' : 'dashboard')
@@ -680,7 +828,19 @@ export default function App() {
       onBack={() => { if (role === 'child') setParentUnlocked(false); setView(homeView) }} />
   } else if (role === 'child') {
     if (view === 'custom') {
-      screen = <CustomReview mem={mem} allowChoice={settings.allowChoice} onStart={startReview} onBack={() => setView('home')} />
+      screen = <CustomReview mem={mem} allowChoice={settings.allowChoice} initialSubject={crSubject} onStart={startReview} onBack={() => setView('home')}
+        onVocab={() => { setCrSubject('Tiếng Anh'); openVocab('custom') }} />
+    } else if (view === 'vocabhub') {
+      screen = <VocabHub mem={mem} grade={gradeNum(activeChild && activeChild.grade)} allowChoice={settings.allowChoice}
+        onStart={startVocabGame} onBack={() => setView(vocabFrom === 'custom' ? 'custom' : 'home')}
+        onCapture={() => setView('capture')} onPrefetch={(words) => prefetchVocab(words, 30)} />
+    } else if (view === 'vocab') {
+      const v = vocab || {}
+      const toHub = () => { vocabSeq.current += 1; setView('vocabhub') }
+      if (v.loading) screen = <VocabLoading msg={v.msg} />
+      else if (v.error) screen = <VocabProblem kind={v.error} gameName={(vocabGame(v.game) || {}).name || ''} onRetry={() => startVocabGame(lastVocabRef.current || {})} onBack={toHub} />
+      else if (v.game === 'truefalse') screen = <TrueFalseGame key={v.id} pool={v.items} onFinish={handleVocabFinish} onExit={toHub} />
+      else screen = <VocabGame key={v.id} game={v.game} items={v.items} onFinish={handleVocabFinish} onExit={toHub} />
     } else if (view === 'review') {
       screen = genOrScreen(<Review questions={reviewQuestions} mem={mem} title={reviewTitle} onFinish={handleFinish} onExit={() => setView('home')} />)
     } else if (view === 'typed') {
@@ -704,7 +864,8 @@ export default function App() {
     } else if (view === 'approve' && pending) {
       screen = <ParentApprove pending={pending} onSave={onSaveApprove} onBack={() => setView('capture')} />
     } else if (view === 'result') {
-      screen = <Result session={session} onHome={() => setView('home')} onReport={() => setView('report')} />
+      screen = <Result session={session} onHome={() => setView('home')} onReport={() => setView('report')}
+        onRetryWrong={retryWrongWords} onMoreGames={() => setView('vocabhub')} />
     } else if (view === 'report') {
       // Học sinh XEM báo cáo học tập của mình (chỉ xem — không sửa môn, không vào cài đặt, không cần mật khẩu).
       screen = <ParentDashboard mem={mem} stats={stats} child={activeChild} viewer="child" onBack={() => setView('home')} toast={toast} />
@@ -712,7 +873,8 @@ export default function App() {
       screen = <ChildHome mem={mem} stats={stats} child={activeChild}
         slogan={settings.slogan || ''}
         onSetSlogan={(s) => setSettings((x) => ({ ...x, slogan: s }))}
-        onReview={() => setView('custom')} onCapture={() => setView('capture')}
+        onReview={() => { setCrSubject(null); setView('custom') }} onCapture={() => setView('capture')}
+        vocabWords={collectWords(vocabGroupsOf(mem)).length} onVocab={() => openVocab('home')}
         onReport={() => setView('report')} onSwitchChild={switchChild} />
     }
   } else {

@@ -824,3 +824,121 @@ select.auth-in{appearance:auto;cursor:pointer}
   .kid-ava{font-size:1.5rem}
   .kidswitch{gap:4px}
 }
+
+/* ===================== TRÒ CHƠI TỪ VỰNG (6/10/2026) ===================== */
+/* Lối vào trong "Bắt đầu ôn" khi chọn môn Tiếng Anh */
+.cr-vocab{display:flex;align-items:center;gap:12px;width:100%;margin:2px 0 6px;padding:13px 15px;border-radius:16px;cursor:pointer;
+  font-family:inherit;text-align:left;background:linear-gradient(135deg,#F1F8F6,#E4F2EE);border:1.5px solid #CFE6E0;transition:transform .12s,border-color .12s}
+.cr-vocab:hover{border-color:var(--teal);transform:translateY(-1px)}
+.cr-vocab-ic{font-size:1.5rem;width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:#fff;flex:0 0 42px}
+.cr-vocab-body{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.cr-vocab-body b{font-size:1rem;color:var(--teal-dark)}
+.cr-vocab-body em{font-style:normal;font-size:.8rem;color:var(--ink-soft)}
+.cr-vocab-go{font-weight:800;color:var(--teal);font-size:1.1rem}
+
+/* Màn chọn trò */
+.vh-sum{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid var(--border);border-radius:16px;padding:12px 15px}
+.vh-sum-big{font-weight:800;font-size:1.15rem}
+.vh-sum-sub{font-size:.86rem;color:var(--ink-soft)}
+.vh .chip{cursor:pointer;font-family:inherit}
+.vh .chip:disabled{opacity:.45;cursor:not-allowed}
+.vh-games{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.vh-game{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;padding:13px 13px 12px;border-radius:16px;cursor:pointer;
+  background:#fff;border:1.5px solid var(--border);font-family:inherit;box-shadow:0 6px 16px rgba(20,33,46,.05);transition:transform .12s,border-color .12s}
+.vh-game:hover{border-color:var(--teal);transform:translateY(-1px)}
+.vh-game:active{transform:scale(.985)}
+.vh-game-ic{font-size:1.45rem;line-height:1;margin-bottom:4px}
+.vh-game b{font-size:.96rem;color:var(--ink)}
+.vh-game em{font-style:normal;font-size:.76rem;color:var(--muted);line-height:1.35}
+.vh-empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:26px 6px}
+.vh-empty-ic{font-size:2.6rem}
+.vh-empty h2{margin:0;font-size:1.2rem}
+.vh-empty p{margin:0;color:var(--ink-soft);font-size:.92rem;line-height:1.5}
+
+/* Màn chơi */
+.vg-card{background:#fff;border:1px solid var(--border);border-radius:18px;padding:16px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;box-shadow:0 8px 20px rgba(20,33,46,.05)}
+.vg-say{display:flex;gap:10px;margin-bottom:4px}
+.vg-speak{border:1.5px solid #CFE6E0;background:var(--teal-soft);color:var(--teal-dark);font-family:inherit;font-weight:800;font-size:1rem;
+  padding:10px 16px;border-radius:999px;cursor:pointer;transition:transform .1s}
+.vg-speak:active{transform:scale(.96)}
+.vg-speak.slow{background:#fff}
+.vg-speak.mini{padding:2px 8px;font-size:.85rem;margin-left:6px;vertical-align:middle;border-width:1px}
+.vg-mean{font-size:1.45rem;font-weight:800;line-height:1.3;color:var(--ink)}
+.vg-word{font-size:1.75rem;font-weight:800;letter-spacing:.01em;color:var(--ink)}
+.vg-sub{font-size:.86rem;color:var(--muted);font-weight:600}
+.vg-ask{font-size:.9rem;color:var(--ink-soft);font-weight:700;margin-top:4px}
+.vg-hint{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:1.15rem;font-weight:700;letter-spacing:.06em;color:var(--teal-dark);
+  background:var(--surface-2);border-radius:10px;padding:4px 12px;white-space:pre-wrap}
+.vg-lv{font-size:.74rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#9A5A12;background:#FFF3E0;border:1px solid #F6E2C4;padding:3px 10px;border-radius:999px}
+.vg-novoice{margin:2px 0 0;font-size:.8rem;color:var(--weak-tx)}
+.vg-sent{margin:0;font-size:1.18rem;font-weight:700;line-height:1.6;color:var(--ink)}
+.vg-blank{display:inline-block;min-width:3.2em;margin:0 4px;padding:0 6px;border-bottom:2.5px solid var(--teal);color:var(--teal-dark);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.04em;white-space:pre}
+.vg-blank.wide{min-width:5.5em}
+.vg-root{font-size:1.3rem;font-weight:800;letter-spacing:.08em;color:#9A5A12;background:#FFF3E0;border:1px solid #F6E2C4;border-radius:10px;padding:3px 14px}
+.vg-vi{margin:0;font-size:.9rem;color:var(--ink-soft);font-style:italic}
+.vg-in{letter-spacing:.02em}
+.vg-reset{align-self:center}
+.fb-warn{background:#FFF6E5}
+.fb-warn b{color:#9A5A12}
+/* Thẻ từ sau mỗi câu */
+.vg-wc{background:#fff;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;border:1px solid rgba(20,33,46,.06)}
+.vg-wc-top{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.vg-wc-top b{font-size:1.08rem;color:var(--ink)}
+.vg-ipa{font-size:.86rem;color:var(--muted)}
+.vg-wc-mean{font-size:.9rem;color:var(--ink)}
+.vg-wc-mean i{font-style:normal;font-size:.76rem;font-weight:700;color:var(--teal-dark);background:var(--teal-soft);border-radius:6px;padding:1px 6px;margin-right:4px}
+.vg-wc-ex{font-size:.86rem;color:var(--ink-soft);line-height:1.45}
+.vg-wc-ex em{display:block;font-size:.82rem;color:var(--muted)}
+.fb .vg-wc p{margin:0}
+
+/* Bảng ô chữ (Xếp chữ cái) — ô TỰ THU NHỎ theo số chữ (--n) để cả từ luôn nằm trên MỘT hàng */
+.tb{display:flex;flex-direction:column;gap:16px;align-items:center;width:100%}
+.tb-slots{--gap:5px;width:100%;display:flex;flex-wrap:wrap;justify-content:center;gap:var(--gap)}
+.tb-slot,.tb-fixed{width:max(18px, min(38px, calc((100% - (var(--n) - 1) * var(--gap)) / var(--n))));aspect-ratio:38/46;height:auto;flex:0 0 auto;
+  border-radius:10px;display:grid;place-items:center;font-family:inherit;font-weight:800;color:var(--ink);
+  font-size:max(.9rem, min(1.3rem, calc((100vw - 60px) / var(--n) * .62)))} /* cụm rất dài (>13 ô) mới xuống hàng */
+.tb-slot{border:2px dashed #BFD3CF;background:#fff;cursor:pointer;padding:0}
+.tb-slot.full{border-style:solid;border-color:var(--teal);background:var(--teal-soft)}
+.tb-slot:disabled{cursor:default}
+.tb-slot.good{border-color:var(--mastered);background:var(--mastered-bg);color:var(--mastered-tx)}
+.tb-slot.bad{border-color:var(--weak);background:var(--weak-bg);color:var(--weak-tx)}
+.tb-fixed{background:var(--surface-2);color:var(--ink-soft)}
+.tb-fixed.gap{width:12px;aspect-ratio:auto;align-self:stretch;background:transparent}
+.tb-tray{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
+.tb-tile{width:46px;height:50px;border-radius:12px;border:0;background:var(--teal);color:#fff;font-family:inherit;font-size:1.35rem;font-weight:800;
+  cursor:pointer;box-shadow:0 5px 0 var(--teal-dark);transition:transform .08s;padding:0}
+.tb-tile:active{transform:translateY(3px);box-shadow:0 2px 0 var(--teal-dark)}
+.tb-tile.used{visibility:hidden}
+.tb-tile:disabled{cursor:default}
+@media (max-width:360px){ .tb-tile{width:40px;height:46px;font-size:1.2rem} }
+
+/* Đúng hay sai */
+.tf-card{background:#fff;border:1px solid var(--border);border-radius:20px;padding:22px 16px;display:flex;flex-direction:column;align-items:center;gap:6px;
+  text-align:center;box-shadow:0 10px 24px rgba(20,33,46,.06);animation:pop .25s ease}
+.tf-word{font-size:2rem;font-weight:800;color:var(--ink)}
+.tf-eq{font-size:.8rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.tf-mean{font-size:1.5rem;font-weight:800;color:var(--teal-dark)}
+.tf-q{font-size:.88rem;color:var(--ink-soft);margin-top:4px}
+.tf-btns{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tf-btn{border:0;border-radius:16px;padding:18px 10px;font-family:inherit;font-size:1.2rem;font-weight:800;cursor:pointer;color:#fff;transition:transform .08s}
+.tf-btn:active{transform:scale(.97)}
+.tf-no{background:#D9654B;box-shadow:0 6px 0 #B04A33}
+.tf-yes{background:var(--mastered);box-shadow:0 6px 0 var(--mastered-tx)}
+
+/* Kết quả: từ cần ôn lại */
+.vr-wrong{display:flex;flex-direction:column;gap:10px}
+.vr-wrong h3{margin:6px 0 0;font-size:.76rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.vr-words{display:flex;flex-wrap:wrap;gap:8px}
+.vr-word{background:var(--weak-bg);color:var(--weak-tx);border-radius:999px;padding:6px 12px;font-size:.86rem}
+.vr-word b{color:var(--ink)}
+
+/* Báo cáo: từ vựng con hay sai */
+.trouble{background:#fff;border:1px solid var(--border);border-radius:18px;padding:14px 16px}
+.trouble h3{margin:0;font-size:.82rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);font-weight:800}
+.trouble-list{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column}
+.trouble-list li{display:flex;flex-direction:column;gap:2px;padding:9px 0;border-top:1px solid var(--line)}
+.trouble-list li:first-child{border-top:0}
+.tr-top b{font-size:1rem}
+.tr-mean{color:var(--ink-soft);font-size:.9rem}
+.tr-info{font-size:.78rem;color:var(--weak-tx)}

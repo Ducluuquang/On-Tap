@@ -7,7 +7,8 @@ import logoRow from './assets/logo-row.png'
 // làm sai lúc nào cũng hiện: con chọn gì · đáp án đúng · VÌ SAO sai.
 // picked: đáp án con chọn/gõ (null = hết giờ chưa chọn) · correct: đáp án đúng
 // why: lý do riêng cho câu con trả lời (AI chấm bài tự gõ) · explain: lời giải của câu hỏi.
-export function WrongWhy({ picked, correct, explain = '', why = '', pickedLabel = 'Con chọn' }) {
+// lines: (tuỳ chọn) nhiều dòng giải thích — dùng cho trò chơi từ vựng (chỉ đúng chữ sai, mẹo nhớ…).
+export function WrongWhy({ picked, correct, explain = '', why = '', pickedLabel = 'Con chọn', lines: more = null }) {
   const ref = useRef(null)
   // Tự cuộn cho con THẤY phần giải thích + nút đi tiếp (không bị khuất dưới màn hình).
   useEffect(() => {
@@ -21,6 +22,7 @@ export function WrongWhy({ picked, correct, explain = '', why = '', pickedLabel 
   const lines = []
   if (w) lines.push(w)
   if (ex && ex !== w) lines.push(ex)
+  for (const t of Array.isArray(more) ? more : []) { const s = String(t || '').trim(); if (s && !lines.includes(s)) lines.push(s) }
   // Dự phòng (hiếm): câu hỏi không kèm lời giải -> vẫn nói rõ đúng/sai ở đâu.
   if (!lines.length) lines.push(p ? `Đáp án đúng là “${c}”, không phải “${p}”. Con đọc kỹ lại câu hỏi và so sánh hai đáp án nhé.` : `Đáp án đúng là “${c}”.`)
   return (

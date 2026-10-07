@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { BackHeader, WrongWhy } from '../components.jsx'
+import { nowTs, isStaleEnter } from '../lib/keys.js'
 import { recordAnswer } from '../lib/memory.js'
 import { createActiveTimer } from '../lib/stats.js'
 import { CONCEPT_NAME } from '../data/content.js'
@@ -12,11 +13,12 @@ export default function Review({ questions, mem, title = 'Ôn tập hôm nay', h
   const [results, setResults] = useState({})
   const [solved, setSolved] = useState(0)
   const timer = useRef(createActiveTimer())
+  const doneAt = useRef(0) // lúc vừa trả lời -> bỏ qua chính cú Enter đã dùng để chọn đáp án
 
   // Nhấn Enter = "Câu tiếp theo" khi đã trả lời xong.
   useEffect(() => {
     if (!resolved) return undefined
-    const onKey = (e) => { if (e.key === 'Enter') { e.preventDefault(); next() } }
+    const onKey = (e) => { if (e.key === 'Enter' && !isStaleEnter(e, doneAt.current)) { e.preventDefault(); next() } }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -38,6 +40,7 @@ export default function Review({ questions, mem, title = 'Ôn tập hôm nay', h
   function choose(i) {
     if (resolved) return
     timer.current.step()
+    doneAt.current = nowTs()
     setPicked(i)
     setResolved(true)
   }

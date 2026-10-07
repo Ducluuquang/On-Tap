@@ -145,6 +145,34 @@ Chỉ JSON.`
   return parseJSON(out)
 }
 
+// SỔ TỪ VỰNG (chốt 6/10/2026): tra MỘT lần cho mỗi từ tiếng Anh trong bài -> các trò chơi từ vựng
+// (Nghe – viết, Xếp chữ, Gõ nghĩa, Đúng hay sai, Điền từ vào câu, Biến đổi từ) chạy NGAY trên máy, không gọi AI nữa.
+// Dùng model CHÍNH XÁC (độ tin cậy là ưu tiên số 1); app còn KIỂM TRA LẠI từng mục (src/lib/vocab.js -> cleanEntry).
+export async function lookupVocab(key, { words = [], topic = '' }) {
+  const list = (Array.isArray(words) ? words : []).map((w) => String(w || '').replace(/\s+/g, ' ').trim().slice(0, 40)).filter(Boolean).slice(0, 12)
+  if (!list.length) return { words: [] }
+  const prompt =
+`Bạn là giáo viên tiếng Anh giỏi, dạy học sinh Việt Nam (lớp 1–12). Lập SỔ TỪ VỰNG cho các từ/cụm từ sau${topic ? ` (bài: "${String(topic).slice(0, 80)}")` : ''}:
+${list.map((w, i) => `${i + 1}. ${w}`).join('\n')}
+Trả về DUY NHẤT JSON:
+{"words":[{"src":"","w":"","mean":[""],"pos":"","ipa":"","ex":"","exVi":"","cloze":{"s":"","a":""},"forms":[{"s":"","root":"","a":"","why":""}],"split":""}]}
+QUY TẮC (CHÍNH XÁC là ưu tiên số 1 — không chắc thì để trống, TUYỆT ĐỐI không bịa):
+- Mỗi từ trong danh sách -> đúng MỘT mục, ĐÚNG THỨ TỰ. "src" chép nguyên văn từ trong danh sách.
+- "w": từ viết ĐÚNG chính tả (sửa lỗi gõ nếu có, vd "beautyful" -> "beautiful"); chữ thường, trừ danh từ riêng (Monday, English…); bỏ "a/an" ở đầu danh từ. "src" không phải từ/cụm tiếng Anh có nghĩa -> "w" để rỗng.
+- "mean": 1–3 nghĩa tiếng Việt THÔNG DỤNG, ngắn (≤6 chữ mỗi nghĩa), đúng như sách giáo khoa; nghĩa hợp với bài học đứng ĐẦU; không giải thích dài; không lặp lại chữ tiếng Anh.
+- "pos": loại từ bằng tiếng Việt (danh từ / động từ / tính từ / trạng từ / giới từ / đại từ / cụm từ…).
+- "ipa": phiên âm IPA kiểu Anh-Anh, dạng /.../.
+- "ex": MỘT câu ví dụ NGẮN (≤12 từ), đơn giản, tự nhiên, ĐÚNG ngữ pháp, có dùng từ "w" (giữ nguyên dạng nếu được). "exVi": dịch câu đó sang tiếng Việt.
+- "cloze": chính câu "ex" nhưng thay CẢ CHỮ chứa từ "w" bằng "___" (đúng MỘT chỗ trống, thay trọn chữ — vd "vegetables" thì "a" = "vegetables", KHÔNG để "___s"; trong câu không còn chữ "w" nào khác); "a" = ĐÚNG chữ đã bị thay. Biết nghĩa thì chỉ có MỘT từ điền được.
+- "forms": CHỈ khi từ có HỌ TỪ thông dụng ở chương trình THCS/THPT (vd success -> successful, successfully, succeed; beauty -> beautiful): 1–2 câu ngắn, mỗi câu có MỘT chỗ "___" cần một dạng KHÁC của từ (khác từ gốc); "root" = từ gốc VIẾT HOA (vd "SUCCESS"); "a" = dạng đúng DUY NHẤT (ngữ cảnh rõ, không thể điền dạng khác); "why" = tiếng Việt ≤20 chữ: chỗ trống cần loại từ gì và vì sao (vd "Sau 'very' và trước danh từ cần tính từ -> successful"). Từ không có họ từ thông dụng (apple, cat…) -> "forms": [].
+- "split": tách từ "w" thành các phần dễ nhớ để viết đúng chính tả, nối bằng dấu "-" (vd "beau-ti-ful", "Wed-nes-day", "break-fast", "be-cause"); ghép các phần lại phải ra ĐÚNG y hệt từ "w". Cụm nhiều chữ hoặc từ quá ngắn (cat, big) -> "".
+Chỉ JSON.`
+  const max = Math.min(6000, 500 + list.length * 300)
+  const out = await ask(key, [{ type: 'text', text: prompt }], max)
+  const data = parseJSON(out)
+  return { words: Array.isArray(data.words) ? data.words : [] }
+}
+
 // Quy tắc đọc/viết số bằng lời cho ĐÚNG CHUẨN (tránh đề mơ hồ như "năm trăm sáu" = 506 hay 560?).
 const NUM_RULE =
 `- Khi ĐỌC/VIẾT số bằng lời: đọc ĐẦY ĐỦ, đúng chuẩn tiếng Việt. Chữ số 0 ở hàng chục phải đọc "linh"/"lẻ" (VD 506 = "năm trăm linh sáu", TUYỆT ĐỐI KHÔNG viết "năm trăm sáu"). Hàng chục khác 0 phải có "mươi" (VD 560 = "năm trăm sáu mươi"). Không đọc tắt gây hiểu nhầm giữa hai số khác nhau.`

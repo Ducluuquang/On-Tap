@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { BackHeader, WrongWhy } from '../components.jsx'
+import { nowTs, isStaleEnter } from '../lib/keys.js'
 import { recordAnswer } from '../lib/memory.js'
 import { createActiveTimer } from '../lib/stats.js'
 import { localMatch } from '../lib/answerMatch.js'
@@ -19,11 +20,12 @@ export default function TypedReview({ questions, mem, title = 'Điền đáp án
   const [results, setResults] = useState({})
   const [solved, setSolved] = useState(0)
   const timer = useRef(createActiveTimer())
+  const doneAt = useRef(0) // lúc có kết quả -> bỏ qua chính cú Enter đã dùng để nộp bài (để con kịp đọc giải thích)
 
   // Nhấn Enter = "Câu tiếp theo" (khi đã có kết quả). Lúc đang gõ, Enter = "Kiểm tra".
   useEffect(() => {
     if (!resolved) return undefined
-    const onKey = (e) => { if (e.key === 'Enter') { e.preventDefault(); next() } }
+    const onKey = (e) => { if (e.key === 'Enter' && !isStaleEnter(e, doneAt.current)) { e.preventDefault(); next() } }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -47,7 +49,7 @@ export default function TypedReview({ questions, mem, title = 'Điền đáp án
     if (resolved || checking || !val.trim()) return
     timer.current.step()
     // Lớp 1: so khớp trên máy (tức thì)
-    if (localMatch(val, correctText)) { setOk(true); setNote(''); setResolved(true); return }
+    if (localMatch(val, correctText)) { doneAt.current = nowTs(); setOk(true); setNote(''); setResolved(true); return }
     // Lớp 2: nhờ AI chấm cùng nghĩa
     setChecking(true)
     try {
@@ -56,6 +58,7 @@ export default function TypedReview({ questions, mem, title = 'Điền đáp án
     } catch {
       setOk(false); setNote('') // AI chưa sẵn sàng — coi như chưa đúng, vẫn hiện đáp án mẫu
     }
+    doneAt.current = nowTs()
     setChecking(false); setResolved(true)
   }
 

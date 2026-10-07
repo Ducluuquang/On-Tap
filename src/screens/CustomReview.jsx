@@ -40,9 +40,9 @@ function needReviewCount(list) {
   return (list || []).filter((c) => (c.reviews || 0) === 0 || (c.mastery || 0) < 80).length
 }
 
-export default function CustomReview({ mem, onStart, onBack, allowChoice = true }) {
+export default function CustomReview({ mem, onStart, onBack, allowChoice = true, onVocab, initialSubject = null }) {
   const subjectList = subjectsFromMem(mem)
-  const [subject, setSubject] = useState(subjectList[0]?.name || 'Toán')
+  const [subject, setSubject] = useState(() => (initialSubject && subjectList.some((s) => s.name === initialSubject) ? initialSubject : subjectList[0]?.name || 'Toán'))
   const [time, setTime] = useState('all')
   const [level, setLevel] = useState('weak')
   const [text, setText] = useState('')
@@ -157,6 +157,17 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true 
             })}
           </div>
         </div>
+
+        {isEnglish && onVocab && (
+          <button className="cr-vocab" onClick={onVocab}>
+            <span className="cr-vocab-ic">🔤</span>
+            <span className="cr-vocab-body">
+              <b>Trò chơi từ vựng</b>
+              <em>Nghe – viết · Xếp chữ · Gõ nghĩa · Điền từ…</em>
+            </span>
+            <span className="cr-vocab-go">→</span>
+          </button>
+        )}
 
         {isEnglish && (
           <div className="cr-sec">

@@ -2,8 +2,9 @@ import { statusOf } from '../lib/memory.js'
 import { fmt } from '../lib/num.js'
 import { StatusPill } from '../components.jsx'
 
-export default function Result({ session, onHome, onReport }) {
+export default function Result({ session, onHome, onReport, onRetryWrong, onMoreGames }) {
   const { total, correct, deltas } = session
+  const vocab = session.vocab || null // lượt TRÒ CHƠI TỪ VỰNG (có danh sách từ con làm sai)
   const pct = Math.round((correct / total) * 100)
   const msg =
     pct >= 80 ? 'Tuyệt vời! Con nhớ bài rất tốt.' :
@@ -32,10 +33,28 @@ export default function Result({ session, onHome, onReport }) {
         <div className="streak-up">🔥 Chuỗi ngày +1</div>
       </div>
 
+      {vocab && vocab.wrong && vocab.wrong.length > 0 && (
+        <section className="vr-wrong">
+          <h3>Từ cần ôn lại</h3>
+          <div className="vr-words">
+            {vocab.wrong.map((x) => (
+              <span key={x.key} className="vr-word"><b>{x.w}</b> {x.mean}</span>
+            ))}
+          </div>
+          {onRetryWrong && (
+            <button className="cta" onClick={onRetryWrong}>
+              {vocab.game === 'truefalse' ? `✍️ Gõ nghĩa ${vocab.wrong.length} từ vừa chọn sai` : `🔁 Làm lại ${vocab.wrong.length} từ sai`}
+            </button>
+          )}
+        </section>
+      )}
+
       <section className="deltas">
         <h3>Thay đổi hôm nay</h3>
         {(!deltas || deltas.length === 0) && (
-          <p className="deltas-empty">Buổi này là ôn chung, chưa gắn với chủ đề cụ thể trong bản đồ kiến thức. Số câu đúng/sai vẫn được ghi vào báo cáo theo ngày.</p>
+          <p className="deltas-empty">{vocab && vocab.warmup
+            ? 'Đây là trò khởi động — không tính vào % thuộc bài. Từ nào con chọn sai sẽ được đưa lại trong các trò từ vựng khác.'
+            : 'Buổi này là ôn chung, chưa gắn với chủ đề cụ thể trong bản đồ kiến thức. Số câu đúng/sai vẫn được ghi vào báo cáo theo ngày.'}</p>
         )}
         {(deltas || []).map((d) => {
           const diff = d.after - d.before
@@ -54,6 +73,7 @@ export default function Result({ session, onHome, onReport }) {
         })}
       </section>
 
+      {vocab && onMoreGames && <button className="ghost" onClick={onMoreGames}>🎮 Chơi trò từ vựng khác</button>}
       <button className="cta" onClick={onHome}>Về trang chủ</button>
       <button className="ghost" onClick={onReport}>📊 Xem báo cáo học tập</button>
     </div>

@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { BackHeader, StatusPill, MasteryBar, RewardTrack } from '../components.jsx'
 import { conceptStatusList } from '../lib/mockAI.js'
 import { last7, totalMinutes, todayMinutes, streakDays, dayReport } from '../lib/stats.js'
-import { subjectDisplayName, subjectIcon } from '../lib/subjects.js'
+import { subjectDisplayName, subjectIcon, subjectKey } from '../lib/subjects.js'
 import { iconFor } from '../lib/icons.js'
 import { isVocabGroup } from '../lib/topics.js'
+import { loadVStats, troubleWords } from '../lib/vocab.js'
 import logoMark from '../assets/logo-mark.png'
 
 const WD = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
@@ -90,6 +91,9 @@ export default function ParentDashboard({ mem, stats, child, kids = [], onViewCh
   // Nhật ký theo ngày, lọc theo môn đang xem.
   const reportAll = dayReport(stats, selDay)
   const report = activeSubj === 'all' ? reportAll : reportAll.filter((r) => subjectDisplayName(r.subject) === activeSubj)
+  // TỪ VỰNG CON HAY SAI (từ trò chơi từ vựng) — chỉ hiện khi xem Tất cả hoặc môn Tiếng Anh.
+  const trouble = troubleWords(loadVStats(), 8)
+  const showTrouble = trouble.length > 0 && (activeSubj === 'all' || subjectKey(activeSubj) === 'tieng-anh')
 
   return (
     <div className="screen">
@@ -169,6 +173,23 @@ export default function ParentDashboard({ mem, stats, child, kids = [], onViewCh
           ))
         )}
       </div>
+
+      {showTrouble && (
+        <section className="trouble">
+          <h3>{isKid ? '📝 Từ mình hay sai' : '📝 Từ vựng con hay sai'}</h3>
+          <p className="cr-hint">{isKid
+            ? 'Ôn lại các từ này trong “Trò chơi từ vựng” nhé — làm đúng nhiều lần là từ sẽ rời khỏi danh sách.'
+            : 'Các từ tiếng Anh con làm sai gần đây (6 lần làm gần nhất). App tự đưa lại các từ này trong trò chơi từ vựng.'}</p>
+          <ul className="trouble-list">
+            {trouble.map((t) => (
+              <li key={t.key}>
+                <span className="tr-top"><b>{t.w || t.key}</b>{t.mean ? <span className="tr-mean"> — {t.mean}</span> : null}</span>
+                <span className="tr-info">sai {t.wrong6}/{t.tries6} lần gần nhất{t.miss ? <> · lần sai gần nhất: “{t.miss}”</> : null}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="kmap">
         <h3>Bản đồ kiến thức</h3>
