@@ -887,7 +887,7 @@ export default function App() {
   return (
     <div className="stage">
       <div className="demoswitch">
-        <span className="ds-label">Bản demo · xem với vai:</span>
+        {/* Bỏ dòng chữ "Bản demo · xem với vai:" (12/10/2026) — giữ nút Con/Phụ huynh, Đổi người học, Cài đặt, Đăng xuất. */}
         <div className="ds-seg">
           <button className={role === 'child' ? 'on' : ''} onClick={() => switchRole('child')}>Con</button>
           <button className={role === 'parent' ? 'on' : ''} onClick={() => switchRole('parent')}>Phụ huynh</button>
