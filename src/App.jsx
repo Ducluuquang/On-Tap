@@ -874,7 +874,6 @@ export default function App() {
         slogan={settings.slogan || ''}
         onSetSlogan={(s) => setSettings((x) => ({ ...x, slogan: s }))}
         onReview={() => { setCrSubject(null); setView('custom') }} onCapture={() => setView('capture')}
-        vocabWords={collectWords(vocabGroupsOf(mem)).length} onVocab={() => openVocab('home')}
         onReport={() => setView('report')} onSwitchChild={switchChild} />
     }
   } else {

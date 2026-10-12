@@ -6,7 +6,8 @@ import { iconFor } from '../lib/icons.js'
 
 const SLOGAN_HINT = 'Mục tiêu hay khẩu hiệu học tập của con'
 
-export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSlogan, onReview, onCapture, onReport, onSwitchChild, vocabWords = 0, onVocab }) {
+// Trò chơi từ vựng: KHÔNG đặt thẻ riêng ở trang chủ (chốt 12/10/2026) — vào qua "Bắt đầu ôn" → Tiếng Anh.
+export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSlogan, onReview, onCapture, onReport, onSwitchChild }) {
   const streak = stats ? streakDays(stats) : 0
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(slogan)
@@ -75,18 +76,6 @@ export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSl
           </span>
           <span className="hc-go">→</span>
         </button>
-
-        {/* Có từ vựng tiếng Anh -> lối vào thẳng 6 trò chơi từ vựng */}
-        {onVocab && vocabWords > 0 && (
-          <button className="home-card" onClick={onVocab}>
-            <span className="hc-ic">🔤</span>
-            <span className="hc-body">
-              <b>Trò chơi từ vựng</b>
-              <em>{vocabWords} từ tiếng Anh · nghe – viết, xếp chữ, gõ nghĩa…</em>
-            </span>
-            <span className="hc-go">→</span>
-          </button>
-        )}
 
         <button className="home-card" onClick={onCapture}>
           <span className="hc-ic">📸</span>
