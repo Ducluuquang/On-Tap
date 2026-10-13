@@ -35,9 +35,12 @@ body{
 
 /* Stage + demo switch */
 .stage{min-height:100vh;display:flex;flex-direction:column;align-items:center;gap:14px;padding:22px 14px 40px}
-.demoswitch{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center}
+/* Thanh trên cùng: RỘNG ĐÚNG BẰNG khung màn hình bên dưới (thẳng mép trái/phải) — chốt 13/10/2026.
+   Con/Phụ huynh bên trái · Đổi người học + Đăng xuất bên phải. Màn hẹp: chữ/đệm thu nhỏ để vẫn một hàng. */
+.demoswitch{width:100%;max-width:430px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;column-gap:clamp(4px,1.4vw,8px);row-gap:8px}
+.ds-actions{display:flex;align-items:center;gap:clamp(4px,1.4vw,8px);margin-left:auto} /* màn quá hẹp mới xuống hàng, vẫn sát mép phải */
 .ds-seg{display:flex;background:#fff;border:1px solid var(--border);border-radius:999px;padding:3px;box-shadow:0 2px 8px rgba(20,33,46,.05)}
-.ds-seg button{border:0;background:transparent;cursor:pointer;font-family:inherit;font-weight:600;font-size:.86rem;color:var(--muted);padding:7px 18px;border-radius:999px;transition:.15s}
+.ds-seg button{border:0;background:transparent;cursor:pointer;font-family:inherit;font-weight:600;font-size:clamp(.78rem,3.5vw,.86rem);color:var(--muted);padding:7px clamp(8px,2.4vw,15px);border-radius:999px;transition:.15s;white-space:nowrap}
 .ds-seg button.on{background:var(--teal);color:#fff}
 
 /* Phone frame */
@@ -361,7 +364,7 @@ select.auth-in{appearance:auto;cursor:pointer}
 .auth .err{margin-top:2px}
 
 /* logout in demo switch */
-.ds-logout{border:1px solid var(--border);background:#fff;color:var(--muted);cursor:pointer;font-family:inherit;font-weight:600;font-size:.82rem;padding:7px 14px;border-radius:999px;transition:.15s}
+.ds-logout{border:1px solid var(--border);background:#fff;color:var(--muted);cursor:pointer;font-family:inherit;font-weight:600;font-size:clamp(.76rem,3.3vw,.82rem);padding:7px clamp(8px,2.2vw,13px);border-radius:999px;transition:.15s;white-space:nowrap}
 .ds-logout:hover{border-color:var(--weak);color:var(--weak-tx)}
 
 /* ===== Home action cards (2 mục) ===== */

@@ -885,15 +885,17 @@ export default function App() {
 
   return (
     <div className="stage">
+      {/* Thanh trên cùng (chốt 13/10/2026): rộng ĐÚNG BẰNG khung màn hình bên dưới, thẳng mép trái/phải.
+          Bỏ chữ "Bản demo" (12/10), bỏ nút ⚙️ (Cài đặt nằm trong tab Phụ huynh), bỏ mũi tên "↔". */}
       <div className="demoswitch">
-        {/* Bỏ dòng chữ "Bản demo · xem với vai:" (12/10/2026) — giữ nút Con/Phụ huynh, Đổi người học, Cài đặt, Đăng xuất. */}
         <div className="ds-seg">
           <button className={role === 'child' ? 'on' : ''} onClick={() => switchRole('child')}>Con</button>
           <button className={role === 'parent' ? 'on' : ''} onClick={() => switchRole('parent')}>Phụ huynh</button>
         </div>
-        {activeChild && <button className="ds-logout" onClick={switchChild} title="Đổi người học">↔ Đổi người học</button>}
-        <button className="ds-logout" onClick={() => askParent(() => setView('settings'))} title="Cài đặt (phụ huynh)">⚙️</button>
-        <button className="ds-logout" onClick={logout} title="Đăng xuất">Đăng xuất</button>
+        <div className="ds-actions">
+          {activeChild && <button className="ds-logout" onClick={switchChild} title="Đổi người học">Đổi người học</button>}
+          <button className="ds-logout" onClick={logout} title="Đăng xuất">Đăng xuất</button>
+        </div>
       </div>
       <div className="phone">{screen}{gateModal}</div>
     </div>

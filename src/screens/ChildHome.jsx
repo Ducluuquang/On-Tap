@@ -35,7 +35,7 @@ export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSl
       {child && (
         <div className="who-row">
           <span className="who-pill">{iconFor(child)} {child.name}{child.grade ? ` · ${child.grade}` : ''}</span>
-          {onSwitchChild && <button className="who-switch" onClick={onSwitchChild}>↔ Đổi người học</button>}
+          {onSwitchChild && <button className="who-switch" onClick={onSwitchChild}>Đổi người học</button>}
         </div>
       )}
 
