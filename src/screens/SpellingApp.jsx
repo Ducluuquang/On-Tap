@@ -6,7 +6,7 @@ import { spellingUrl } from '../lib/spelling.js'
 // - Nút "‹" ở trang chính của Vở Spelling -> về lại "Bắt đầu ôn" (môn Tiếng Anh).
 // - Xong mỗi lượt chơi, Vở Spelling báo số câu, số câu đúng và thời gian học -> Ôn Tập ghi vào
 //   báo cáo + mục tiêu mỗi ngày của con (như các trò ôn tập khác).
-export default function SpellingApp({ childId, onExit, onSession }) {
+export default function SpellingApp({ child, onExit, onSession }) {
   const ref = useRef(null)
   const [top, setTop] = useState(null)
   const cb = useRef({ onExit, onSession })
@@ -48,7 +48,7 @@ export default function SpellingApp({ childId, onExit, onSession }) {
     <iframe
       ref={ref}
       className="spelling-frame"
-      src={spellingUrl(childId)}
+      src={spellingUrl(child)}
       title="Vở Spelling — trò chơi từ vựng"
       style={top != null ? { '--sp-top': top + 'px' } : undefined}
     />

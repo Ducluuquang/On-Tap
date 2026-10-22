@@ -1,0 +1,60 @@
+/* Ôn Tập: THI ĐẤU TỪ VỰNG (22/10/2026) — giao diện theo màu của Vở Spelling. */
+.arena-entry{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px 14px;border-radius:16px;border:1.5px solid var(--accent);background:var(--accent-soft);color:var(--ink);box-shadow:var(--shadow);min-width:0}
+.arena-entry:hover{transform:translateY(-1px)}
+.arena-entry .ae-ic{font-size:1.6rem;width:44px;height:44px;display:grid;place-items:center;border-radius:12px;background:var(--sheet);flex:none}
+.arena-entry .ae-body{display:grid;gap:2px;flex:1;min-width:0}
+.arena-entry b{font-size:1.05rem;color:var(--accent-strong)}
+.arena-entry em{font-style:normal;font-size:.82rem;line-height:1.35;color:var(--ink-soft)}
+.arena-entry .ae-go{font-size:1.6rem;line-height:1;color:var(--accent);font-weight:700}
+.page.arena{gap:14px}
+.ar-who{margin:0;color:var(--ink-soft)}
+.ar-cards{display:grid;gap:10px}
+.ar-card{display:grid;grid-template-columns:44px minmax(0,1fr);column-gap:12px;row-gap:2px;align-items:center;text-align:left;padding:14px;border-radius:14px;border:1px solid var(--line);background:var(--sheet);box-shadow:var(--shadow);min-width:0}
+.ar-card:hover{border-color:var(--accent)}
+.ar-card[disabled]{opacity:.6;pointer-events:none}
+.ar-card .ar-ic{grid-row:1 / span 2;font-size:1.7rem;width:44px;height:44px;display:grid;place-items:center;border-radius:12px;background:var(--panel)}
+.ar-card b{font-size:1.02rem}
+.ar-card em{font-style:normal;font-size:.84rem;color:var(--ink-soft);line-height:1.4}
+.ar-codein{font-family:var(--font-word);font-size:1.8rem;font-weight:700;letter-spacing:.3em;text-align:center}
+.ar-code{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 14px;border-radius:14px;background:var(--sheet);border:2px dashed var(--accent)}
+.ar-code .lbl{width:100%}
+.ar-digits{font-family:var(--font-word);font-size:2.1rem;line-height:1.1;letter-spacing:.1em;color:var(--accent-strong);flex:1;white-space:nowrap}
+.ar-players{display:grid;gap:6px;margin-top:8px}
+.ar-pl{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:10px;background:var(--panel);min-width:0}
+.ar-pl.me{box-shadow:inset 0 0 0 2px var(--accent-soft)}
+.ar-pl.off{opacity:.55}
+.ar-ava{font-size:1.25rem;width:28px;text-align:center;flex:none}
+.ar-nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.ar-tag{font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--sheet);color:var(--ink-soft);border:1px solid var(--line);white-space:nowrap;flex:none}
+.ar-tag.off{color:var(--red)}
+.ai-tag{font-style:normal;font-family:var(--font-body);font-size:.66rem;font-weight:800;letter-spacing:.06em;padding:1px 6px;border-radius:6px;background:var(--ink);color:var(--paper);margin-left:6px;vertical-align:2px}
+.ar-set .field{margin-top:12px}
+.ar-set .field:first-of-type{margin-top:8px}
+.ar-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.ar-sug{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:4px 10px;font-size:.8rem;color:var(--ink-soft)}
+.ar-sug:hover{border-color:var(--accent);color:var(--accent)}
+.ar-rule{margin-top:8px;font-size:.86rem;color:var(--accent);font-weight:600;line-height:1.4}
+.ar-kv{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:.92rem}
+.ar-kv:last-child{border-bottom:0}
+.ar-kv span{color:var(--muted);flex:none}
+.ar-kv b{text-align:right;overflow-wrap:anywhere}
+.ar-wait,.ar-done,.ar-champ{display:grid;gap:10px;justify-items:center;text-align:center}
+.ar-spin{font-size:2.6rem;line-height:1;animation:arspin 1.8s linear infinite}
+@keyframes arspin{to{transform:rotate(360deg)}}
+.ar-clock{font-family:var(--font-display);font-size:2.4rem;line-height:1;color:var(--accent);font-variant-numeric:tabular-nums}
+.ar-count{display:grid;justify-items:center;gap:6px;text-align:center;padding:18px 0 6px}
+.ar-big{font-family:var(--font-display);font-size:5.2rem;line-height:1;color:var(--accent)}
+.ar-rinfo{font-size:1.05rem}
+.ar-board{display:grid;gap:6px}
+.ar-row{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;background:var(--sheet);border:1px solid var(--line);min-width:0}
+.ar-row .pos{width:26px;text-align:center;font-weight:800;flex:none}
+.ar-row .pts{margin-left:auto;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;flex:none}
+.ar-row.me{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.arena-bar{position:sticky;top:62px;z-index:15;display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 10px;border-radius:12px;background:var(--sheet);border:1px solid var(--line);box-shadow:var(--shadow)}
+.ab-time{font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums;margin-right:2px}
+.ab-time.hot{color:var(--red)}
+.ab-p{font-size:.8rem;padding:2px 8px;border-radius:999px;background:var(--panel);white-space:nowrap}
+.ab-p.me{background:var(--accent-soft);color:var(--accent-strong);font-weight:700}
+.ar-final .ar-crown{font-size:4.2rem;line-height:1;animation:pop .6s ease}
+.ar-winner{font-family:var(--font-display);font-size:2rem;line-height:1.15;color:var(--accent-strong);overflow-wrap:anywhere}
+.ar-net{color:var(--red)}

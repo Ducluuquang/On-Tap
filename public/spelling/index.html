@@ -8,7 +8,9 @@
      - Không đăng nhập riêng: mỗi con có kho từ, lịch ôn, cài đặt riêng trên máy (khoá ontap.spelling.v1::<id con>)
      - AI gọi /api/spelling (khoá AI nằm ở máy chủ Ôn Tập); lời nhắc ôn trên lịch: /api/ics
      - Luôn dùng giao diện sáng (data-theme="light") cho hợp với Ôn Tập
-     - Bỏ manifest/biểu tượng cài app: trang này không cài riêng ra màn hình chính -->
+     - Bỏ manifest/biểu tượng cài app: trang này không cài riêng ra màn hình chính
+     - THI ĐẤU (22/10/2026): arena.css + arena.js (máy chủ /api/arena); trang này chỉ thêm vài móc ghi "Ôn Tập: thi đấu" -->
+<!-- Ôn Tập: ?child=<id con>&name=<tên>&icon=<biểu tượng>&grade=<lớp> — tên + biểu tượng hiện cho các bạn cùng phòng thi -->
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="description" content="10 trò chơi đánh vần tiếng Anh trên bộ từ của con: gõ từ, nhập chủ đề hoặc chụp vở.">
 <meta name="robots" content="noindex">
@@ -447,6 +449,9 @@ body::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none
   background-image:linear-gradient(var(--rule-strong) 1px,transparent 1px),linear-gradient(90deg,var(--rule-strong) 1px,transparent 1px),linear-gradient(var(--rule) 1px,transparent 1px);
   background-size:32px 32px,32px 32px,100% 8px}
 </style>
+<!-- Ôn Tập: phần THI ĐẤU (22/10/2026) nằm ở arena.css + arena.js, chỉ móc vào trang này vài chỗ ghi "Ôn Tập: thi đấu". -->
+<link rel="stylesheet" href="arena.css">
+<script src="arena.js"></script>
 </head>
 <body>
 <header class="topbar"><div class="in">
@@ -469,6 +474,9 @@ const IN_ONTAP = typeof window !== "undefined" && window.VS_HOST === "ontap";
 const ONTAP_CHILD = (() => {
   if (!IN_ONTAP) return "";
   try { return new URLSearchParams(location.search).get("child") || localStorage.getItem("ontap.activechild.v1") || ""; } catch { return ""; }
+})();
+const ONTAP_INFO = (() => {   // Ôn Tập: tên, biểu tượng, lớp của con — dùng cho phần Thi đấu
+  try { const q = new URLSearchParams(location.search); return { name: q.get("name") || "", icon: q.get("icon") || "", grade: q.get("grade") || "" }; } catch { return { name: "", icon: "", grade: "" }; }
 })();
 const KEY_DATA = IN_ONTAP ? "ontap.spelling.v1" + (ONTAP_CHILD ? "::" + ONTAP_CHILD : "") : "vs.data";
 const KEY_PREFS = IN_ONTAP ? "ontap.spellingprefs.v1" + (ONTAP_CHILD ? "::" + ONTAP_CHILD : "") : "vs.prefs";
@@ -1084,6 +1092,7 @@ function render() {
   else if (S.view === "plan") v.innerHTML = planHtml();
   else if (S.view === "login") v.innerHTML = loginHtml();
   else if (S.view === "import") v.innerHTML = importHtml();
+  else if (S.view === "arena" && window.Arena) Arena.render(v);   // Ôn Tập: thi đấu
   updateStorePill();
   ontapTopbar();
 }
@@ -1158,7 +1167,7 @@ function homeHtml() {
     </section>`;
   }
   const games = GAME_LIST.map(g => gameCardHtml(g, set)).join("");
-  return `<div class="home"><div class="leftcol">${reviewCardHtml()}${left}</div><section class="games" aria-label="Trò chơi"><h2>Chọn trò chơi</h2><div class="ggrid">${games}</div></section></div>`;
+  return `<div class="home"><div class="leftcol">${window.Arena ? Arena.entryHtml() : ""}${reviewCardHtml()}${left}</div><section class="games" aria-label="Trò chơi"><h2>Chọn trò chơi</h2><div class="ggrid">${games}</div></section></div>`;
 }
 function gameCardHtml(g, set) {
   const n = set ? set.words.filter(w => !g.filter || g.filter(w)).length : 0;
@@ -1568,10 +1577,10 @@ function startGame(gid, opts) {
     <div class="stage" id="g-stage"></div>
   </div>`;
   const ctx = {
-    def, set, words, items: [], cleanups: [], stage: $("#g-stage"), cur: null, keyFn: null, review: !!opts.review,
+    def, set, words, items: [], cleanups: [], stage: $("#g-stage"), cur: null, keyFn: null, review: !!opts.review, arena: opts.arena || null,
     hud(t) { const h = $("#g-hud"); if (h) h.textContent = t; },
     progress(i, n) { const b = $("#g-bar"); if (b) b.style.width = Math.round(100 * i / Math.max(1, n)) + "%"; },
-    record(w, credit, typed, track) { this.items.push({ w, credit, typed: typed || "", track: track !== false }); },
+    record(w, credit, typed, track) { this.items.push({ w, credit, typed: typed || "", track: track !== false }); if (this.arena) this.arena.onRecord(this, w, credit); },
     later(fn, ms) { const t = setTimeout(() => { if (G === ctx) fn(); }, ms); this.cleanups.push(() => clearTimeout(t)); return t; },
     finish(extra) { finishGame(ctx, extra || {}); },
   };
@@ -1590,6 +1599,7 @@ function startGame(gid, opts) {
 
 function finishGame(ctx, extra) {
   if (G !== ctx) return;
+  if (ctx.arena) { studyStep(); const sec = Math.round(STUDY.sec); leaveGame(); ctx.arena.onPlayDone(ctx, extra || {}, sec); return; }   // Ôn Tập: thi đấu
   let score = extra.score;
   if (score == null) {
     const total = ctx.items.length || 1, credits = ctx.items.reduce((a, b) => a + b.credit, 0);
@@ -3215,7 +3225,7 @@ document.addEventListener("click", e => {
   if (!t || !t.closest) return;
   if (t.closest("#exitbtn")) { closeSettings(); ontapPost({ action: "exit" }); return; }   // Ôn Tập: về lại Ôn Tập
   if (t.closest("#setbtn") || t.closest("#userchip")) { const p = $("#settings"); if (p.hidden) openSettings(); else closeSettings(); return; }
-  if (t.closest("#brand")) { if (S.view !== "login" && S.view !== "import") go("home"); return; }
+  if (t.closest("#brand")) { if (G && G.arena && window.Arena) { Arena.quit(); return; } if (S.view !== "login" && S.view !== "import") go("home"); return; }   // Ôn Tập: thi đấu
   if (t.closest("#p-logout")) { logout(); return; }
   const lgtab = t.closest("[data-lgtab]");
   if (lgtab) { ACC.tab = lgtab.dataset.lgtab; ACC.error = ""; render(); return; }
@@ -3242,7 +3252,7 @@ document.addEventListener("click", e => {
   const act = t.closest("[data-act]");
   if (act) {
     const a = act.dataset.act;
-    if (a === "home") go("home");
+    if (a === "home") { if (G && G.arena && window.Arena) Arena.quit(); else go("home"); }   // Ôn Tập: thi đấu
     else if (a === "sets") go("sets");
     else if (a === "new" && canWrite()) { S.create = newCreate(act.dataset.mode); go("create"); }
     else if (a === "edit") { const s = curSet(); if (s) { S.create = editCreate(s); go("create"); } }
@@ -3358,6 +3368,7 @@ function start(data) {
   try { if (data && data.setId) S.setId = data.setId; } catch {}
   $("#setbtn").innerHTML = ICON.gear;
   if (IN_ONTAP) $("#exitbtn").innerHTML = ICON.back;   // Ôn Tập
+  if (IN_ONTAP && window.Arena) Arena.init();   // Ôn Tập: thi đấu
   TTS.init();
   render();
   connectStore();

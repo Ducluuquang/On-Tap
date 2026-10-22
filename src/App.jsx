@@ -708,7 +708,7 @@ export default function App() {
       screen = <CustomReview mem={mem} allowChoice={settings.allowChoice} initialSubject={crSubject} onStart={startReview} onBack={() => setView('home')}
         onVocab={openSpelling} />
     } else if (view === 'spelling') {
-      screen = <SpellingApp key={activeChild.id} childId={activeChild.id} onExit={() => setView('custom')} onSession={recordSpelling} />
+      screen = <SpellingApp key={activeChild.id} child={activeChild} onExit={() => setView('custom')} onSession={recordSpelling} />
     } else if (view === 'review') {
       screen = genOrScreen(<Review questions={reviewQuestions} mem={mem} title={reviewTitle} onFinish={handleFinish} onExit={() => setView('home')} />)
     } else if (view === 'typed') {

@@ -4,12 +4,13 @@
 // Ôn Tập con không đăng nhập riêng. Khoá ANTHROPIC_API_KEY nằm ở máy chủ, trình duyệt không bao giờ thấy.
 // GET  /api/spelling -> { ok, ai }  (trang kiểm tra máy chủ có khoá AI chưa)
 // POST /api/spelling -> trả lời của AI, gửi dần từng đoạn chữ (mỗi dòng một JSON)
+// (LEVELS, promptTopic, API_URL, DEFAULT_MODEL cũng được api/arena.mjs — phần Thi đấu — dùng chung.)
 "use strict";
 /* ---------- Prompts (shared by the page and the server) ---------- */
 /* Levels: Vietnam's school stages, then the CEFR / IELTS bands, up to SAT/GRE.
    The school stages follow the 2018 curriculum targets (end of primary A1, lower secondary A2, upper secondary B1).
    kids: the list is for a child, so "advanced" words must stay child-friendly and sentences stay short. */
-const LEVELS = [
+export const LEVELS = [
   { id: "k12", group: "school", label: "Lớp 1–2 · mới bắt đầu", kids: true, who: "child",
     desc: "young beginners aged 6–8 (pre-A1): very common, concrete, short words (mostly 3–6 letters)" },
   { id: "k35", group: "school", label: "Lớp 3–5 · tiểu học (A1)", kids: true, who: "child",
@@ -37,7 +38,7 @@ const KIND_ASK = {
   advanced: "more advanced English words for this topic: less common, richer vocabulary that a strong learner at this level could learn next",
   idioms: "English idioms or fixed expressions related to this topic that these learners can understand and use",
 };
-function promptTopic(topic, level, count, kind, avoid) {
+export function promptTopic(topic, level, count, kind, avoid) {
   kind = KIND_ASK[kind] ? kind : "common";
   const idioms = kind === "idioms", kids = !!level.kids;
   const ask = KIND_ASK[kind] + (kids && kind === "advanced" ? ", still suitable for children" : "") + (kids && idioms ? " (common ones)" : "");
@@ -161,8 +162,8 @@ async function readBody(req) {
 const clean = (v, n) => String(v == null ? "" : v).replace(/[\r\n\t]+/g, " ").trim().slice(0, n);
 
 /* ---------- Server ---------- */
-const API_URL = "https://api.anthropic.com/v1/messages";
-const DEFAULT_MODEL = "claude-sonnet-5-5";
+export const API_URL = "https://api.anthropic.com/v1/messages";
+export const DEFAULT_MODEL = "claude-sonnet-5-5";
 
 /* The page sends what it needs ("topic", "enrich", "photo"); the prompt is always built here,
    so the endpoint cannot be used as a general chat proxy for the API key. */
