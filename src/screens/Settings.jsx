@@ -125,7 +125,7 @@ export default function Settings({ account, settings, stats, unlocked = false, c
             <button className="cta small ghost" onClick={() => setConfirmReset(true)}>🗑️ Xoá hết dữ liệu &amp; làm lại từ đầu</button>
           ) : (
             <>
-              <p className="cr-hint">Xoá toàn bộ bản đồ kiến thức, báo cáo, thời gian học của <b>{childName || 'con'}</b> và bắt đầu lại từ số 0. Các con khác không bị ảnh hưởng. Không hoàn tác được.</p>
+              <p className="cr-hint">Xoá toàn bộ bản đồ kiến thức, báo cáo, thời gian học, bộ từ và lịch ôn của trò chơi từ vựng của <b>{childName || 'con'}</b> và bắt đầu lại từ số 0. Các con khác không bị ảnh hưởng. Không hoàn tác được.</p>
               <div className="modal-btns">
                 <button className="cta small ghost" onClick={() => setConfirmReset(false)}>Huỷ</button>
                 <button className="cta small danger" onClick={() => { setConfirmReset(false); openPin(null, 'reset') }}>Xoá &amp; làm lại</button>

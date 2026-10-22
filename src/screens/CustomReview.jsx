@@ -163,7 +163,7 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true,
             <span className="cr-vocab-ic">🔤</span>
             <span className="cr-vocab-body">
               <b>Trò chơi từ vựng</b>
-              <em>Nghe – viết · Xếp chữ · Gõ nghĩa · Điền từ…</em>
+              <em>Vở Spelling: 10 trò đánh vần tiếng Anh</em>
             </span>
             <span className="cr-vocab-go">→</span>
           </button>
