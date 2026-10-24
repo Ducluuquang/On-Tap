@@ -9,7 +9,8 @@
      - AI gọi /api/spelling (khoá AI nằm ở máy chủ Ôn Tập); lời nhắc ôn trên lịch: /api/ics
      - Luôn dùng giao diện sáng (data-theme="light") cho hợp với Ôn Tập
      - Bỏ manifest/biểu tượng cài app: trang này không cài riêng ra màn hình chính
-     - THI ĐẤU (22/10/2026): arena.css + arena.js (máy chủ /api/arena); trang này chỉ thêm vài móc ghi "Ôn Tập: thi đấu" -->
+     - THI ĐẤU (22/10/2026): arena.css + arena.js (máy chủ /api/arena); trang này chỉ thêm vài móc ghi "Ôn Tập: thi đấu"
+     - SCRABBLE (24/10/2026): scrabble.css + scrabble.js; trò "Xếp câu" (GAMES.sentence) thêm vào danh sách trò -->
 <!-- Ôn Tập: ?child=<id con>&name=<tên>&icon=<biểu tượng>&grade=<lớp> — tên + biểu tượng hiện cho các bạn cùng phòng thi -->
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="description" content="10 trò chơi đánh vần tiếng Anh trên bộ từ của con: gõ từ, nhập chủ đề hoặc chụp vở.">
@@ -264,6 +265,18 @@ button.tile:hover{transform:translateY(-2px)}
 .diff s{color:var(--red);text-decoration-thickness:2px}
 .diff .miss{color:var(--red)}
 .diff u{color:var(--green);text-decoration-thickness:3px;text-underline-offset:4px}
+/* Ôn Tập: trò "Xếp câu" (23/10/2026) — các chữ của câu là thẻ chữ giống quân chữ */
+.sent-ans{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-content:flex-start;min-height:58px;width:100%;max-width:600px;padding:10px;border-radius:14px;background:var(--panel);border:2px dashed var(--line);box-sizing:border-box}
+.sent-bank{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:600px}
+.wc{font-family:var(--font-word);font-weight:700;font-size:clamp(1.05rem,4.2vw,1.35rem);line-height:1.1;padding:6px 12px 9px;border-radius:9px;background:var(--tile);color:var(--tile-ink);box-shadow:inset 0 -4px 0 var(--tile-edge),0 1px 2px rgba(0,0,0,.12);border:0;max-width:100%;overflow-wrap:anywhere}
+button.wc{cursor:pointer;transition:transform .12s}
+button.wc:hover{transform:translateY(-2px)}
+.wc.used{opacity:.18;pointer-events:none}
+.wc.good{background:var(--green-soft);box-shadow:inset 0 -4px 0 var(--green);color:var(--green)}
+.wc.bad{background:var(--red-soft);box-shadow:inset 0 -4px 0 var(--red);color:var(--red)}
+.wc.slot{background:transparent;box-shadow:none;border:2px dashed color-mix(in srgb,var(--accent) 40%,transparent);min-width:42px;min-height:1.1em}
+.sent-art{display:flex;gap:4px;flex-wrap:wrap;justify-content:center}
+.sent-art .wc{font-size:.85rem;padding:3px 7px 5px}
 .bank{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:520px}
 .bank .tile{--t:clamp(38px,11vw,50px)}
 .kbd{display:grid;gap:6px;width:100%;max-width:520px}
@@ -449,8 +462,11 @@ body::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none
   background-image:linear-gradient(var(--rule-strong) 1px,transparent 1px),linear-gradient(90deg,var(--rule-strong) 1px,transparent 1px),linear-gradient(var(--rule) 1px,transparent 1px);
   background-size:32px 32px,32px 32px,100% 8px}
 </style>
-<!-- Ôn Tập: phần THI ĐẤU (22/10/2026) nằm ở arena.css + arena.js, chỉ móc vào trang này vài chỗ ghi "Ôn Tập: thi đấu". -->
+<!-- Ôn Tập: phần THI ĐẤU (22/10/2026) nằm ở arena.css + arena.js, chỉ móc vào trang này vài chỗ ghi "Ôn Tập: thi đấu".
+     SCRABBLE (24/10/2026): scrabble.css + scrabble.js (bàn cờ chung trong Thi đấu) — nạp trước arena.js. -->
 <link rel="stylesheet" href="arena.css">
+<link rel="stylesheet" href="scrabble.css">
+<script src="scrabble.js"></script>
 <script src="arena.js"></script>
 </head>
 <body>
@@ -2215,7 +2231,8 @@ GAMES.search = {
       return out;
     };
     const finishSearch = () => {
-      placed.forEach(p => g.record(p.w, p.found ? 1 : 0, "", false));
+      // Ôn Tập: từ tìm được đã ghi ngay lúc tìm thấy (Thi đấu cộng điểm ngay, hết giờ giữa chừng vẫn được tính) — ở đây chỉ ghi các từ chưa tìm được.
+      placed.forEach(p => { if (!p.found) g.record(p.w, 0, "", false); });
       const f = placed.filter(p => p.found).length;
       g.finish({ score: Math.round(20 * f / placed.length) / 2, note: `Tìm được ${f}/${placed.length} từ` });
     };
@@ -2225,6 +2242,7 @@ GAMES.search = {
       const hit = placed.find(p => !p.found && !p.missed && (p.s === s || p.s === rev));
       if (hit) {
         hit.found = true; sel.forEach(k => foundCells.add(k));
+        g.record(hit.w, 1, "", false);   // Ôn Tập: ghi (và cộng điểm thi đấu) ngay khi tìm thấy
         SFX.play("ok"); fb("good", pick(PRAISE) + " " + hit.w.w); if (TTS.ok) TTS.say(hit.w.w);
         drawList();
         if (placed.every(p => p.found || p.missed)) { over = true; g.later(finishSearch, 1300); }
@@ -2300,9 +2318,9 @@ GAMES.memory = {
       const [a, c] = open; open = [];
       if (deck[a].k === deck[c].k) {
         matched++; btn(a).classList.add("done"); btn(c).classList.add("done");
+        g.record(pairs[deck[a].k], 1, "", false);   // Ôn Tập: ghi (và cộng điểm thi đấu) ngay khi lật đúng cặp, không đợi xong cả bàn
         SFX.play("ok"); fb("good", pick(PRAISE)); g.progress(matched, pairs.length);
         if (matched === pairs.length) {
-          pairs.forEach(w => g.record(w, 1, "", false));
           const score = Math.max(4, 10 - (moves - pairs.length) * 0.5);
           g.later(() => g.finish({ score, note: `Lật ${moves} lượt cho ${pairs.length} cặp` }), 1100);
         }
@@ -2690,7 +2708,105 @@ GAMES.context = {
   },
 };
 
-const GAME_LIST = ["bee", "missing", "scramble", "look", "register", "search", "memory", "rain", "wordle", "context"].map(k => GAMES[k]);
+/* ---------- 11. Xếp câu (Ôn Tập, 23/10/2026) ----------
+   Câu ví dụ của từ bị xáo trộn thứ tự các chữ (word); con chạm từng chữ để xếp lại thành câu đúng.
+   Sai thì chữ đặt sai chỗ hiện đỏ rồi tự trả về; tối đa 3 lần, có nút gợi ý. Không đổi lịch ôn chính tả của từ. */
+function sentTokens(ex) {
+  const s = String(ex || "").replace(/\s+/g, " ").trim();
+  if (!s || s.length > 140) return null;
+  const t = s.split(" ");
+  return t.length >= 3 && t.length <= 14 ? t : null;
+}
+GAMES.sentence = {
+  id: "sentence", name: "Xếp câu", en: "Sentence Builder", min: 1, count: 8, wide: true,
+  filter: w => !!sentTokens(w.ex),
+  desc: "Các chữ trong câu ví dụ bị xáo trộn, chạm từng chữ để xếp lại cho đúng câu.",
+  need: "Cần từ có câu ví dụ (3–14 chữ). Bấm “Sửa” rồi “AI bổ sung nghĩa, câu ví dụ”.",
+  art: () => '<div class="sent-art"><span class="wc">cat</span><span class="wc">The</span><span class="wc">sleeps.</span></div>',
+  start(g) {
+    let i = 0;
+    const show = () => {
+      if (i >= g.words.length) return g.finish();
+      const w = g.words[i], toks = sentTokens(w.ex);
+      if (!toks) { i++; return show(); }
+      g.cur = w; g.keyFn = null;
+      g.hud(`${i + 1}/${g.words.length}`); g.progress(i, g.words.length);
+      let order = shuffle(toks.map((_, k) => k));
+      for (let t = 0; t < 12 && toks.length > 1 && order.every((k, j) => toks[k] === toks[j]); t++) order = shuffle(order);
+      const ans = [];   // vị trí trong "order" của các chữ con đã xếp
+      let tries = 0, hinted = false, over = false, mark = null;
+      g.stage.innerHTML = `<div style="display:grid;gap:8px;justify-items:center">${clueHtml(w, true)}<div class="muted small">Xếp lại câu có từ <b class="word">${esc(w.w)}</b></div></div>
+        <div class="sent-ans" id="g-ans" aria-label="Câu con đang xếp"></div>
+        <div class="sent-bank" id="g-bank" aria-label="Các chữ bị xáo trộn"></div>
+        <div class="fb" id="g-fb" aria-live="polite"></div>
+        <div id="g-extra" class="row" style="justify-content:center"><button class="btn sm ghost" type="button" id="g-hint">Gợi ý 1 chữ</button></div>`;
+      const draw = () => {
+        const used = new Set(ans);
+        $("#g-ans").innerHTML = (over === "reveal" ? toks.map(t => `<span class="wc good">${esc(t)}</span>`).join("")
+          : ans.map((b, k) => `<button type="button" class="wc${mark && mark[k] ? " " + mark[k] : ""}" data-ans="${k}" aria-label="Bỏ chữ ${esc(toks[order[b]])} ra">${esc(toks[order[b]])}</button>`).join("")
+            + toks.slice(ans.length).map(() => '<span class="wc slot" aria-hidden="true"></span>').join(""));
+        $("#g-bank").innerHTML = over ? "" : order.map((k, b) => `<button type="button" class="wc${used.has(b) ? " used" : ""}" data-bank="${b}" ${used.has(b) ? "disabled" : ""}>${esc(toks[k])}</button>`).join("");
+        const h = $("#g-hint"); if (h) h.hidden = !!over;
+      };
+      const next = () => { i++; show(); };
+      const done = (credit) => {
+        g.record(w, credit, ans.map(b => toks[order[b]]).join(" "), false);
+        $("#g-extra").innerHTML = (TTS.ok ? `<button class="btn sm" type="button" data-say="ex">${ICON.speaker} Nghe câu</button>` : "")
+          + `<button class="btn primary" type="button" id="g-next">${nextLabel(g, i)}</button>`;
+        $("#g-next").onclick = next;
+        g.keyFn = e => { if (e.key === "Enter") { e.preventDefault(); next(); } };
+      };
+      const check = () => {
+        if (over) return;
+        const got = ans.map(b => toks[order[b]]);
+        if (got.every((t, k) => t === toks[k])) {
+          over = true; mark = got.map(() => "good"); draw();
+          SFX.play("ok"); fb("good", tries || hinted ? "Đúng rồi!" : pick(PRAISE));
+          if (TTS.ok) TTS.say(w.ex);
+          done(tries || hinted ? 0.5 : 1);
+          return;
+        }
+        tries++; SFX.play("bad");
+        mark = got.map((t, k) => t === toks[k] ? "good" : "bad"); draw(); shake($("#g-ans"));
+        if (tries >= 3) {
+          over = true; fb("bad", "Xem câu đúng nhé");
+          g.later(() => { over = "reveal"; mark = null; draw(); if (TTS.ok) TTS.say(w.ex); }, 900);
+          done(0);
+        } else {
+          fb("bad", "Chữ màu đỏ chưa đúng chỗ. Thử lại nhé!");
+          // giữ phần đầu câu đã đúng, các chữ từ chỗ sai đầu tiên trở đi trả về hàng chữ
+          g.later(() => { const bad = mark ? mark.indexOf("bad") : -1; if (bad >= 0) ans.length = bad; mark = null; draw(); }, 1000);
+        }
+      };
+      const place = b => {
+        if (over || mark || ans.includes(b)) return;
+        ans.push(b); SFX.play("tap"); draw();
+        if (ans.length === toks.length) g.later(check, 250);
+      };
+      const hint = () => {
+        if (over || mark) return;
+        hinted = true;
+        let p = 0;
+        while (p < ans.length && toks[order[ans[p]]] === toks[p]) p++;
+        ans.length = p;
+        const b = order.findIndex((k, bi) => toks[k] === toks[p] && !ans.includes(bi));
+        if (b >= 0) ans.push(b);
+        draw();
+        if (ans.length === toks.length) g.later(check, 250);
+      };
+      g.stage.onclick = e => {
+        const bk = e.target.closest("[data-bank]"); if (bk) return place(+bk.dataset.bank);
+        const an = e.target.closest("[data-ans]"); if (an && !over && !mark) { ans.splice(+an.dataset.ans, 1); draw(); return; }
+        if (e.target.closest("#g-hint")) hint();
+      };
+      g.keyFn = e => { if (e.key === "Backspace" && ans.length && !over && !mark) { e.preventDefault(); ans.pop(); draw(); } };
+      draw();
+    };
+    show();
+  },
+};
+
+const GAME_LIST = ["bee", "missing", "scramble", "look", "register", "search", "memory", "rain", "wordle", "context", "sentence"].map(k => GAMES[k]);
 
 /* =========================================================
    Spaced review. A word enters the schedule the first time it is

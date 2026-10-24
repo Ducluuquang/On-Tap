@@ -10,18 +10,29 @@
 // Upstash tính theo LỆNH (gói miễn phí: 500.000 lệnh/tháng): mỗi lần máy hỏi máy chủ (2,5 giây/lần) chỉ tốn 5 lệnh
 // lúc chờ, 6 lệnh lúc đang chơi. Hết hạn mức thì máy báo "Thi đấu tạm nghỉ" (lỗi store_limit), không treo.
 // Không có ô chat; người chơi chỉ thấy tên + biểu tượng của nhau.
+//  3) SCRABBLE (24/10/2026 — "như ngoài đời"): chơi THEO LƯỢT trên MỘT bàn chung 15×15 (2–4 người, có thể có Bạn AI),
+//     bộ 100 quân (98 chữ + 2 quân trắng), mỗi người 7 chữ, đặt từ xong bốc thêm cho đủ 7; bỏ lượt = đổi cả 7 chữ.
+//     Máy chủ giữ bàn, túi chữ, giá chữ của từng người, kiểm tra từ bằng từ điển và tính điểm (api/_scrabble/engine.mjs).
+//     Ván kết thúc khi hết giờ, chủ phòng bấm kết thúc, hết chữ, hoặc ai cũng bỏ lượt 2 lần liền; máy trao vương miện.
 //
 // GET  /api/arena            -> { ok, arena }  (arena = đã gắn kho dữ liệu chưa)
-// POST /api/arena {action…}  -> hello | create | join | config | start | sync | finish | again | leave | random | ai
+// POST /api/arena {action…}  -> hello | create | solo | join | config | start | sync | finish | again | leave | random | ai
+//                               | ai_add | ai_remove | sb_move | sb_pass | sb_end
 
 import crypto from "node:crypto";
 import net from "node:net";
 import tls from "node:tls";
 import { LEVELS, promptTopic, API_URL, DEFAULT_MODEL } from "./spelling.mjs";
 
-const GAME_IDS = ["bee", "missing", "scramble", "look", "register", "search", "memory", "rain", "wordle", "context"];
+const GAME_IDS = ["bee", "missing", "scramble", "look", "register", "search", "memory", "rain", "wordle", "context", "sentence", "scrabble"];
 const ROOM_TTL = 12 * 3600;            // phòng bỏ không 12 giờ thì tự xoá
 const MAX_PLAYERS = 8;
+const SB_MAX = 4;                      // Scrabble: 2–4 người (tính cả Bạn AI), như bộ cờ thật
+// (ARENA_SB_* chỉ dùng khi chạy thử trên máy thử để rút ngắn thời gian; trên Vercel không đặt nên giữ số mặc định)
+const SB_TURN_MS = Number(process.env.ARENA_SB_TURN_MS) || 120000;   // Scrabble: mỗi lượt tối đa 2 phút, quá giờ thì tự bỏ lượt
+const SB_AWAY_MS = Number(process.env.ARENA_SB_AWAY_MS) || 30000;    // Scrabble: tới lượt mà máy của bạn đó im 30 giây (thoát ra, mất mạng) thì bỏ qua lượt
+const SB_AI_THINK = Number(process.env.ARENA_SB_AI_THINK) || 2500;   // Scrabble: Bạn AI "nghĩ" 2,5 giây rồi mới đặt từ
+const engine = () => import("./_scrabble/engine.mjs");   // chỉ nạp (kèm từ điển) khi có ván Scrabble
 const WAIT_AI_MS = 60000;              // thách đấu ngẫu nhiên: chờ 1 phút rồi Bạn AI vào
 const COUNTDOWN_MS = 4000;             // đếm ngược trước mỗi ván
 const GRACE_MS = 6000;                 // hết giờ + 6 giây thì chốt ván
@@ -356,7 +367,7 @@ function ranking(st, now) {
 /* ---------- Chốt ván: hết giờ, hoặc mọi bạn (đang kết nối) đã xong ---------- */
 function shouldClose(st, now) {
   const r = st.meta.round;
-  if (st.meta.status !== "playing" || !r) return false;
+  if (st.meta.status !== "playing" || !r || r.game === "scrabble") return false;   // Scrabble chốt ván riêng (sbAuto)
   if (now >= r.end + GRACE_MS) return true;
   const humans = st.players.filter((p) => !p.ai && now - Number(st.seen[p.pid] || 0) < ONLINE_MS);
   return now >= r.start && humans.length > 0 && humans.every((p) => (st.scores[p.pid] || {}).f);
@@ -379,14 +390,23 @@ async function closeRound(code, st, now) {
 /* ---------- Bắt đầu một ván (AI tạo bộ từ chung khi cần) ---------- */
 async function startRound(code, st) {
   const cfg = st.meta.cfg, n = (st.meta.n || 0) + 1;
-  let words = null, src = "own", setName = "";
-  if (cfg.rule.scope === "common") {
+  let words = null, src = "own", setName = "", sb = null;
+  if (cfg.game === "scrabble") {
+    // Scrabble: bàn chung, đi theo lượt. Thứ tự: các bạn thật (bốc thăm ngẫu nhiên) rồi mới tới Bạn AI.
+    if (st.players.length < 2 || st.players.length > SB_MAX) { const e = new Error("sb_players"); e.code = "sb_players"; throw e; }
+    const humans = st.players.filter((p) => !p.ai).map((p) => p.pid);
+    for (let i = humans.length - 1; i > 0; i--) { const j = crypto.randomInt(i + 1); [humans[i], humans[j]] = [humans[j], humans[i]]; }
+    const E = await engine();
+    sb = E.newGame(humans.concat(st.players.filter((p) => p.ai).map((p) => p.pid)), Date.now() + COUNTDOWN_MS);
+    src = "scrabble"; setName = "Scrabble";
+  } else if (cfg.rule.scope === "common") {
     const topic = cfg.rule.topic || TOPICS[crypto.randomInt(TOPICS.length)];
     const res = await aiWords(topic, st.meta.level);
     if (res) { words = res.words; src = "ai"; setName = res.name || topic; } else { words = FALLBACK.slice(); src = "fallback"; setName = "Từ thông dụng"; }
   }
   const start = Date.now() + COUNTDOWN_MS;
   const round = { n, game: cfg.game, minutes: cfg.minutes, rule: cfg.rule, ruleText: cfg.ruleText, level: st.meta.level, start, end: start + cfg.minutes * 60000, words, src, setName };
+  if (sb) { sb.turnStart = start; round.sb = sb; round.turnMs = SB_TURN_MS; round.ruleText = "Scrabble: mỗi bạn 7 chữ, đặt từ lên bàn chung"; }
   const meta = { ...st.meta, status: "playing", n, round, prep: 0 };
   // Ô "-" giữ cho bảng điểm luôn có sẵn (để đặt hạn tự xoá ngay từ đầu ván), nên mỗi lần máy gửi điểm không cần đặt lại hạn.
   await redis([["SET", K.room(code), JSON.stringify(meta), "EX", ROOM_TTL], ["HSET", K.sc(code), "-", "1"], ...roomKeys(code).slice(1).map((k) => ["EXPIRE", k, ROOM_TTL])]);
@@ -399,16 +419,112 @@ function view(st, pid, now, wn) {
   const m = st.meta, r = m.round;
   const players = st.players.map((p) => ({ pid: p.pid, name: p.n, icon: p.i, grade: p.g || "", ai: !!p.ai, owner: p.pid === m.owner, online: !!p.ai || now - Number(st.seen[p.pid] || 0) < ONLINE_MS }));
   const scores = {};
+  const sb = r && r.game === "scrabble" ? r.sb : null;
   for (const p of st.players) {
+    if (sb) { if (sb.order.includes(p.pid)) scores[p.pid] = { p: Number(sb.scores[p.pid]) || 0, d: (sb.words[p.pid] || []).length, c: (sb.words[p.pid] || []).length, f: 0 }; continue; }
     const s = p.ai ? aiScore(st, p, now) : st.scores[p.pid];
     if (s) scores[p.pid] = { p: Number(s.p) || 0, d: Number(s.d) || 0, c: Number(s.c) || 0, f: s.f ? 1 : 0 };
   }
   return {
     ok: true, now, me: pid, code: m.code, owner: m.owner, mode: m.mode, status: m.status, level: m.level, cfg: m.cfg, n: m.n || 0,
     prep: !!m.prep, waitStart: m.waitStart || 0, closedBy: m.closedBy || "",
-    round: r ? { n: r.n, game: r.game, minutes: r.minutes, ruleText: r.ruleText, rule: r.rule, level: r.level, start: r.start, end: r.end, src: r.src, setName: r.setName, words: wn === r.n ? undefined : r.words } : null,
+    round: r ? { n: r.n, game: r.game, minutes: r.minutes, ruleText: r.ruleText, rule: r.rule, level: r.level, start: r.start, end: r.end, src: r.src, setName: r.setName, words: wn === r.n ? undefined : r.words, ...(sb ? { sb: sbView(sb, pid), turnMs: r.turnMs || SB_TURN_MS } : {}) } : null,
     players, scores, totals: st.totals, last: m.last || null,
   };
+}
+
+/* ---------- Scrabble: trạng thái gửi về máy (giá chữ của bạn khác và túi chữ được giấu) ---------- */
+function sbView(sb, pid) {
+  const counts = {};
+  for (const p of sb.order) counts[p] = String(sb.racks[p] || "").length;
+  return { v: sb.v, board: sb.board, order: sb.order, turn: sb.turn, turnStart: sb.turnStart, scores: sb.scores, bag: String(sb.bag || "").length, counts,
+    rack: sb.order.includes(pid) ? String(sb.racks[pid] || "") : null, moves: sb.moves.slice(-12), last: sb.last || [], over: sb.over || 0, reason: sb.reason || "", words: sb.words || {} };
+}
+// Khoá phòng trong lúc đổi bàn cờ (đặt từ, bỏ lượt, Bạn AI đi, chốt ván) để hai máy không ghi đè nhau.
+const UNLOCK = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+async function lockRoom(code, ms) {
+  const tok = rid(8);
+  const [ok] = await redis([["SET", K.lock(code), tok, "NX", "PX", ms || 9000]]);
+  return ok === "OK" ? tok : null;
+}
+async function unlockRoom(code, tok) { try { await redis([["EVAL", UNLOCK, "1", K.lock(code), tok]]); } catch { /* khoá tự hết hạn */ } }
+// Có việc máy chủ phải tự làm không: hết giờ / hết ván, tới lượt Bạn AI, quá giờ lượt, hoặc bạn tới lượt đã rời phòng / vắng mặt.
+function sbDue(st, now) {
+  const r = st.meta.round, sb = r && r.sb;
+  if (st.meta.status !== "playing" || !sb) return false;
+  if (now >= r.end || sb.over) return true;
+  if (now < r.start) return false;
+  const pid = sb.order[sb.turn], pl = st.players.find((p) => p.pid === pid), since = now - Math.max(r.start, sb.turnStart);
+  if (!pl) return true;
+  if (pl.ai) return since >= SB_AI_THINK;
+  if (since >= SB_TURN_MS) return true;
+  return since >= SB_AWAY_MS && now - Number(st.seen[pid] || 0) >= SB_AWAY_MS;
+}
+async function sbAuto(code, st, now) {
+  if (!sbDue(st, now)) return;
+  const tok = await lockRoom(code);
+  if (!tok) return;   // máy khác đang làm
+  try {
+    const fresh = await readRoom(code);
+    if (!fresh) return;
+    await sbAdvance(code, fresh, Date.now());
+    Object.assign(st, fresh);
+  } finally { await unlockRoom(code, tok); }
+}
+async function sbAdvance(code, st, now) {
+  const E = await engine();
+  let changed = false;
+  for (let step = 0; step < 8; step++) {
+    const r = st.meta.round, sb = r && r.sb;
+    if (st.meta.status !== "playing" || !sb) return;
+    if (now >= r.end || sb.over) { await sbClose(code, st, now, sb.over ? sb.reason : "time", E); return; }
+    if (!sbDue(st, now)) break;
+    const pid = sb.order[sb.turn], pl = st.players.find((p) => p.pid === pid);
+    if (pl && pl.ai) await sbAiTurn(st, pl, E, now);
+    else E.applyPass(sb, pid, now, pl && now - Math.max(r.start, sb.turnStart) >= SB_TURN_MS ? "time" : "away");
+    changed = true;
+    if (sb.over) { await sbClose(code, st, now, sb.reason, E); return; }
+  }
+  if (changed) await redis([["SET", K.room(code), JSON.stringify(st.meta), "EX", ROOM_TTL]]);
+}
+// Bạn AI: đặt từ thông dụng thật (theo luật), nhưng luôn giữ điểm thấp hơn bạn thật đang dẫn đầu một chút
+// (đúng ý "luôn để người chơi thật thắng để khích lệ"); không có nước nào như vậy thì bỏ lượt (đổi chữ).
+async function sbAiTurn(st, ai, E, now) {
+  const sb = st.meta.round.sb, dict = await E.getDict();
+  const humans = st.players.filter((p) => !p.ai && sb.order.includes(p.pid));
+  let bound = null;
+  if (humans.length) {
+    const best = humans.reduce((a, p) => ((sb.scores[p.pid] || 0) > (sb.scores[a.pid] || 0) ? p : a));
+    const margin = sb.bag.length <= 7 ? 5 + E.rackValue(sb.racks[best.pid]) : 3;
+    bound = (sb.scores[best.pid] || 0) - margin - (sb.scores[ai.pid] || 0);
+  }
+  const { moves } = E.findMoves(sb, sb.racks[ai.pid], dict, 1500);
+  let pick = null;
+  for (const mv of moves) {
+    const res = E.checkMove(sb, ai.pid, mv, dict);
+    if (!res.ok) continue;
+    if (!sb.bag.length && !res.rackLeft.length && humans.length) continue;   // không đặt hết chữ trước bạn thật
+    if (bound != null && res.score > bound) continue;
+    if (!pick || res.score > pick.score) pick = res;
+  }
+  if (pick) E.applyPlay(sb, ai.pid, pick, now); else E.applyPass(sb, ai.pid, now, "pass");
+}
+// Chốt ván Scrabble: tính điểm cuối, xếp hạng, cộng vào tổng điểm cả buổi; xoá túi chữ và giá chữ (không cần nữa).
+async function sbClose(code, st, now, reason, E) {
+  const r = st.meta.round, sb = r.sb;
+  sb.over = 1; sb.reason = reason;
+  const fin = E.finalScores(sb, reason);
+  const rows = st.players.filter((p) => sb.order.includes(p.pid)).map((p) => ({ pid: p.pid, n: p.n, i: p.i, ai: !!p.ai, p: fin[p.pid].total, base: fin[p.pid].base, adj: fin[p.pid].adj, w: (sb.words[p.pid] || []).length }));
+  rows.sort((a, b) => b.p - a.p || (a.ai - b.ai));
+  let place = 0, prev = null;
+  rows.forEach((x, i) => { if (prev === null || x.p !== prev) place = i + 1; prev = x.p; x.place = place; });
+  const tot = { ...(st.meta.tot || {}) };
+  for (const x of rows) if (x.p > 0) tot[x.pid] = (Number(tot[x.pid]) || 0) + x.p;
+  const last = { n: r.n, game: "scrabble", minutes: r.minutes, ruleText: "Scrabble", rank: rows, sb: { reason, board: sb.board, words: sb.words } };
+  const meta = { ...st.meta, status: "results", tot, last, round: { ...r, sb: { ...sb, bag: "", racks: {} } } };
+  await redis([["SET", K.room(code), JSON.stringify(meta), "EX", ROOM_TTL], ["SET", K.closed(code, r.n), "1", "EX", ROOM_TTL]]);
+  st.meta = meta;
+  st.totals = { ...tot };
 }
 
 function defaultLevel(grade) {
@@ -424,6 +540,14 @@ async function newCode(meta) {
   throw storeErr("no_code");
 }
 const playerRec = (me, extra) => JSON.stringify({ n: me.n, i: me.i, g: me.g, j: Date.now(), ...(extra || {}) });
+// Bạn AI: tên không trùng với Bạn AI khác trong phòng, biểu tượng 🤖, luôn có cờ ai (máy hiện nhãn "AI").
+function aiRec(j, usedNames) {
+  const free = AI_NAMES.filter((n) => !(usedNames || []).includes("Bạn AI " + n));
+  const pool = free.length ? free : AI_NAMES;
+  return { n: "Bạn AI " + pool[crypto.randomInt(pool.length)], i: "🤖", g: "", ai: 1, j };
+}
+// Số phút mỗi ván: Scrabble 5–90 phút, các trò khác 1–10 phút.
+const minutesFor = (game, m) => (game === "scrabble" ? int(m, 5, 90) : int(m, 1, 10));
 
 /* ---------- Máy chủ ---------- */
 export default async function handler(req, res) {
@@ -447,6 +571,18 @@ export default async function handler(req, res) {
       await redis([["HSET", K.rpl(code), me.pid, playerRec(me)], ["HSET", K.seen(code), me.pid, now], ...roomKeys(code).slice(1, 3).map((k) => ["EXPIRE", k, ROOM_TTL])]);
       const st = await readRoom(code);
       return send(res, 200, view(st, me.pid, now));
+    }
+    if (action === "solo") {
+      // Scrabble với Bạn AI: tạo phòng (vẫn gửi mã cho bạn vào chơi các ván sau được), thêm Bạn AI rồi bắt đầu luôn.
+      if (await limited("create:" + me.pid, 20, 3600)) return send(res, 429, { error: "slow_down" });
+      const level = levelOf(body.level) ? body.level : defaultLevel(me.g);
+      const pr = parseRule("");
+      const meta = { v: 1, owner: me.pid, mode: "friends", status: "lobby", created: now, level, n: 0, cfg: { game: "scrabble", minutes: int(body.minutes || 20, 5, 90), req: "", rule: pr.rule, ruleText: pr.text } };
+      const code = await newCode(meta);
+      await redis([["HSET", K.rpl(code), me.pid, playerRec(me, { j: now }), "ai" + rid(6), JSON.stringify(aiRec(now + 1, []))], ["HSET", K.seen(code), me.pid, now], ...roomKeys(code).slice(1, 3).map((k) => ["EXPIRE", k, ROOM_TTL])]);
+      const st = await readRoom(code);
+      await startRound(code, st);
+      return send(res, 200, view(st, me.pid, Date.now()));
     }
     const code = String(body.code || "");
     if (!/^\d{6}$/.test(code) && action !== "random") return send(res, 400, { error: "bad_code" });
@@ -478,8 +614,35 @@ export default async function handler(req, res) {
     const isOwner = st.meta.owner === me.pid;
 
     if (action === "sync") {
-      if (shouldClose(st, now)) await closeRound(code, st, now);
-      return send(res, 200, view(st, me.pid, now, int(body.wn, 0, 100000)));
+      const r = st.meta.round;
+      if (st.meta.status === "playing" && r && r.game === "scrabble") await sbAuto(code, st, now);   // Bạn AI đi, quá giờ lượt, hết ván…
+      else if (shouldClose(st, now)) await closeRound(code, st, now);
+      return send(res, 200, view(st, me.pid, Date.now(), int(body.wn, 0, 100000)));
+    }
+    if (action === "sb_move" || action === "sb_pass" || action === "sb_end") {
+      // Scrabble: đặt từ / bỏ lượt (đổi cả giá chữ) / chủ phòng kết thúc ván. Làm trong lúc khoá phòng.
+      if (action === "sb_end" && !isOwner) return send(res, 403, { error: "owner_only" });
+      const tok = await lockRoom(code);
+      if (!tok) return send(res, 409, { error: "busy" });
+      try {
+        const s2 = await readRoom(code);
+        const r = s2 && s2.meta.round, sb = r && r.sb, t = Date.now();
+        if (!s2 || s2.meta.status !== "playing" || !sb || r.n !== int(body.n, 0, 100000)) return send(res, 409, { error: "not_playing", ...(s2 ? view(s2, me.pid, t) : {}) });
+        const E = await engine();
+        if (t >= r.end || sb.over) { await sbClose(code, s2, t, sb.over ? sb.reason : "time", E); return send(res, 200, view(s2, me.pid, t)); }
+        if (action === "sb_end") { await sbClose(code, s2, t, "owner", E); return send(res, 200, view(s2, me.pid, t)); }
+        if (t < r.start) return send(res, 409, { error: "not_started", ...view(s2, me.pid, t) });
+        if (sb.order[sb.turn] !== me.pid) return send(res, 409, { error: "not_turn", msg: "Chưa tới lượt của con.", ...view(s2, me.pid, t) });
+        if (action === "sb_pass") E.applyPass(sb, me.pid, t, "pass");
+        else {
+          const chk = E.checkMove(sb, me.pid, body.tiles, await E.getDict());
+          if (!chk.ok) return send(res, 422, { error: "sb_bad", code: chk.error, msg: chk.msg, ...view(s2, me.pid, t) });
+          E.applyPlay(sb, me.pid, chk, t);
+        }
+        if (sb.over) await sbClose(code, s2, t, sb.reason, E);
+        else await redis([["SET", K.room(code), JSON.stringify(s2.meta), "EX", ROOM_TTL]]);
+        return send(res, 200, view(s2, me.pid, Date.now()));
+      } finally { await unlockRoom(code, tok); }
     }
     if (action === "leave") {
       if (isOwner) {
@@ -496,8 +659,13 @@ export default async function handler(req, res) {
     if (action === "config") {
       if (!["lobby", "results"].includes(st.meta.status)) return send(res, 409, { error: "busy" });
       const cfg = { ...st.meta.cfg };
-      if (GAME_IDS.includes(body.game)) cfg.game = body.game;
-      if (body.minutes != null) cfg.minutes = int(body.minutes, 1, 10);
+      if (GAME_IDS.includes(body.game)) {
+        // Scrabble chơi lâu hơn: đổi sang Scrabble thì mặc định 20 phút, đổi sang trò khác thì về 3 phút
+        if (body.game === "scrabble" && cfg.game !== "scrabble") cfg.minutes = 20;
+        else if (body.game !== "scrabble" && cfg.game === "scrabble") cfg.minutes = 3;
+        cfg.game = body.game;
+      }
+      if (body.minutes != null) cfg.minutes = minutesFor(cfg.game, body.minutes);
       if (body.req != null) { const pr = parseRule(body.req); Object.assign(cfg, { req: pr.req, rule: pr.rule, ruleText: pr.text }); }
       const level = levelOf(body.level) ? body.level : st.meta.level;
       st.meta = { ...st.meta, cfg, level };
@@ -507,6 +675,7 @@ export default async function handler(req, res) {
     if (action === "start") {
       if (!["lobby", "results"].includes(st.meta.status)) return send(res, 409, { error: "busy" });
       if (st.players.length < 2) return send(res, 409, { error: "need_two" });
+      if (st.meta.cfg.game === "scrabble" && st.players.length > SB_MAX) return send(res, 409, { error: "sb_players" });
       if (await limited("start:" + code, 60, 3600)) return send(res, 429, { error: "slow_down" });
       const [lk] = await redis([["SET", K.lock(code), me.pid, "NX", "EX", 45]]);
       if (lk !== "OK") return send(res, 200, view(st, me.pid, now));
@@ -539,16 +708,34 @@ export default async function handler(req, res) {
       const [ok] = await redis([["SET", K.claim(code), "ai", "NX", "EX", ROOM_TTL]]);
       if (ok !== "OK") return send(res, 200, view(st, me.pid, now));
       const aiPid = "ai" + rid(6);
-      const ai = { n: "Bạn AI " + AI_NAMES[crypto.randomInt(AI_NAMES.length)], i: "🤖", g: me.g, ai: 1, j: now };
+      const ai = { ...aiRec(now, []), g: me.g };
       await redis([["LREM", K.q(st.meta.level), 0, code], ["HSET", K.rpl(code), aiPid, JSON.stringify(ai)]]);
       st.players.push({ pid: aiPid, ...ai });
       await startRound(code, st);
       return send(res, 200, view(st, me.pid, Date.now()));
     }
+    if (action === "ai_add" || action === "ai_remove") {
+      // Chủ phòng thêm / bớt Bạn AI (luôn ghi rõ là AI) — ví dụ để chơi Scrabble khi chưa có bạn.
+      if (!["lobby", "results"].includes(st.meta.status)) return send(res, 409, { error: "busy" });
+      if (action === "ai_add") {
+        if (st.meta.mode !== "friends") return send(res, 403, { error: "random_room" });
+        if (st.players.length >= MAX_PLAYERS) return send(res, 409, { error: "full" });
+        const aiPid = "ai" + rid(6), rec = aiRec(now, st.players.filter((p) => p.ai).map((p) => p.n));
+        await redis([["HSET", K.rpl(code), aiPid, JSON.stringify(rec)]]);
+        st.players.push({ pid: aiPid, ...rec });
+      } else {
+        const pl = st.players.find((p) => p.pid === String(body.ai || "") && p.ai);   // body.ai = mã Bạn AI cần bớt
+        if (!pl) return send(res, 404, { error: "no_ai" });
+        await redis([["HDEL", K.rpl(code), pl.pid]]);
+        st.players = st.players.filter((p) => p !== pl);
+      }
+      return send(res, 200, view(st, me.pid, now));
+    }
     return send(res, 400, { error: "bad_request" });
   } catch (e) {
     console.error("arena:", action, e && e.message);
     if (e && e.code === "store_limit") return send(res, 503, { error: "store_limit" });
+    if (e && e.code === "sb_players") return send(res, 409, { error: "sb_players" });
     return send(res, 502, { error: "store_error" });
   }
 }
@@ -612,7 +799,7 @@ async function random(res, me, body, now) {
   if (found) return send(res, 200, view(found, me.pid, Date.now()));
   const game = GAME_IDS.includes(body.game) ? body.game : "bee";
   const pr = parseRule("");
-  const meta = { v: 1, owner: me.pid, mode: "random", status: "waiting", created: now, waitStart: now, level, n: 0, cfg: { game, minutes: int(body.minutes || 2, 1, 10), req: "", rule: pr.rule, ruleText: pr.text } };
+  const meta = { v: 1, owner: me.pid, mode: "random", status: "waiting", created: now, waitStart: now, level, n: 0, cfg: { game, minutes: minutesFor(game, body.minutes || (game === "scrabble" ? 20 : 2)), req: "", rule: pr.rule, ruleText: pr.text } };
   const code = await newCode(meta);
   await redis([["HSET", K.rpl(code), me.pid, playerRec(me)], ["HSET", K.seen(code), me.pid, now], ["EXPIRE", K.rpl(code), ROOM_TTL], ["EXPIRE", K.seen(code), ROOM_TTL], ["RPUSH", K.q(level), code], ["EXPIRE", K.q(level), 3600]]);
   const st = await readRoom(code);
