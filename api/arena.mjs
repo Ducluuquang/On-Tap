@@ -14,15 +14,18 @@
 //     bộ 100 quân (98 chữ + 2 quân trắng), mỗi người 7 chữ, đặt từ xong bốc thêm cho đủ 7; bỏ lượt = đổi cả 7 chữ.
 //     Máy chủ giữ bàn, túi chữ, giá chữ của từng người, kiểm tra từ bằng từ điển và tính điểm (api/_scrabble/engine.mjs).
 //     Ván kết thúc khi hết giờ, chủ phòng bấm kết thúc, hết chữ, hoặc ai cũng bỏ lượt 2 lần liền; máy trao vương miện.
+//  4) NHIỀU TỪ, KHÔNG LẶP LẠI (24/10/2026): bạn nào sắp chơi hết bộ từ thì máy xin thêm ("more") — AI tạo thêm từ MỚI
+//     cho cả phòng (lưu ở ô "w:<số ván>" của bảng điểm, nên mỗi lần hỏi phòng KHÔNG tốn thêm lệnh nào).
 //
 // GET  /api/arena            -> { ok, arena }  (arena = đã gắn kho dữ liệu chưa)
-// POST /api/arena {action…}  -> hello | create | solo | join | config | start | sync | finish | again | leave | random | ai
+// POST /api/arena {action…}  -> hello | create | solo | join | config | start | sync | more | finish | again | leave | random | ai
 //                               | ai_add | ai_remove | sb_move | sb_pass | sb_end
 
 import crypto from "node:crypto";
 import net from "node:net";
 import tls from "node:tls";
 import { LEVELS, promptTopic, API_URL, DEFAULT_MODEL } from "./spelling.mjs";
+import { BANK } from "./_arena/words.mjs";   // bộ từ dự phòng (khi AI chưa trả lời được)
 
 const GAME_IDS = ["bee", "missing", "scramble", "look", "register", "search", "memory", "rain", "wordle", "context", "sentence", "scrabble"];
 const ROOM_TTL = 12 * 3600;            // phòng bỏ không 12 giờ thì tự xoá
@@ -42,22 +45,12 @@ const AI_DAILY_CAP = 400;              // tối đa 400 lần nhờ AI tạo b�
 const AI_NAMES = ["Mây", "Gió", "Sao", "Bin", "Na", "Tí", "Bơ", "Kem", "Mít", "Su"];
 const TOPICS = ["Animals", "Food and drinks", "School", "Family", "Weather", "Sports", "Jobs", "Clothes", "Home", "Nature", "Travel", "Colors and shapes", "Health", "Hobbies"];
 
-// Bộ từ dự phòng (khi AI chưa trả lời được) — từ thông dụng, nghĩa và câu ví dụ đã kiểm tra.
-const FALLBACK = [
-  ["cat", "con mèo", "The cat is sleeping on the bed.", "🐱"], ["dog", "con chó", "My dog likes to play in the park.", "🐶"],
-  ["bird", "con chim", "A small bird is singing in the tree.", "🐦"], ["fish", "con cá", "The fish swims in the pond.", "🐟"],
-  ["rabbit", "con thỏ", "The rabbit eats a carrot.", "🐰"], ["tiger", "con hổ", "The tiger has orange and black stripes.", "🐯"],
-  ["monkey", "con khỉ", "The monkey climbs the tall tree.", "🐒"], ["elephant", "con voi", "The elephant has a long trunk.", "🐘"],
-  ["apple", "quả táo", "I eat an apple every morning.", "🍎"], ["banana", "quả chuối", "The banana is yellow.", "🍌"],
-  ["orange", "quả cam", "This orange is very sweet.", "🍊"], ["milk", "sữa", "I drink a glass of milk.", "🥛"],
-  ["bread", "bánh mì", "We have bread for breakfast.", "🍞"], ["water", "nước", "Please give me some water.", "💧"],
-  ["book", "quyển sách", "I read a book before bed.", "📖"], ["pencil", "bút chì", "I write with a pencil.", "✏️"],
-  ["ruler", "thước kẻ", "Use a ruler to draw a line.", "📏"], ["school", "trường học", "I go to school by bike.", "🏫"],
-  ["teacher", "giáo viên", "Our teacher is very kind.", "🧑‍🏫"], ["friend", "người bạn", "Lan is my best friend.", "🤝"],
-  ["mother", "mẹ", "My mother cooks dinner.", "👩"], ["father", "bố", "My father reads the newspaper.", "👨"],
-  ["house", "ngôi nhà", "Their house has a red roof.", "🏠"], ["sun", "mặt trời", "The sun is hot today.", "☀️"],
-  ["rain", "mưa", "The rain makes the street wet.", "🌧️"],
-].map(([w, vi, ex, e]) => ({ w, vi, ex, e }));
+// Mỗi ván: AI tạo trước 25 từ; bạn nào sắp hết từ thì máy xin thêm ("more"): AI tạo thêm 25 từ MỚI cho cả phòng
+// (tối đa 150 từ thêm mỗi ván). Không lặp lại từ trong ván, và tránh cả các từ đã chơi ở những ván trước trong phòng.
+const ROUND_WORDS = 25;                // số từ AI tạo lúc bắt đầu ván
+const MORE_STEP = 25;                  // mỗi lần xin thêm
+const MORE_MAX = 150;                  // tối đa từ thêm mỗi ván
+const HIST_MAX = 300;                  // nhớ tối đa 300 từ đã chơi ở các ván trước trong phòng (để không lặp lại)
 
 /* ---------- Tiện ích ---------- */
 const MAX_BODY = 200000;
@@ -208,6 +201,7 @@ const K = {
   closed: (c, n) => "arena:room:" + c + ":closed:" + n,
   lock: (c) => "arena:room:" + c + ":lock",
   claim: (c) => "arena:room:" + c + ":claim",
+  more: (c, n, k) => "arena:room:" + c + ":more:" + n + ":" + k,   // chỉ một máy nhờ AI tạo thêm từ cho mỗi lần thêm
   q: (lv) => "arena:q:" + lv,
   rl: (k) => "arena:rl:" + k,
 };
@@ -262,14 +256,14 @@ export function parseRule(reqRaw) {
   return { req, rule, text: ruleText(rule) };
 }
 function ruleText(r) {
-  if (r.scope === "common") return r.topic ? `Cả phòng chung bộ từ AI tạo: “${r.topic}”` : "Cả phòng chung bộ từ AI tạo theo trình độ (chủ đề ngẫu nhiên)";
+  if (r.scope === "common") return (r.topic ? `Cả phòng chung bộ từ AI tạo: “${r.topic}”` : "Cả phòng chung bộ từ AI tạo theo trình độ (chủ đề ngẫu nhiên)") + " · hết từ thì AI tạo thêm, không lặp lại";
   const n = r.count;
   const what = {
     newest: `${n} từ mới học gần nhất`, oldest: `${n} từ học lâu nhất`, longest: `${n} từ dài nhất`, shortest: `${n} từ ngắn nhất`,
     weak: `${n} từ hay sai nhất`, random: `${n} từ ngẫu nhiên`,
     ago: `${n} từ học khoảng ${r.days >= 365 ? Math.round(r.days / 365) + " năm" : r.days >= 30 ? Math.round(r.days / 30) + " tháng" : r.days >= 7 ? Math.round(r.days / 7) + " tuần" : r.days + " ngày"} trước`,
   }[r.order];
-  return `Mỗi bạn: ${what} trong kho từ của mình`;
+  return `Mỗi bạn: ${what} trong kho từ của mình trước, rồi sang các từ khác · không lặp lại`;
 }
 
 /* ---------- AI tạo bộ từ chung cho ván (dùng đúng lời dặn AI của Vở Spelling) ---------- */
@@ -296,12 +290,13 @@ function parseWords(text) {
   }
   return { name, words: out };
 }
-async function aiWords(topic, levelId) {
+// avoid: các từ đã có trong ván / đã chơi ở ván trước — AI được dặn không lặp lại (máy chủ vẫn lọc lại lần nữa).
+async function aiWords(topic, levelId, count, avoid) {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return null;
   try { if (await limited("ai:" + new Date().toISOString().slice(0, 10), AI_DAILY_CAP, 90000)) return null; } catch { return null; }
   const level = levelOf(levelId) || LEVELS[1];
-  const content = promptTopic(topic, level, 25, "common", []);
+  const content = promptTopic(topic, level, count || ROUND_WORDS, "common", (avoid || []).slice(-HIST_MAX));
   const models = [...new Set([process.env.ANTHROPIC_MODEL, DEFAULT_MODEL].map((x) => String(x || "").trim()).filter(Boolean))];
   for (const model of models) {
     const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 40000);
@@ -327,6 +322,22 @@ async function aiWords(topic, levelId) {
   return null;
 }
 
+const lc = (w) => String((w && w.w) || "").toLowerCase();
+function shuffled(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = crypto.randomInt(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+// Bộ từ dự phòng: lấy ngẫu nhiên tối đa n từ CHƯA có trong "avoid".
+function bankWords(avoid, n) {
+  const out = [];
+  for (const w of shuffled(BANK)) { if (out.length >= n) break; if (!avoid.has(lc(w))) out.push({ ...w }); }
+  return out;
+}
+// Chủ đề ngẫu nhiên khác chủ đề vừa dùng (khi chủ phòng để trống phạm vi từ, mỗi lần thêm từ đổi chủ đề cho phong phú)
+function pickTopic(prev) { const pool = TOPICS.filter((t) => t !== prev); return pool[crypto.randomInt(pool.length)]; }
+// Từ đã có trong ván này (bộ đầu + các lần thêm) và từ của các ván trước trong phòng: không lặp lại
+function usedWords(st) {
+  const r = st.meta.round;
+  return new Set([...(st.meta.hist || []), ...((r && r.words) || []).map(lc), ...(st.extra || []).map(lc)]);
+}
+
 /* ---------- Đọc phòng (một lần gọi kho) ---------- */
 async function readRoom(code, pre) {
   const out = await redis((pre || []).concat([["GET", K.room(code)], ["HGETALL", K.rpl(code)], ["HGETALL", K.seen(code)], ["HGETALL", K.sc(code)]]));
@@ -339,7 +350,9 @@ async function readRoom(code, pre) {
   for (const [f, v] of Object.entries(sc)) { const i = f.indexOf(":"); if (i > 0 && Number(f.slice(0, i)) === n) scores[f.slice(i + 1)] = parse(v) || {}; }
   const totals = {};
   for (const [pid, v] of Object.entries(meta.tot || {})) totals[pid] = Number(v) || 0;
-  return { meta, players, seen, scores, totals };
+  // từ thêm của ván đang chơi (ô "w:<số ván>" trong bảng điểm — đọc cùng lúc với điểm, không tốn thêm lệnh)
+  const ex = parse(sc["w:" + n] || "null"), extra = Array.isArray(ex) ? ex : [];
+  return { meta, players, seen, scores, totals, extra };
 }
 
 /* ---------- Bạn AI: luôn ghi rõ là AI; bám sát con (khoảng 75–92% điểm của con) và luôn kém con ít nhất 1–2 từ,
@@ -380,8 +393,11 @@ async function closeRound(code, st, now) {
   // Tổng điểm cả buổi nằm ngay trong thông tin phòng (chỉ một máy chốt được mỗi ván nhờ cờ NX ở trên).
   const tot = { ...(st.meta.tot || {}) };
   for (const x of rank) if (x.p > 0) tot[x.pid] = (Number(tot[x.pid]) || 0) + x.p;
-  const meta = { ...st.meta, status: "results", tot, last: { n: r.n, game: r.game, minutes: r.minutes, ruleText: r.ruleText, rank }, round: { ...r, words: null } };
-  await redis([["SET", K.room(code), JSON.stringify(meta), "EX", ROOM_TTL], ["EXPIRE", K.sc(code), ROOM_TTL]]);
+  // nhớ các từ của ván này để ván sau AI tạo từ khác (không lặp lại)
+  const hist = [...usedWords(st)].slice(-HIST_MAX);
+  const meta = { ...st.meta, status: "results", tot, hist, last: { n: r.n, game: r.game, minutes: r.minutes, ruleText: r.ruleText, rank }, round: { ...r, words: null } };
+  await redis([["SET", K.room(code), JSON.stringify(meta), "EX", ROOM_TTL], ["HDEL", K.sc(code), "w:" + r.n], ["EXPIRE", K.sc(code), ROOM_TTL]]);
+  st.extra = [];
   st.meta = meta;
   st.totals = { ...tot };
   return true;
@@ -390,7 +406,7 @@ async function closeRound(code, st, now) {
 /* ---------- Bắt đầu một ván (AI tạo bộ từ chung khi cần) ---------- */
 async function startRound(code, st) {
   const cfg = st.meta.cfg, n = (st.meta.n || 0) + 1;
-  let words = null, src = "own", setName = "", sb = null;
+  let words = null, src = "own", setName = "", sb = null, topic = "";
   if (cfg.game === "scrabble") {
     // Scrabble: bàn chung, đi theo lượt. Thứ tự: các bạn thật (bốc thăm ngẫu nhiên) rồi mới tới Bạn AI.
     if (st.players.length < 2 || st.players.length > SB_MAX) { const e = new Error("sb_players"); e.code = "sb_players"; throw e; }
@@ -400,23 +416,38 @@ async function startRound(code, st) {
     sb = E.newGame(humans.concat(st.players.filter((p) => p.ai).map((p) => p.pid)), Date.now() + COUNTDOWN_MS);
     src = "scrabble"; setName = "Scrabble";
   } else if (cfg.rule.scope === "common") {
-    const topic = cfg.rule.topic || TOPICS[crypto.randomInt(TOPICS.length)];
-    const res = await aiWords(topic, st.meta.level);
-    if (res) { words = res.words; src = "ai"; setName = res.name || topic; } else { words = FALLBACK.slice(); src = "fallback"; setName = "Từ thông dụng"; }
+    // bộ từ chung: tránh các từ đã chơi ở những ván trước trong phòng
+    topic = cfg.rule.topic || TOPICS[crypto.randomInt(TOPICS.length)];
+    const hist = st.meta.hist || [], avoid = new Set(hist);
+    const res = await aiWords(topic, st.meta.level, ROUND_WORDS, hist);
+    if (res) {
+      words = res.words.filter((w) => !avoid.has(lc(w)));
+      if (words.length < 10) words = words.concat(bankWords(new Set([...avoid, ...words.map(lc)]), ROUND_WORDS - words.length));
+      src = "ai"; setName = res.name || topic;
+    } else {
+      words = bankWords(avoid, ROUND_WORDS);
+      if (words.length < 10) words = bankWords(new Set(), ROUND_WORDS);   // đã chơi gần hết bộ dự phòng: dùng lại từ đầu
+      src = "fallback"; setName = "Từ thông dụng";
+    }
   }
   const start = Date.now() + COUNTDOWN_MS;
-  const round = { n, game: cfg.game, minutes: cfg.minutes, rule: cfg.rule, ruleText: cfg.ruleText, level: st.meta.level, start, end: start + cfg.minutes * 60000, words, src, setName };
+  const round = { n, game: cfg.game, minutes: cfg.minutes, rule: cfg.rule, ruleText: cfg.ruleText, level: st.meta.level, start, end: start + cfg.minutes * 60000, words, src, setName, topic };
   if (sb) { sb.turnStart = start; round.sb = sb; round.turnMs = SB_TURN_MS; round.ruleText = "Scrabble: mỗi bạn 7 chữ, đặt từ lên bàn chung"; }
   const meta = { ...st.meta, status: "playing", n, round, prep: 0 };
   // Ô "-" giữ cho bảng điểm luôn có sẵn (để đặt hạn tự xoá ngay từ đầu ván), nên mỗi lần máy gửi điểm không cần đặt lại hạn.
-  await redis([["SET", K.room(code), JSON.stringify(meta), "EX", ROOM_TTL], ["HSET", K.sc(code), "-", "1"], ...roomKeys(code).slice(1).map((k) => ["EXPIRE", k, ROOM_TTL])]);
-  st.meta = meta; st.scores = {};
+  // Xoá ô từ thêm của ván trước (nếu còn sót).
+  await redis([["SET", K.room(code), JSON.stringify(meta), "EX", ROOM_TTL], ["HSET", K.sc(code), "-", "1"], ["HDEL", K.sc(code), "w:" + (n - 1), "w:" + n], ...roomKeys(code).slice(1).map((k) => ["EXPIRE", k, ROOM_TTL])]);
+  st.meta = meta; st.scores = {}; st.extra = [];
   return meta;
 }
 
 /* ---------- Gửi trạng thái phòng về máy ---------- */
-function view(st, pid, now, wn) {
+// wn: ván mà máy đã có bộ từ; wx: số từ thêm máy đã có (chỉ "sync" gửi) -> chỉ gửi phần từ thêm máy chưa có.
+function view(st, pid, now, wn, wx) {
   const m = st.meta, r = m.round;
+  const ex = r && m.status === "playing" && r.game !== "scrabble" ? st.extra || [] : [];
+  let more;
+  if (wx != null && ex.length) { const from = wn === r.n && wx <= ex.length ? wx : 0; if (from < ex.length) more = { from, list: ex.slice(from) }; }
   const players = st.players.map((p) => ({ pid: p.pid, name: p.n, icon: p.i, grade: p.g || "", ai: !!p.ai, owner: p.pid === m.owner, online: !!p.ai || now - Number(st.seen[p.pid] || 0) < ONLINE_MS }));
   const scores = {};
   const sb = r && r.game === "scrabble" ? r.sb : null;
@@ -428,7 +459,7 @@ function view(st, pid, now, wn) {
   return {
     ok: true, now, me: pid, code: m.code, owner: m.owner, mode: m.mode, status: m.status, level: m.level, cfg: m.cfg, n: m.n || 0,
     prep: !!m.prep, waitStart: m.waitStart || 0, closedBy: m.closedBy || "",
-    round: r ? { n: r.n, game: r.game, minutes: r.minutes, ruleText: r.ruleText, rule: r.rule, level: r.level, start: r.start, end: r.end, src: r.src, setName: r.setName, words: wn === r.n ? undefined : r.words, ...(sb ? { sb: sbView(sb, pid), turnMs: r.turnMs || SB_TURN_MS } : {}) } : null,
+    round: r ? { n: r.n, game: r.game, minutes: r.minutes, ruleText: r.ruleText, rule: r.rule, level: r.level, start: r.start, end: r.end, src: r.src, setName: r.setName, words: wn === r.n ? undefined : r.words, ...(more ? { more } : {}), ...(sb ? { sb: sbView(sb, pid), turnMs: r.turnMs || SB_TURN_MS } : {}) } : null,
     players, scores, totals: st.totals, last: m.last || null,
   };
 }
@@ -617,7 +648,28 @@ export default async function handler(req, res) {
       const r = st.meta.round;
       if (st.meta.status === "playing" && r && r.game === "scrabble") await sbAuto(code, st, now);   // Bạn AI đi, quá giờ lượt, hết ván…
       else if (shouldClose(st, now)) await closeRound(code, st, now);
-      return send(res, 200, view(st, me.pid, Date.now(), int(body.wn, 0, 100000)));
+      return send(res, 200, view(st, me.pid, Date.now(), int(body.wn, 0, 100000), body.wx == null ? null : int(body.wx, 0, 100000)));
+    }
+    if (action === "more") {
+      // Bạn nào sắp chơi hết bộ từ: AI tạo thêm 25 từ MỚI (không trùng từ đã có trong ván và các ván trước) cho cả phòng.
+      // Nhiều máy cùng xin một lúc thì chỉ một máy nhờ AI (cờ NX), các máy khác nhận từ mới ở lần hỏi phòng sau.
+      const r = st.meta.round, n = int(body.n, 0, 100000), wx = int(body.wx, 0, 100000);
+      if (!member) return send(res, 403, { error: "not_member" });
+      if (st.meta.status !== "playing" || !r || r.n !== n || r.game === "scrabble") return send(res, 200, { ok: true, n, done: true });
+      const ex = st.extra || [];
+      if (ex.length > wx) return send(res, 200, { ok: true, n, more: { from: wx, list: ex.slice(wx) } });
+      if (ex.length >= MORE_MAX || now > r.end - 15000) return send(res, 200, { ok: true, n, done: true });
+      const [lk] = await redis([["SET", K.more(code, n, ex.length), me.pid, "NX", "EX", 60]]);
+      if (lk !== "OK") return send(res, 200, { ok: true, n, pending: true });
+      const avoid = usedWords(st), want = Math.min(MORE_STEP, MORE_MAX - ex.length);
+      const topic = r.rule && r.rule.scope === "common" && r.rule.topic ? r.rule.topic : pickTopic(r.topic);
+      const gen = await aiWords(topic, r.level, want, [...avoid]);
+      let add = gen ? gen.words.filter((w) => !avoid.has(lc(w))) : [];
+      if (add.length < Math.min(10, want)) add = add.concat(bankWords(new Set([...avoid, ...add.map(lc)]), want - add.length));
+      add = add.slice(0, want);
+      if (!add.length) return send(res, 200, { ok: true, n, done: true });
+      await redis([["HSET", K.sc(code), "w:" + n, JSON.stringify(ex.concat(add))]]);
+      return send(res, 200, { ok: true, n, more: { from: ex.length, list: add } });
     }
     if (action === "sb_move" || action === "sb_pass" || action === "sb_end") {
       // Scrabble: đặt từ / bỏ lượt (đổi cả giá chữ) / chủ phòng kết thúc ván. Làm trong lúc khoá phòng.

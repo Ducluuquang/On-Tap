@@ -13,7 +13,7 @@
      - SCRABBLE (24/10/2026): scrabble.css + scrabble.js; trò "Xếp câu" (GAMES.sentence) thêm vào danh sách trò -->
 <!-- Ôn Tập: ?child=<id con>&name=<tên>&icon=<biểu tượng>&grade=<lớp> — tên + biểu tượng hiện cho các bạn cùng phòng thi -->
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="description" content="10 trò chơi đánh vần tiếng Anh trên bộ từ của con: gõ từ, nhập chủ đề hoặc chụp vở.">
+<meta name="description" content="11 trò chơi đánh vần tiếng Anh trên bộ từ của con: gõ từ, nhập chủ đề hoặc chụp vở.">
 <meta name="robots" content="noindex">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}</style>
 <script>window.VS_MODE = "web"; window.VS_HOST = "ontap";</script>
@@ -2057,12 +2057,17 @@ GAMES.register = {
     const level = LEVELS.find(l => l.id === g.set.level) || LEVELS[1];
     const bank = shuffle((level.kids ? REG_KIDS : REG_GENERAL).map(regPair));
     const pairs = [], seen = new Set(), wake = [];
+    /* Thi đấu: các cặp đã chơi ở những lượt trước trong ván không lặp lại (hết hẳn cặp mới thì mới đành lặp lại). */
+    const used = g.arena && g.arena.regUsed instanceof Set ? g.arena.regUsed : null;
+    let relax = false;
     const add = o => {
       const p = { inf: regClean(o.inf), fml: regClean(o.fml), vi: String(o.vi || "").trim().slice(0, 80),
         exi: String(o.exi || "").replace(/\s+/g, " ").trim().slice(0, 220), exf: String(o.exf || "").replace(/\s+/g, " ").trim().slice(0, 220) };
       const a = norm(p.inf), b = norm(p.fml);
       if (!a || !b || a === b || seen.has(a) || seen.has(b)) return false;
+      if (used && !relax && (used.has(a) || used.has(b))) return false;
       seen.add(a); seen.add(b); pairs.push(p);
+      if (used) { used.add(a); used.add(b); }
       return true;
     };
     const ping = () => wake.splice(0).forEach(f => f());
@@ -2077,7 +2082,8 @@ GAMES.register = {
       g.cleanups.push(() => { clearTimeout(cap); ctl.abort(); });
       const words = [...new Set(g.words.concat(g.set.words || []).map(x => norm(x.w)))].slice(0, 30);
       const take = o => { if (o && o.inf && pairs.length < total && add(o)) ping(); };   // pair lines have no "w", so they arrive as meta
-      aiLines({ mode: "register", topic: g.set.topic || g.set.name || "", level: g.set.level, words, count: total }, { signal: ctl.signal, onItem: take, onMeta: take })
+      const avoid = used ? [...used].slice(-300) : [];   // tối đa 150 cặp gần nhất
+      aiLines({ mode: "register", topic: g.set.topic || g.set.name || "", level: g.set.level, words, count: total, avoid }, { signal: ctl.signal, onItem: take, onMeta: take })
         .catch(() => {}).then(() => { clearTimeout(cap); ai = "done"; ping(); });
     }
 
@@ -2093,6 +2099,10 @@ GAMES.register = {
         if (done || G !== g) return;
         done = true;
         while (pairs.length <= k && bank.length) add(bank.shift());
+        if (pairs.length <= k && used && !relax) {   // thi đấu: đã chơi hết các cặp có sẵn — đành lặp lại cặp cũ
+          relax = true; bank.push(...shuffle((level.kids ? REG_KIDS : REG_GENERAL).map(regPair)));
+          while (pairs.length <= k && bank.length) add(bank.shift());
+        }
         cb(pairs[k] || null);
       };
       const check = () => { if (done) return; if (pairs.length > k || ai !== "wait") fin(); else wake.push(check); };

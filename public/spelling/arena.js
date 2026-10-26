@@ -17,11 +17,13 @@
     avail: false, me: null, helloOk: false, helloErr: "", code: "", st: null, screen: "menu", err: "", busy: "",
     offset: 0, rtt: 1e9, lastSync: 0, syncing: false, timer: 0, play: null, words: {}, wn: 0,
     draft: null, cfgT: 0, lastSearch: 0, searchGap: 5000, aiAsked: 0, sig: "", confirmLeave: false, net: false, lastCount: 0,
+    gen: 0,   // tăng mỗi lần con rời phòng: câu trả lời muộn của phòng cũ sẽ bị bỏ qua, không kéo con quay lại phòng đó
+    xw: {}, moreBusy: false,   // từ thêm của từng ván (máy chủ nhờ AI tạo khi bộ từ sắp hết) + đang xin thêm từ
   };
   const HOOKS = {};
   // Scrabble: phần vẽ bàn cờ nằm ở scrabble.js (nạp trước arena.js)
   let SBUI = null;
-  const sbui = () => SBUI || (SBUI = window.ArenaScrabble ? window.ArenaScrabble({ st: () => A.st, call: (b) => call(b), apply: (j) => apply(j), snow: () => snow(), fmtClock: (ms) => fmtClock(ms), isOwner: () => isOwner(), short: (s) => short(s), leaveHtml: () => leaveHtml() }) : null);
+  const sbui = () => SBUI || (SBUI = window.ArenaScrabble ? window.ArenaScrabble({ st: () => A.st, gen: () => A.gen, call: (b) => call(b), apply: (j) => apply(j), snow: () => snow(), fmtClock: (ms) => fmtClock(ms), isOwner: () => isOwner(), short: (s) => short(s), leaveHtml: () => leaveHtml() }) : null);
   const isSb = (st) => !!(st && st.status === "playing" && st.round && st.round.game === "scrabble" && st.round.sb);
   const SB_MINUTES = [5, 10, 15, 20, 30, 45, 60, 90];
 
@@ -109,6 +111,7 @@
     if (j.round) {
       if (Array.isArray(j.round.words)) { A.words[j.round.n] = j.round.words; A.wn = j.round.n; }
       else if (j.round.words === null) { A.words[j.round.n] = null; A.wn = j.round.n; }
+      if (j.round.more) mergeMore(j.round.n, j.round.more);   // từ mới AI vừa tạo thêm cho cả phòng
     }
     if (A.code && A.code !== j.code) { A.play = null; A.draft = null; }
     A.st = j; A.code = j.code; A.screen = "room"; save();
@@ -122,17 +125,21 @@
   function forget(msg) {
     if (A.play && A.play.started && !A.play.f) endPlay("", true);   // đang chơi dở: vẫn ghi phần đã chơi vào báo cáo Ôn Tập
     if (G && G.arena === HOOKS) leaveGame();
-    A.code = ""; A.st = null; A.play = null; A.draft = null; A.words = {}; A.wn = 0; A.confirmLeave = false;
+    if (isSb(A.st) && sbui()) sbui().quit(A.st);   // rời giữa ván Scrabble: vẫn ghi các từ đã đặt + thời gian chơi
+    A.gen++; A.syncing = false; A.moreBusy = false; clearTimeout(A.cfgT); A.cfgT = 0;   // bỏ qua mọi câu trả lời còn đang trên đường về của phòng cũ
+    A.code = ""; A.st = null; A.play = null; A.draft = null; A.words = {}; A.xw = {}; A.wn = 0; A.confirmLeave = false;
     A.screen = "menu"; A.err = msg || ""; save();
     if (S.view === "game" || S.view === "arena") { if (S.view !== "arena") go("arena"); else draw(true); }
   }
   async function sync() {
     if (!A.code || A.syncing) return;
+    const g = A.gen;
     A.syncing = true; A.lastSync = Date.now();
     const st = A.st, p = A.play && st && st.round && A.play.n === st.round.n ? A.play : null;
-    const body = { action: "sync", code: A.code, wn: A.wn || 0 };
+    const body = { action: "sync", code: A.code, wn: A.wn || 0, wx: (A.xw[A.wn] || []).length };
     if (p && (p.started || p.f)) Object.assign(body, { n: p.n, p: p.pts, d: p.d, c: p.c, f: p.f ? 1 : 0 });
     const j = await call(body);
+    if (g !== A.gen) return;   // con đã rời phòng trong lúc chờ máy chủ trả lời
     A.syncing = false;
     if (j.error) return handleErr(j);
     apply(j);
@@ -390,33 +397,79 @@
     else if (rule.order === "weak") arr.sort((a, b) => wrong(b) - wrong(a) || acc(a) - acc(b));
     else if (rule.order === "ago") { const T = today - Number(rule.days || 0); arr.sort((a, b) => Math.abs(a.learned - T) - Math.abs(b.learned - T)); }
     else arr = shuffle(arr);
-    return arr.slice(0, Math.max(1, Number(rule.count) || 10)).map((x) => x.w);
+    // cả kho từ theo đúng thứ tự chủ phòng chọn: các từ đầu (ví dụ 10 từ mới nhất) chơi trước, hết thì sang các từ tiếp theo
+    return arr.map((x) => x.w);
   }
+  /* Không lặp lại từ trong một ván: mỗi lượt chơi lấy các từ CHƯA chơi. Bộ từ sắp hết thì xin máy chủ thêm từ mới
+     (AI tạo, cả phòng dùng chung). Chỉ khi đã chơi hết mọi từ mà chưa có từ mới mới đành lặp lại từ đã chơi lâu nhất. */
   function setupPlay(r) {
     const own = r.rule && r.rule.scope === "own";
-    const words = own ? ownWords(r.rule) : (A.words[r.n] || []);
-    const seen = new Set(), pool = [];
-    for (const w of words) { const k = norm(w.w); if (!k || seen.has(k)) continue; seen.add(k); pool.push(w); }
-    A.play = { n: r.n, game: r.game, start: r.start, end: r.end, level: r.level, pool, queue: [], pts: 0, d: 0, c: 0, f: 0, sec: 0, started: false, msg: "",
+    const words = own ? ownWords(r.rule) : shuffle(A.words[r.n] || []);
+    A.play = { n: r.n, game: r.game, start: r.start, end: r.end, level: r.level, pool: [], seen: new Set(), used: new Set(), last: new Map(), seq: 0, noMore: false,
+      pts: 0, d: 0, c: 0, f: 0, sec: 0, started: false, msg: "",
       setName: r.setName || (own ? "Từ của con" : "Thi đấu"), topic: (r.rule && r.rule.topic) || r.setName || "" };
+    addWords(A.play, words, true);
+    addWords(A.play, A.xw[r.n] || []);
+    HOOKS.regUsed = new Set();   // trò "Trang trọng hay thân mật": các cặp đã chơi trong ván (không lặp lại)
+  }
+  function addWords(p, list, keepOrder) {
+    const fresh = [];
+    for (const w of list || []) { const k = norm(w && w.w); if (!k || p.seen.has(k)) continue; p.seen.add(k); fresh.push(w); }
+    p.pool.push(...(keepOrder ? fresh : shuffle(fresh)));
+  }
+  // từ thêm từ máy chủ: { from, list } — from = 0 là cả danh sách, còn lại là phần nối tiếp
+  function mergeMore(n, m) {
+    if (!m || !Array.isArray(m.list)) return;
+    const have = A.xw[n] || [];
+    if (m.from === 0) A.xw[n] = m.list.slice();
+    else if (m.from === have.length) A.xw[n] = have.concat(m.list);
+    else return;
+    if (A.play && A.play.n === n) addWords(A.play, A.xw[n]);
+  }
+  const unusedFor = (p, def) => p.pool.filter((w) => (!def.filter || def.filter(w)) && !p.used.has(norm(w.w)));
+  async function requestMore() {
+    const p = A.play;
+    if (!p || p.f || p.noMore || A.moreBusy || !A.code) return;
+    A.moreBusy = true;
+    const g = A.gen, n = p.n;
+    const j = await call({ action: "more", code: A.code, n, wx: (A.xw[n] || []).length });
+    if (g !== A.gen) return;   // con đã rời phòng
+    A.moreBusy = false;
+    if (!j || !j.ok || j.n !== n) return;
+    if (j.more) mergeMore(n, j.more);
+    if (j.done && A.play && A.play.n === n) A.play.noMore = true;   // sắp hết giờ / đã thêm đủ nhiều: thôi xin
   }
   function batch(def) {
     const p = A.play, ok = (w) => !def.filter || def.filter(w);
-    let pool = p.pool.filter(ok);
-    if (pool.length < Math.max(def.min, 1)) {          // kho từ ít quá: thêm từ trong bộ mẫu
-      const have = new Set(pool.map((w) => norm(w.w)));
-      pool = pool.concat(SAMPLE_SET.words.filter((w) => ok(w) && !have.has(norm(w.w))));
+    let out = unusedFor(p, def).slice(0, def.count);
+    if (out.length < def.min) {   // đã chơi hết bộ từ: thêm từ trong bộ mẫu (chưa chơi)
+      const have = new Set(out.map((w) => norm(w.w)));
+      out = out.concat(SAMPLE_SET.words.filter((w) => ok(w) && !p.used.has(norm(w.w)) && !have.has(norm(w.w)))).slice(0, def.count);
     }
-    if (pool.length < Math.max(def.min, 1)) return null;
-    const out = [], used = new Set(), want = Math.min(def.count, pool.length);
-    let guard = 0;
-    while (out.length < want && guard++ < 500) {
-      if (!p.queue.length) p.queue = shuffle(pool.slice());
-      const w = p.queue.shift(), k = norm(w.w);
-      if (used.has(k)) continue;
-      used.add(k); out.push(w);
+    if (out.length < def.min) {   // vẫn thiếu: đành lặp lại các từ đã chơi lâu nhất
+      const have = new Set(out.map((w) => norm(w.w)));
+      const old = p.pool.concat(SAMPLE_SET.words).filter((w) => ok(w) && !have.has(norm(w.w)));
+      const seenK = new Set();
+      out = out.concat(old.filter((w) => { const k = norm(w.w); if (seenK.has(k)) return false; seenK.add(k); return true; })
+        .sort((a, b) => (p.last.get(norm(a.w)) || 0) - (p.last.get(norm(b.w)) || 0))).slice(0, def.count);
     }
-    return out.length >= def.min ? out : null;
+    if (out.length < def.min) return null;
+    for (const w of out) { const k = norm(w.w); p.used.add(k); p.last.set(k, ++p.seq); }
+    maybeMore(p, def);
+    return shuffle(out);
+  }
+  // Sắp hết từ chưa chơi thì xin máy chủ thêm từ mới — xin sớm để AI kịp tạo (AI cần khoảng 10–40 giây), nhưng không xin
+  // khi con chưa thể chơi hết số từ còn lại trước lúc hết giờ (đỡ tốn tiền AI).
+  function maybeMore(p, def) {
+    if (p.game === "register") return;   // "Trang trọng hay thân mật": cặp từ do AI tạo riêng cho trò, không cần thêm từ
+    const left = p.end - snow();
+    if (left < 20000) return;
+    const unused = unusedFor(p, def).length;
+    if (unused < def.count) return requestMore();   // không còn đủ từ cho một lượt nữa
+    const el = (snow() - p.start) / 1000, rate = el > 5 ? p.d / el : 0;   // số từ con chơi mỗi giây trong ván này
+    if (!rate) return;
+    const need = unused / rate;   // khoảng bao nhiêu giây nữa thì con chơi hết các từ còn lại
+    if (need < 90 && need * 1000 < left - 5000) requestMore();
   }
   function beginPlay() {
     const p = A.play;
@@ -454,7 +507,10 @@
     if (!p || ctx.arena !== HOOKS) return;
     p.sec += sec || 0;
     if (p.f) return;
-    if (snow() < p.end - 2500) setTimeout(beginPlay, 0);
+    // phòng hờ: trò kết thúc mà chưa chơi được từ nào (không có nội dung) thì không mở lại liên tục
+    p.empty = ctx.items && ctx.items.length ? 0 : (p.empty || 0) + 1;
+    if (p.empty >= 3) return endPlay("Trò này tạm hết nội dung để chơi trong ván này.");
+    if (snow() < p.end - 2500) setTimeout(beginPlay, p.empty ? 800 : 0);
     else endPlay("Hết giờ!");
   };
   HOOKS.quit = function () { endPlay("Con đã dừng ván này."); };
@@ -498,16 +554,20 @@
   async function research() {
     const st = A.st;
     if (!st || st.status !== "waiting" || A.syncing) return;
+    const g = A.gen;
     A.syncing = true;
     const j = await call({ action: "random", prev: A.code, level: st.level, game: st.cfg.game, minutes: st.cfg.minutes });
+    if (g !== A.gen) return;   // con đã bấm "Huỷ tìm" trong lúc chờ
     A.syncing = false; A.lastSync = Date.now();
     if (j.error) return handleErr(j);
     apply(j);
   }
   async function askAI() {
     if (!A.code || A.syncing) return;
+    const g = A.gen;
     A.syncing = true;
     const j = await call({ action: "ai", code: A.code });
+    if (g !== A.gen) return;
     A.syncing = false; A.lastSync = Date.now();
     if (j.ok) apply(j);
   }
@@ -517,9 +577,9 @@
   async function sendConfig() {
     A.cfgT = 0;
     if (!isOwner() || !A.draft) return;
-    const d = A.draft;
+    const d = A.draft, g = A.gen;
     const j = await call({ action: "config", code: A.code, game: d.game, level: d.level, minutes: d.minutes, req: d.req });
-    if (j.ok) { A.st = j; refresh(); }
+    if (j.ok && g === A.gen) { A.st = j; refresh(); }
   }
   async function flushConfig() { if (A.cfgT) { clearTimeout(A.cfgT); await sendConfig(); } }
 
@@ -546,8 +606,10 @@
       if (A.busy || !isOwner()) return;
       A.busy = a; draw(true);
       await flushConfig();
+      const g = A.gen;
       const j = await call(a === "aiadd" ? { action: "ai_add", code: A.code } : { action: "ai_remove", code: A.code, ai: el && el.dataset.ai });
       A.busy = "";
+      if (g !== A.gen) return draw(true);   // con đã rời phòng trong lúc chờ
       if (j.ok && j.code) apply(j); else A.err = j.error === "full" ? "Phòng đã đủ 8 người." : "Chưa làm được. Thử lại nhé.";
       return draw(true);
     }
@@ -596,8 +658,10 @@
       if (A.busy || !isOwner()) return;
       A.busy = "start"; A.err = ""; draw(true);
       await flushConfig();
+      const g = A.gen;
       const j = await call({ action: "start", code: A.code });
       A.busy = "";
+      if (g !== A.gen) return draw(true);
       if (j.ok) apply(j);
       else A.err = { need_two: "Cần ít nhất 2 bạn trong phòng. Gửi mã phòng cho bạn nhé!", busy: "Ván đang diễn ra.", slow_down: "Bắt đầu nhiều ván quá, đợi một lúc nhé.", store_limit: LIMIT_MSG }[j.error] || "Chưa bắt đầu được. Thử lại nhé.";
       return draw(true);
@@ -605,18 +669,21 @@
     if (a === "finish" || a === "again") {
       if (A.busy || !isOwner()) return;
       A.busy = a; draw(true);
+      const g = A.gen;
       const j = await call({ action: a, code: A.code });
       A.busy = "";
+      if (g !== A.gen) return draw(true);
       if (j.ok) apply(j); else A.err = j.error === "store_limit" ? LIMIT_MSG : "Chưa làm được. Thử lại nhé.";
       return draw(true);
     }
     if (a === "leave") { A.confirmLeave = true; return draw(true); }
     if (a === "leaveno") { A.confirmLeave = false; return draw(true); }
     if (a === "leaveyes") {
+      // về màn Thi đấu ngay, rồi mới báo máy chủ (câu trả lời muộn của phòng cũ không còn kéo con quay lại phòng)
       const code = A.code;
-      if (code) await call({ action: "leave", code });
       forget("");
       draw(true);
+      if (code) await call({ action: "leave", code });
     }
   }
   document.addEventListener("click", (e) => {

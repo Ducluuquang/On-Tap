@@ -112,7 +112,7 @@ function promptContext(items, level) {
   ].join("\n");
 }
 /* "Trang trọng hay thân mật": pairs with the same meaning, one informal and one formal. */
-function promptRegister(topic, words, count, level) {
+function promptRegister(topic, words, count, level, avoid) {
   const kids = !!level.kids;
   return [
     'You are making a "formal or informal?" game for a Vietnamese learner of English.',
@@ -131,6 +131,7 @@ function promptRegister(topic, words, count, level) {
     '- "exi" is a natural, casual sentence using the informal expression exactly as written; "exf" is a formal sentence using the formal expression exactly as written.',
     kids ? "- Short, simple sentences, at most 10 words." : "- Sentences of at most 18 words.",
     "- No rude slang, nothing unsuitable for children, and no expression used twice.",
+    avoid && avoid.length ? "- These expressions were already used in this game, so do not use any of them again: " + avoid.join(", ") : "",
   ].filter(Boolean).join("\n");
 }
 
@@ -200,7 +201,8 @@ function buildRequest(b) {
     const n = Math.round(Number(b.count));
     const count = n >= 1 && n <= 12 ? n : 8;
     const words = (Array.isArray(b.words) ? b.words : []).slice(0, 40).map(x => clean(x, 40)).filter(Boolean);
-    return { maxTokens: 3000, content: promptRegister(clean(b.topic, 80) || "everyday English", words, count, level) };
+    const avoid = (Array.isArray(b.avoid) ? b.avoid : []).slice(-300).map(x => clean(x, 40)).filter(Boolean);   // thi đấu: các cách nói đã chơi trong ván
+    return { maxTokens: 3000, content: promptRegister(clean(b.topic, 80) || "everyday English", words, count, level, avoid) };
   }
   if (mode === "photo") {
     const img = (b && b.image) || {};

@@ -199,9 +199,11 @@
       draw();
     }
     async function send(body) {
-      const st = api.st();
-      let j = await api.call(Object.assign({ code: st.code, n: st.round.n }, body));
-      if (j && j.error === "busy") { await new Promise((r) => setTimeout(r, 700)); j = await api.call(Object.assign({ code: st.code, n: st.round.n }, body)); }
+      const st = api.st(), g = api.gen();
+      const req = () => api.call(Object.assign({ code: st.code, n: st.round.n }, body));
+      let j = await req();
+      if (j && j.error === "busy" && api.gen() === g) { await new Promise((r) => setTimeout(r, 700)); if (api.gen() === g) j = await req(); }
+      if (api.gen() !== g) return { error: "gone" };   // con đã rời phòng trong lúc chờ máy chủ: bỏ qua câu trả lời
       return j || { error: "network" };
     }
     async function play() {
@@ -211,6 +213,7 @@
       U.busy = true; setMsg("", ""); draw();
       const j = await send({ action: "sb_move", tiles: U.placed.map((p) => ({ i: p.i, l: p.l, b: p.b })) });
       U.busy = false;
+      if (j.error === "gone") return;
       if (!j.error) {
         const sb = j.round && j.round.sb, m = sb && sb.moves && sb.moves[sb.moves.length - 1];
         U.placed = []; U.cur = -1;
@@ -228,6 +231,7 @@
       U.confirm = ""; U.busy = true; draw();
       const j = await send({ action: "sb_pass" });
       U.busy = false;
+      if (j.error === "gone") return;
       if (!j.error) { setMsg("Con đã bỏ lượt và đổi chữ mới.", ""); api.apply(j); draw(); return; }
       setMsg(j.msg || "Chưa bỏ lượt được. Thử lại nhé.", "bad");
       if (j.ok && j.code) api.apply(j);
@@ -237,6 +241,7 @@
       U.confirm = ""; U.busy = true; draw();
       const j = await send({ action: "sb_end" });
       U.busy = false;
+      if (j.error === "gone") return;
       if (j.ok && j.code) api.apply(j);
       else { setMsg("Chưa kết thúc được. Thử lại nhé.", "bad"); draw(); }
     }
@@ -297,6 +302,18 @@
       SFX.play(winners.some((x) => x.pid === cur.me) ? "win" : "tap");
       reset();
     }
+    // con rời phòng giữa ván: vẫn ghi các từ đã đặt và thời gian đã chơi vào báo cáo Ôn Tập (giống các trò khác)
+    function quit(st) {
+      const sb = sbOf(st);
+      if (!sb) return;
+      const key = st.code + ":" + st.round.n;
+      if (U.posted === key) return;
+      U.posted = key;
+      const words = (sb.words || {})[st.me] || [];
+      const sec = U.key === key ? Math.round(U.sec) : 0;
+      if (words.length || sec) ontapPost({ action: "session", game: "scrabble", total: words.length, correct: words.length, seconds: sec });
+      reset();
+    }
     function resultsTop(st) {
       const last = st.last || {}, rank = last.rank || [], sbl = last.sb || {};
       const winners = crownOf(rank);
@@ -311,6 +328,6 @@
         <section class="sheet"><div class="lbl">Điểm ván Scrabble</div><div class="ar-board" style="margin-top:8px">${rows}</div></section>
         ${sbl.board ? `<section class="sheet"><div class="lbl">Bàn cờ cuối ván</div><div class="sb-board mini">${boardHtml({ board: sbl.board, last: [] }, true)}</div>${words ? `<div class="sb-words">${words}</div>` : ""}</section>` : ""}`;
     }
-    return { html, update, tick, finish, resultsTop, reset, study };
+    return { html, update, tick, finish, quit, resultsTop, reset, study };
   };
 })();
