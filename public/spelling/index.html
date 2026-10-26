@@ -1035,25 +1035,25 @@ async function webAsk(req, { images, signal, onText }) {
 function aiErrMsg(e) {
   switch (String((e && e.code) || "")) {
     case "not_granted": case "sampling_disabled": case "not_declared": case "capability_disabled": case "capability_removed":
-      AI.denied = true; return "AI chưa được bật cho trang này. Vẫn có thể gõ từ để chơi bình thường.";
-    case "rate_limited": return AI.web ? "AI đang nhận quá nhiều yêu cầu. Đợi một phút rồi thử lại." : "AI đang bận hoặc đã hết lượt dùng. Đợi vài phút rồi thử lại.";
+      AI.denied = true; return "ONTAP chưa được bật cho trang này. Vẫn có thể gõ từ để chơi bình thường.";
+    case "rate_limited": return AI.web ? "ONTAP đang nhận quá nhiều yêu cầu. Đợi một phút rồi thử lại." : "ONTAP đang bận hoặc đã hết lượt dùng. Đợi vài phút rồi thử lại.";
     case "session_expired": return "Phiên đăng nhập Claude đã hết hạn. Đăng nhập lại rồi thử lại.";
     case "image_rejected": case "bad_image": return "Ảnh này không đọc được. Thử chụp lại, hoặc chọn ảnh JPG hay PNG.";
-    case "images_unavailable": AI.images = null; return "Trang này chưa gửi ảnh cho AI được. Hãy gõ từ hoặc nhập chủ đề.";
-    case "refused": return "AI không xử lý yêu cầu này. Thử đổi chủ đề hoặc cách viết.";
-    case "invalid_json": case "empty_completion": return "AI trả lời chưa đúng định dạng. Bấm thử lại.";
+    case "images_unavailable": AI.images = null; return "Trang này chưa gửi ảnh cho ONTAP được. Hãy gõ từ hoặc nhập chủ đề.";
+    case "refused": return "ONTAP không xử lý được yêu cầu này. Thử đổi chủ đề hoặc cách viết.";
+    case "invalid_json": case "empty_completion": return "ONTAP trả lời chưa đúng định dạng. Bấm thử lại.";
     case "prompt_too_large": case "too_large": case "http_413": return "Ảnh hoặc danh sách quá lớn. Thử ảnh nhỏ hơn hoặc chia nhỏ danh sách.";
-    case "no_key": return "Máy chủ chưa có khóa AI. Trên Vercel, thêm ANTHROPIC_API_KEY trong Settings → Environment Variables rồi bấm Redeploy.";
-    case "bad_key": return "Khóa AI không đúng hoặc đã bị xóa. Kiểm tra lại ANTHROPIC_API_KEY trên Vercel.";
+    case "no_key": return "Máy chủ chưa có khóa ANTHROPIC_API_KEY. Trên Vercel, thêm khóa này trong Settings → Environment Variables rồi bấm Redeploy.";
+    case "bad_key": return "Khóa ANTHROPIC_API_KEY không đúng hoặc đã bị xóa. Kiểm tra lại khóa này trên Vercel.";
     case "no_credit": return "Tài khoản Anthropic đã hết tiền. Nạp thêm ở console.anthropic.com, mục Billing.";
-    case "overloaded": case "http_503": return "AI đang quá tải. Đợi một lát rồi thử lại.";
-    case "model": return "Không gọi được mô hình AI. Nếu có đặt ANTHROPIC_MODEL trên Vercel thì xóa biến đó rồi Redeploy.";
-    case "http_504": return "AI trả lời quá lâu. Thử lại với ít từ hơn.";
+    case "overloaded": case "http_503": return "ONTAP đang quá tải. Đợi một lát rồi thử lại.";
+    case "model": return "Không gọi được mô hình trong biến ANTHROPIC_MODEL. Nếu có đặt biến đó trên Vercel thì xóa đi rồi Redeploy.";
+    case "http_504": return "ONTAP trả lời quá lâu. Thử lại với ít từ hơn.";
     case "network": return "Mất kết nối mạng. Kiểm tra mạng rồi thử lại.";
     case "bad_request": return "Yêu cầu chưa hợp lệ. Kiểm tra nội dung rồi thử lại.";
-    case "auth": return "Cần đăng nhập để dùng AI. Đăng nhập lại nhé.";
+    case "auth": return "Cần đăng nhập để dùng ONTAP. Đăng nhập lại nhé.";
     case "cancelled": return "";
-    default: return "Kết nối với AI bị gián đoạn. Bấm thử lại.";
+    default: return "Kết nối với ONTAP bị gián đoạn. Bấm thử lại.";
   }
 }
 
@@ -1158,7 +1158,7 @@ function homeHtml() {
     left = `<section class="setcard">
       <div class="lbl">Bộ từ đang học</div>
       <div class="name">Chưa có bộ từ nào</div>
-      <p style="margin:0 0 14px;color:var(--ink-soft)">Gõ những từ đang học trên lớp, nhập một chủ đề để AI gợi ý, hoặc chụp trang từ vựng trong vở. Bộ từ được lưu lại cho những lần chơi sau.</p>
+      <p style="margin:0 0 14px;color:var(--ink-soft)">Gõ những từ đang học trên lớp, nhập một chủ đề để ONTAP gợi ý, hoặc chụp trang từ vựng trong vở. Bộ từ được lưu lại cho những lần chơi sau.</p>
       ${canWrite() ? `<div class="row"><button class="btn primary" type="button" data-act="new" data-mode="type">Gõ từ</button>
       <button class="btn" type="button" data-act="new" data-mode="topic">${ICON.spark} Theo chủ đề</button>
       <button class="btn" type="button" data-act="new" data-mode="photo">${ICON.camera} Chụp vở</button></div>` : ""}
@@ -1182,7 +1182,7 @@ function homeHtml() {
       ${storeBanner()}
     </section>`;
   }
-  const games = GAME_LIST.map(g => gameCardHtml(g, set)).join("");
+  const games = GAME_LIST.map(g => gameCardHtml(g, set)).join("") + (window.Arena && Arena.gameCardHtml ? Arena.gameCardHtml() : "");   // Ôn Tập: thi đấu — thẻ Scrabble cuối danh sách
   return `<div class="home"><div class="leftcol">${window.Arena ? Arena.entryHtml() : ""}${reviewCardHtml()}${left}</div><section class="games" aria-label="Trò chơi"><h2>Chọn trò chơi</h2><div class="ggrid">${games}</div></section></div>`;
 }
 function gameCardHtml(g, set) {
@@ -1268,21 +1268,21 @@ function countSelectHtml(c, counts) {
   return `<div class="field" style="width:110px"><label for="c-count">Số từ</label><select id="c-count" class="inp">${counts.map(n => `<option value="${n}" ${c.count === n ? "selected" : ""}>${n}</option>`).join("")}</select></div>`;
 }
 function expandInputHtml(c) {
-  const intro = `<p class="muted" style="margin:0 0 14px">Bộ <b>${esc(c.name)}</b> đang có ${c.base.length} từ.${aiReady() ? " Chọn loại từ muốn AI thêm vào:" : ""}</p>`;
+  const intro = `<p class="muted" style="margin:0 0 14px">Bộ <b>${esc(c.name)}</b> đang có ${c.base.length} từ.${aiReady() ? " Chọn loại từ muốn ONTAP thêm vào:" : ""}</p>`;
   if (!aiReady()) return `<div class="sheet">${intro}${aiOffNote()}</div>`;
   const k = KIND_OPTS[c.kind];
   return `<div class="sheet">${intro}
       <div class="kinds" role="radiogroup" aria-label="Loại từ">${Object.entries(KIND_OPTS).map(([id, o]) => `<button type="button" class="kind${c.kind === id ? " on" : ""}" data-kind="${id}" role="radio" aria-checked="${c.kind === id}"><b>${esc(o.label)}</b><span>${esc(o.desc)}</span></button>`).join("")}</div>
       <div class="field" style="margin-top:16px"><label for="c-topic">Chủ đề</label><input id="c-topic" class="inp" value="${esc(c.topic)}" autocomplete="off"></div>
       <div class="row" style="margin-top:12px;align-items:end">${levelSelectHtml(c)}${countSelectHtml(c, k.counts)}</div>
-      <div class="row" style="margin-top:16px"><button class="btn primary" id="c-go" type="button">${ICON.spark} Nhờ AI thêm ${esc(k.label.toLowerCase())}</button></div>
+      <div class="row" style="margin-top:16px"><button class="btn primary" id="c-go" type="button">${ICON.spark} Nhờ ONTAP thêm ${esc(k.label.toLowerCase())}</button></div>
     </div>${c.error ? `<div class="err" role="alert">${esc(c.error)}</div>` : ""}`;
 }
 function aiOffNote() {
-  if (!AI.checked) return '<div class="note">Đang kết nối AI…</div>';
-  if (AI.web && AI.webIssue === "no_key") return '<div class="note">Máy chủ chưa có khóa AI. Trên Vercel, thêm ANTHROPIC_API_KEY trong Settings → Environment Variables rồi bấm Redeploy. Trong lúc đó vẫn chọn “Gõ từ” để chơi được.</div>';
-  if (AI.web) return '<div class="note">Không kết nối được máy chủ AI. Kiểm tra mạng, hoặc mở app bằng link Vercel thay vì mở file trên máy. Vẫn chọn “Gõ từ” để chơi được.</div>';
-  return `<div class="note">AI chưa sẵn sàng trên trang này${AI.denied ? " (chưa được cho phép)" : ""}. Vẫn có thể chọn “Gõ từ” để tạo bộ từ và chơi bình thường.</div>`;
+  if (!AI.checked) return '<div class="note">Đang kết nối ONTAP…</div>';
+  if (AI.web && AI.webIssue === "no_key") return '<div class="note">Máy chủ chưa có khóa ANTHROPIC_API_KEY. Trên Vercel, thêm khóa này trong Settings → Environment Variables rồi bấm Redeploy. Trong lúc đó vẫn chọn “Gõ từ” để chơi được.</div>';
+  if (AI.web) return '<div class="note">Không kết nối được máy chủ ONTAP. Kiểm tra mạng, hoặc mở app bằng link Vercel thay vì mở file trên máy. Vẫn chọn “Gõ từ” để chơi được.</div>';
+  return `<div class="note">ONTAP chưa sẵn sàng trên trang này${AI.denied ? " (chưa được cho phép)" : ""}. Vẫn có thể chọn “Gõ từ” để tạo bộ từ và chơi bình thường.</div>`;
 }
 function inputHtml(c) {
   const ai = aiReady();
@@ -1292,23 +1292,23 @@ function inputHtml(c) {
     h += `<div class="field"><label for="c-text">Danh sách từ</label>
       <textarea id="c-text" class="inp" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="apple, banana, orange&#10;elephant - con voi&#10;tiger: con hổ">${esc(c.text)}</textarea></div>
       <p class="muted small" style="margin:8px 0 0">Cách nhau bằng dấu phẩy hoặc xuống dòng. Muốn ghi nghĩa thì viết sau dấu “-” hoặc “:”.</p>
-      ${ai ? `<label class="toggle"><input type="checkbox" id="c-enrich" ${c.enrich ? "checked" : ""}> Nhờ AI thêm nghĩa, câu ví dụ và soát lỗi chính tả</label>` : ""}
+      ${ai ? `<label class="toggle"><input type="checkbox" id="c-enrich" ${c.enrich ? "checked" : ""}> Nhờ ONTAP thêm nghĩa, câu ví dụ và soát lỗi chính tả</label>` : ""}
       <div class="row" style="margin-top:16px"><button class="btn primary" id="c-go" type="button">Tạo bộ từ</button></div>`;
   } else if (c.mode === "topic") {
     h += !ai ? aiOffNote() : `<div class="field"><label for="c-topic">Chủ đề</label><input id="c-topic" class="inp" value="${esc(c.topic)}" placeholder="Ví dụ: Animals, Đồ dùng học tập, Unit 7 lớp 4" autocomplete="off"></div>
       <div class="row" style="margin-top:12px;align-items:end">${levelSelectHtml(c)}${countSelectHtml(c, [10, 15, 20, 50, 100])}</div>
-      <p class="muted small" style="margin:10px 0 0">Chọn 50 hoặc 100 để có các từ thông dụng nhất của chủ đề. AI làm từng đợt 25 từ.</p>
-      <div class="row" style="margin-top:16px"><button class="btn primary" id="c-go" type="button">${ICON.spark} Nhờ AI gợi ý từ</button></div>`;
+      <p class="muted small" style="margin:10px 0 0">Chọn 50 hoặc 100 để có các từ thông dụng nhất của chủ đề. ONTAP làm từng đợt 25 từ.</p>
+      <div class="row" style="margin-top:16px"><button class="btn primary" id="c-go" type="button">${ICON.spark} Nhờ ONTAP gợi ý từ</button></div>`;
   } else if (!ai) {
     h += aiOffNote();
   } else if (!AI.images) {
-    h += '<div class="note">Trang này chưa gửi ảnh cho AI được. Hãy gõ từ hoặc nhập chủ đề.</div>';
+    h += '<div class="note">Trang này chưa gửi ảnh cho ONTAP được. Hãy gõ từ hoặc nhập chủ đề.</div>';
   } else {
-    h += `<p style="margin:0 0 12px">Chụp trang từ vựng trong vở hoặc sách giáo khoa. AI đọc ảnh, lấy ra các từ tiếng Anh kèm nghĩa để duyệt lại trước khi lưu.</p>
+    h += `<p style="margin:0 0 12px">Chụp trang từ vựng trong vở hoặc sách giáo khoa. ONTAP đọc ảnh, lấy ra các từ tiếng Anh kèm nghĩa để duyệt lại trước khi lưu.</p>
       <input type="file" id="c-file" accept="${esc((AI.images.mediaTypes || ["image/jpeg", "image/png", "image/webp"]).join(","))}" hidden>
       <div class="row"><button class="btn" id="c-pick" type="button">${ICON.camera} ${c.file ? "Chọn ảnh khác" : "Chọn hoặc chụp ảnh"}</button></div>
       ${c.fileUrl ? `<img class="photo-prev" src="${esc(c.fileUrl)}" alt="Ảnh trang từ vựng đã chọn" style="margin-top:12px">` : ""}
-      <div class="row" style="margin-top:16px"><button class="btn primary" id="c-go" type="button" ${c.file ? "" : "disabled"}>${ICON.spark} Nhờ AI đọc ảnh</button></div>`;
+      <div class="row" style="margin-top:16px"><button class="btn primary" id="c-go" type="button" ${c.file ? "" : "disabled"}>${ICON.spark} Nhờ ONTAP đọc ảnh</button></div>`;
   }
   h += "</div>";
   if (c.error) h += `<div class="err" role="alert">${esc(c.error)}</div>`;
@@ -1320,7 +1320,7 @@ function revRowHtml(w, i) {
     <input class="inp w" id="rw-${i}" data-f="w" value="${esc(w.w)}" aria-label="Từ tiếng Anh" autocomplete="off" autocapitalize="none" spellcheck="false">
     <input class="inp vi" id="rv-${i}" data-f="vi" value="${esc(w.vi || "")}" placeholder="nghĩa tiếng Việt" aria-label="Nghĩa tiếng Việt" autocomplete="off">
     <button class="x" type="button" data-del="${i}" aria-label="Xóa từ ${esc(w.w)}">${ICON.x}</button>
-    ${w.fixed ? `<div class="fixnote">AI đã sửa chính tả từ “${esc(w.fixed)}”</div>` : ""}
+    ${w.fixed ? `<div class="fixnote">ONTAP đã sửa chính tả từ “${esc(w.fixed)}”</div>` : ""}
   </div>`;
 }
 function reviewHtml(c, editing) {
@@ -1339,7 +1339,7 @@ function reviewHtml(c, editing) {
     <div class="rev" id="c-rev">${c.words.map(revRowHtml).join("")}</div>
     ${!n && !c.working ? '<p class="muted" id="c-none" style="margin:0">Chưa có từ nào. Bấm “Thêm từ” để gõ.</p>' : ""}
     <div class="row" style="margin-top:12px"><button class="btn sm" id="c-add" type="button">${ICON.plus} Thêm từ</button>
-    ${missing && aiReady() && !c.working ? `<button class="btn sm" id="c-fill" type="button">${ICON.spark} AI bổ sung nghĩa, câu ví dụ (${missing})</button>` : ""}</div>
+    ${missing && aiReady() && !c.working ? `<button class="btn sm" id="c-fill" type="button">${ICON.spark} ONTAP bổ sung nghĩa, câu ví dụ (${missing})</button>` : ""}</div>
   </div>
   <div class="row"><button class="btn primary" id="c-save" type="button" ${c.working ? "disabled" : ""}>${saveLabel(c, editing)}</button>${back}</div>`;
   if (c.confirmDel) h += `<div class="confirm"><span style="flex:1;min-width:200px">Xóa hẳn bộ “${esc(c.name)}” cùng lịch sử ôn của nó?</span><button class="btn sm danger" id="c-del-yes" type="button">Xóa</button><button class="btn sm" id="c-del-no" type="button">Giữ lại</button></div>`;
@@ -1380,14 +1380,14 @@ async function runCreate() {
     const topic = c.topic.trim();
     if (!topic) { c.error = "Nhập một chủ đề trước, ví dụ: Animals."; renderCreate(); return; }
     c.words = []; c.step = "review";
-    if (c.expand) return runBatches(c, c.kind, c.count, `AI đang tìm ${KIND_OPTS[c.kind].label.toLowerCase()} cho chủ đề “${topic}”.`);
+    if (c.expand) return runBatches(c, c.kind, c.count, `ONTAP đang tìm ${KIND_OPTS[c.kind].label.toLowerCase()} cho chủ đề “${topic}”.`);
     c.source = "topic"; c.name = topic.charAt(0).toUpperCase() + topic.slice(1); c.nameAuto = true;
-    return runBatches(c, "common", c.count, `AI đang chọn ${c.count} từ cho chủ đề “${topic}”. Thường mất 10–40 giây.`);
+    return runBatches(c, "common", c.count, `ONTAP đang chọn ${c.count} từ cho chủ đề “${topic}”. Thường mất 10–40 giây.`);
   }
   if (!c.file) return;
   if (AI.images && AI.images.maxInputBytes && c.file.size > AI.images.maxInputBytes) { c.error = "Ảnh quá lớn. Chụp lại hoặc chọn ảnh nhỏ hơn."; renderCreate(); return; }
   c.words = []; c.source = "photo"; c.step = "review"; c.name = "Vở ngày " + ddmm(); c.nameAuto = true;
-  return runStream({ mode: "photo" }, [c.file], "AI đang đọc ảnh và lấy từ vựng. Thường mất 15–60 giây.");
+  return runStream({ mode: "photo" }, [c.file], "ONTAP đang đọc ảnh và lấy từ vựng. Thường mất 15–60 giây.");
 }
 
 async function runStream(req, images, status) {
@@ -1409,8 +1409,8 @@ async function runStream(req, images, status) {
         if (o.error === "no_words") c.error = "Không thấy từ tiếng Anh nào trong ảnh. Thử chụp rõ hơn, đủ sáng và thẳng trang.";
       },
     });
-    if (r.truncated) c.error = "AI trả lời bị cắt ngắn. Có thể bấm “Thêm từ” để bổ sung.";
-    if (!c.words.length && !c.error) c.error = "AI chưa đưa ra từ nào. Thử lại hoặc đổi cách diễn đạt.";
+    if (r.truncated) c.error = "ONTAP trả lời bị cắt ngắn. Có thể bấm “Thêm từ” để bổ sung.";
+    if (!c.words.length && !c.error) c.error = "ONTAP chưa đưa ra từ nào. Thử lại hoặc đổi cách diễn đạt.";
   } catch (e) {
     const m = aiErrMsg(e); if (m) c.error = m;
   }
@@ -1448,8 +1448,8 @@ async function runBatches(c, kind, total, status) {
     const m = aiErrMsg(e); if (m) c.error = m;
   }
   c.working = false; c.ctl = null;
-  if (!c.error && truncated && added < total) c.error = "AI trả lời bị cắt ngắn nên chưa đủ số từ. Có thể thêm tiếp sau.";
-  if (!c.words.length && !c.error) c.error = c.expand ? "AI không tìm thêm được từ mới nào. Thử loại từ khác hoặc đổi chủ đề." : "AI chưa đưa ra từ nào. Thử lại hoặc đổi cách diễn đạt.";
+  if (!c.error && truncated && added < total) c.error = "ONTAP trả lời bị cắt ngắn nên chưa đủ số từ. Có thể thêm tiếp sau.";
+  if (!c.words.length && !c.error) c.error = c.expand ? "ONTAP không tìm thêm được từ mới nào. Thử loại từ khác hoặc đổi chủ đề." : "ONTAP chưa đưa ra từ nào. Thử lại hoặc đổi cách diễn đạt.";
   if (!c.words.length) c.step = "input";
   if (S.create === c && S.view === "create") renderCreate();
 }
@@ -1458,13 +1458,13 @@ async function runEnrich(idx) {
   const c = S.create;
   idx = idx.filter(i => c.words[i] && c.words[i].w);
   if (!idx.length) { renderCreate(); return; }
-  c.working = true; c.status = "AI đang thêm nghĩa và soát chính tả…"; c.error = ""; c.ctl = new AbortController();
+  c.working = true; c.status = "ONTAP đang thêm nghĩa và soát chính tả…"; c.error = ""; c.ctl = new AbortController();
   renderCreate();
   let got = 0;
   try {
     for (let s = 0; s < idx.length; s += 60) {
       const chunk = idx.slice(s, s + 60);
-      if (idx.length > 60) setStatus(c, `AI đang thêm nghĩa và soát chính tả (${Math.min(s + 60, idx.length)}/${idx.length} từ)…`);
+      if (idx.length > 60) setStatus(c, `ONTAP đang thêm nghĩa và soát chính tả (${Math.min(s + 60, idx.length)}/${idx.length} từ)…`);
       const byOrig = new Map(); chunk.forEach(i => byOrig.set(norm(c.words[i].w), i));
       let k = 0;
       const r = await aiLines({ mode: "enrich", items: chunk.map(i => ({ w: c.words[i].w, vi: c.words[i].vi || "" })) }, {
@@ -1488,7 +1488,7 @@ async function runEnrich(idx) {
       });
       got += r.got;
     }
-    if (!got) c.error = "AI chưa thêm được nghĩa. Vẫn có thể lưu và chơi, hoặc bấm “AI bổ sung nghĩa” để thử lại.";
+    if (!got) c.error = "ONTAP chưa thêm được nghĩa. Vẫn có thể lưu và chơi, hoặc bấm “ONTAP bổ sung nghĩa” để thử lại.";
   } catch (e) {
     const m = aiErrMsg(e); if (m) c.error = m;
   }
@@ -1853,18 +1853,19 @@ function tileRound(g, w, positions, bankLetters, opts, done) {
   };
   draw();
 }
-function tileStage(g, w, i, withHint) {
+/* bare (Ôn Tập, 26/10/2026 — trò Xếp chữ): lúc chơi không hiện hình, nghĩa, nút nghe; chỉ còn nút "Gợi ý 1 chữ". */
+function tileStage(g, w, i, withHint, bare) {
   g.cur = w;
   g.hud(`${i + 1}/${g.words.length}`); g.progress(i, g.words.length);
-  g.stage.innerHTML = `<div style="display:grid;gap:12px;justify-items:center">${clueHtml(w)}${speakHtml(w, false)}</div>
+  g.stage.innerHTML = `<div id="g-clue" style="display:grid;gap:12px;justify-items:center">${bare ? "" : clueHtml(w) + speakHtml(w, false)}</div>
     <div id="g-word" style="width:100%"></div><div class="bank" id="g-bank"></div>
     <div class="fb" id="g-fb" aria-live="polite"></div>
     <div id="g-extra" class="row" style="justify-content:center">${withHint ? '<button class="btn sm ghost" type="button" id="g-hint">Gợi ý 1 chữ</button>' : ""}</div>`;
 }
-function afterTile(g, i, next) {
+function afterTile(g, i, next, wait) {
   return (credit, typed) => {
     g.record(g.words[i], credit, typed);
-    if (credit > 0) g.later(next, 1200);
+    if (credit > 0) g.later(next, wait || 1200);
     else g.later(() => { $("#g-extra").innerHTML = `<button class="btn primary" type="button" id="g-next">${nextLabel(g, i)}</button>`; $("#g-next").onclick = next; }, 800);
   };
 }
@@ -1911,8 +1912,12 @@ GAMES.scramble = {
       const letters = pos.map(k => chars[k]);
       let bank = shuffle(letters);
       for (let t = 0; t < 12 && letters.length > 1 && bank.join("").toLowerCase() === letters.join("").toLowerCase(); t++) bank = shuffle(letters);
-      tileStage(g, w, i, letters.length > 2);
-      tileRound(g, w, pos, bank, { maxTries: 3 }, afterTile(g, i, () => { i++; show(); }));
+      tileStage(g, w, i, letters.length > 2, true);   // Ôn Tập: chỉ có chữ xáo trộn + "Gợi ý 1 chữ"
+      const after = afterTile(g, i, () => { i++; show(); }, 2000);
+      tileRound(g, w, pos, bank, { maxTries: 3 }, (credit, typed) => {
+        const c = $("#g-clue"); if (c) c.innerHTML = clueHtml(w, true);   // xếp xong (đúng hay sai) mới hiện hình + nghĩa; máy đọc từ đó
+        after(credit, typed);
+      });
     };
     show();
   },
@@ -2090,7 +2095,7 @@ GAMES.register = {
     g.stage.innerHTML = '<div class="regq" id="g-q"></div><div class="regarea" id="g-area"></div><div class="fb" id="g-fb" aria-live="polite"></div><div id="g-nav"></div>';
     let i = 0, pair = null, side = "inf", phase = "wait", autoT = 0;
     const waiting = () => {
-      $("#g-q").innerHTML = '<span class="working ctx-wait" role="status"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>AI đang tìm cặp từ…</span>';
+      $("#g-q").innerHTML = '<span class="working ctx-wait" role="status"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>ONTAP đang tìm cặp từ…</span>';
       $("#g-area").innerHTML = "";
     };
     const pairAt = (k, cb) => {
@@ -2588,8 +2593,8 @@ function editDist(a, b) {
 GAMES.context = {
   id: "context", name: "Từ theo ngữ cảnh", en: "Words in Context", min: 1, count: 8, wide: true,
   filter: w => !!ctxSplit(w.ex, w.w),
-  desc: "Đọc câu, đoán từ còn thiếu rồi gõ cho đúng chính tả. Mỗi lần chơi, AI đặt câu mới.",
-  need: "Cần từ có câu ví dụ. Bấm “Sửa” rồi “AI bổ sung nghĩa, câu ví dụ”.",
+  desc: "Đọc câu, đoán từ còn thiếu rồi gõ cho đúng chính tả. Mỗi lần chơi, ONTAP đặt câu mới.",
+  need: "Cần từ có câu ví dụ. Bấm “Sửa” rồi “ONTAP bổ sung nghĩa, câu ví dụ”.",
   art: () => `<div class="ctx-art">Bees make sweet ${gapHtml("honey", [])}.</div>`,
   start(g) {
     g.stage.innerHTML = `<div class="ctxwrap"><p class="ctx" id="g-ctx"></p><div class="ctx-meta" id="g-meta"></div></div>
@@ -2622,7 +2627,7 @@ GAMES.context = {
     const full = () => pieces.map(p => p.gap ? p.form + p.end : p.text).join("");
     const spoken = () => pieces.map(p => p.gap ? "…" : p.text).join("");
     const waiting = () => {
-      $("#g-ctx").innerHTML = '<span class="working ctx-wait" role="status"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>AI đang đặt câu…</span>';
+      $("#g-ctx").innerHTML = '<span class="working ctx-wait" role="status"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>ONTAP đang đặt câu…</span>';
       $("#g-meta").textContent = ""; $("#g-tools").innerHTML = ""; inp.disabled = true;
     };
     const sentenceFor = (x, cb) => {
@@ -2731,7 +2736,7 @@ GAMES.sentence = {
   id: "sentence", name: "Xếp câu", en: "Sentence Builder", min: 1, count: 8, wide: true,
   filter: w => !!sentTokens(w.ex),
   desc: "Các chữ trong câu ví dụ bị xáo trộn, chạm từng chữ để xếp lại cho đúng câu.",
-  need: "Cần từ có câu ví dụ (3–14 chữ). Bấm “Sửa” rồi “AI bổ sung nghĩa, câu ví dụ”.",
+  need: "Cần từ có câu ví dụ (3–14 chữ). Bấm “Sửa” rồi “ONTAP bổ sung nghĩa, câu ví dụ”.",
   art: () => '<div class="sent-art"><span class="wc">cat</span><span class="wc">The</span><span class="wc">sleeps.</span></div>',
   start(g) {
     let i = 0;

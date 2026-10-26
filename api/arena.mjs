@@ -6,6 +6,7 @@
 //     Chơi nhiều ván, mỗi ván đổi cách chơi được; cuối buổi tổng hợp điểm và trao VƯƠNG MIỆN cho người thắng.
 //  2) THÁCH ĐẤU NGẪU NHIÊN theo trình độ: chờ 1 phút chưa có bạn thật thì BẠN AI vào thi cùng. Bạn AI luôn được
 //     ghi rõ là AI (không giả làm người thật) và luôn chơi kém con một chút để con được khích lệ.
+//     (26/10/2026: trên màn hình người chơi máy hiện là "Bạn ONTAP <tên>" + 🤖 + nhãn "máy"; mọi chữ AI hiện cho người dùng đổi thành ONTAP.)
 // Dữ liệu chung nằm ở Upstash Redis (mọi khoá bắt đầu bằng "arena:"). Chưa gắn kho cho dự án thì phần Thi đấu tự ẩn.
 // Upstash tính theo LỆNH (gói miễn phí: 500.000 lệnh/tháng): mỗi lần máy hỏi máy chủ (2,5 giây/lần) chỉ tốn 5 lệnh
 // lúc chờ, 6 lệnh lúc đang chơi. Hết hạn mức thì máy báo "Thi đấu tạm nghỉ" (lỗi store_limit), không treo.
@@ -44,6 +45,8 @@ const ONLINE_MS = 20000;               // 20 giây không thấy máy gửi tin 
 const PTS = 10;                        // đúng ngay lần đầu 10 điểm, lần sau 5 điểm
 const AI_DAILY_CAP = 400;              // tối đa 400 lần nhờ AI tạo bộ từ mỗi ngày (bảo vệ khoá AI); quá thì dùng bộ từ dự phòng
 const AI_NAMES = ["Mây", "Gió", "Sao", "Bin", "Na", "Tí", "Bơ", "Kem", "Mít", "Su"];
+// Người chơi máy hiện là "Bạn ONTAP <tên>" + biểu tượng 🤖 + nhãn "máy" (anh chốt 26/10/2026: chữ hiện cho người dùng ghi ONTAP, không ghi AI)
+const AI_PREFIX = "Bạn ONTAP ";
 const TOPICS = ["Animals", "Food and drinks", "School", "Family", "Weather", "Sports", "Jobs", "Clothes", "Home", "Nature", "Travel", "Colors and shapes", "Health", "Hobbies"];
 
 // Mỗi ván: AI tạo trước 25 từ; bạn nào sắp hết từ thì máy xin thêm ("more"): AI tạo thêm 25 từ MỚI cho cả phòng
@@ -257,7 +260,7 @@ export function parseRule(reqRaw) {
   return { req, rule, text: ruleText(rule) };
 }
 function ruleText(r) {
-  if (r.scope === "common") return (r.topic ? `Cả phòng chung bộ từ AI tạo: “${r.topic}”` : "Cả phòng chung bộ từ AI tạo theo trình độ (chủ đề ngẫu nhiên)") + " · hết từ thì AI tạo thêm, không lặp lại";
+  if (r.scope === "common") return (r.topic ? `Cả phòng chung bộ từ ONTAP tạo: “${r.topic}”` : "Cả phòng chung bộ từ ONTAP tạo theo trình độ (chủ đề ngẫu nhiên)") + " · hết từ thì ONTAP tạo thêm, không lặp lại";
   const n = r.count;
   const what = {
     newest: `${n} từ mới học gần nhất`, oldest: `${n} từ học lâu nhất`, longest: `${n} từ dài nhất`, shortest: `${n} từ ngắn nhất`,
@@ -574,9 +577,9 @@ async function newCode(meta) {
 const playerRec = (me, extra) => JSON.stringify({ n: me.n, i: me.i, g: me.g, j: Date.now(), ...(extra || {}) });
 // Bạn AI: tên không trùng với Bạn AI khác trong phòng, biểu tượng 🤖, luôn có cờ ai (máy hiện nhãn "AI").
 function aiRec(j, usedNames) {
-  const free = AI_NAMES.filter((n) => !(usedNames || []).includes("Bạn AI " + n));
+  const free = AI_NAMES.filter((n) => !(usedNames || []).includes(AI_PREFIX + n));
   const pool = free.length ? free : AI_NAMES;
-  return { n: "Bạn AI " + pool[crypto.randomInt(pool.length)], i: "🤖", g: "", ai: 1, j };
+  return { n: AI_PREFIX + pool[crypto.randomInt(pool.length)], i: "🤖", g: "", ai: 1, j };
 }
 // Số phút mỗi ván: Scrabble 5–90 phút, các trò khác 1–10 phút.
 const minutesFor = (game, m) => (game === "scrabble" ? int(m, 5, 90) : int(m, 1, 10));

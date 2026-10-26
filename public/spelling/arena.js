@@ -1,8 +1,10 @@
 /* Ôn Tập: THI ĐẤU TỪ VỰNG — phần chạy trong trang Vở Spelling (chốt 22/10/2026, file "sua 22 Oct 2026").
    - Phòng thi với bạn: mã 6 số (giữ nguyên tới khi chủ phòng rời phòng); chủ phòng chọn trò, trình độ,
      phạm vi từ, số phút; chơi nhiều ván; cuối buổi trao vương miện.
-   - Thách đấu ngẫu nhiên theo trình độ: chờ 1 phút chưa có bạn thì Bạn AI vào thi (luôn ghi rõ chữ AI).
-   - Scrabble (24/10/2026): bàn cờ chung, đi theo lượt (scrabble.js vẽ bàn cờ); "Scrabble với Bạn AI" bắt đầu ngay.
+   - Thách đấu ngẫu nhiên theo trình độ: chờ 1 phút chưa có bạn thì "Bạn ONTAP" (người chơi máy) vào thi (luôn có nhãn "máy").
+   - Scrabble (24/10/2026): bàn cờ chung, đi theo lượt (scrabble.js vẽ bàn cờ); "Chơi với Bạn ONTAP" bắt đầu ngay.
+     Từ 26/10/2026 Scrabble là một thẻ trong danh sách "Chọn trò chơi" (gameCardHtml), không còn thẻ riêng cạnh Thi đấu.
+   - Mọi chữ hiện cho người dùng ghi ONTAP thay cho AI (anh chốt 26/10/2026).
    Dùng chung bộ máy trò chơi của Vở Spelling (startGame, GAMES…). Máy chủ: /api/arena.
    Chưa gắn kho dữ liệu trên Vercel thì phần này tự ẩn. Không có ô trò chuyện. */
 (function () {
@@ -11,12 +13,13 @@
   // Hỏi máy chủ 2,5 giây/lần (cả lúc chờ lẫn lúc chơi): kho Upstash tính tiền theo lệnh, hỏi thưa vậy là đủ để thấy điểm các bạn.
   const SYNC_PLAY = 2500, SYNC_IDLE = 2500, WAIT_AI = 60000;
   const LIMIT_MSG = "Thi đấu đang tạm nghỉ: máy chủ thi đấu đã dùng hết lượt miễn phí của tháng này. Con chơi các trò khác nhé!";
-  const SUGGEST = ["10 từ mới nhất", "20 từ dài nhất", "15 từ hay sai nhất", "Từ học 6 tháng trước", "Từ vựng sách lớp 7", "Động vật", "Để AI chọn chủ đề"];
+  const SUGGEST = ["10 từ mới nhất", "20 từ dài nhất", "15 từ hay sai nhất", "Từ học 6 tháng trước", "Từ vựng sách lớp 7", "Động vật", "Để ONTAP chọn chủ đề"];
   const MEDAL = ["🥇", "🥈", "🥉"];
   const A = {
     avail: false, me: null, helloOk: false, helloErr: "", code: "", st: null, screen: "menu", err: "", busy: "",
     offset: 0, rtt: 1e9, lastSync: 0, syncing: false, timer: 0, play: null, words: {}, wn: 0,
     draft: null, cfgT: 0, lastSearch: 0, searchGap: 5000, aiAsked: 0, sig: "", confirmLeave: false, net: false, lastCount: 0,
+    home: "",   // "sb": con vào từ thẻ Scrabble trong danh sách trò chơi -> rời phòng / quay lại thì về màn Scrabble
     gen: 0,   // tăng mỗi lần con rời phòng: câu trả lời muộn của phòng cũ sẽ bị bỏ qua, không kéo con quay lại phòng đó
     xw: {}, moreBusy: false,   // từ thêm của từng ván (máy chủ nhờ AI tạo khi bộ từ sắp hết) + đang xin thêm từ
   };
@@ -92,8 +95,16 @@
   }
   function entryHtml() {
     if (!A.avail) return "";
-    return `<button class="arena-entry" type="button" data-arena="open"><span class="ae-ic" aria-hidden="true">🏆</span><span class="ae-body"><b>Thi đấu với bạn</b><em>${A.code ? `Đang ở phòng ${esc(A.code)} · bấm để vào lại` : "Tạo phòng, vào bằng mã, hoặc thách đấu ngẫu nhiên"}</em></span><span class="ae-go" aria-hidden="true">›</span></button>`
-      + `<button class="arena-entry sbe" type="button" data-arena="sbhome"><span class="ae-ic" aria-hidden="true">🔠</span><span class="ae-body"><b>Scrabble</b><em>Bàn cờ thật 15×15, mỗi bạn 7 chữ · chơi với Bạn AI hoặc với bạn</em></span><span class="ae-go" aria-hidden="true">›</span></button>`;
+    return `<button class="arena-entry" type="button" data-arena="open"><span class="ae-ic" aria-hidden="true">🏆</span><span class="ae-body"><b>Thi đấu với bạn</b><em>${A.code ? `Đang ở phòng ${esc(A.code)} · bấm để vào lại` : "Tạo phòng, vào bằng mã, hoặc thách đấu ngẫu nhiên"}</em></span><span class="ae-go" aria-hidden="true">›</span></button>`;
+  }
+  // Scrabble là một trò trong danh sách "Chọn trò chơi" của Vở Spelling (anh chốt 26/10/2026), không đứng ngang thẻ Thi đấu
+  function gameCardHtml() {
+    if (!A.avail) return "";
+    return `<button class="gcard sbcard" type="button" data-arena="sbhome">
+      <div class="art sbart" aria-hidden="true"><span class="sbt">W<i>4</i></span><span class="sbt">O<i>1</i></span><span class="sbt">R<i>1</i></span><span class="sbt">D<i>2</i></span></div>
+      <div><div class="ge">Scrabble</div><div class="gt">Scrabble</div></div>
+      <div class="gd">Ghép từ lên bàn cờ 15×15, mỗi bạn 7 chữ. Chơi với Bạn ONTAP hoặc mời bạn vào phòng.</div>
+    </button>`;
   }
   async function open(screen) {
     A.err = ""; A.confirmLeave = false;
@@ -128,7 +139,7 @@
     if (isSb(A.st) && sbui()) sbui().quit(A.st);   // rời giữa ván Scrabble: vẫn ghi các từ đã đặt + thời gian chơi
     A.gen++; A.syncing = false; A.moreBusy = false; clearTimeout(A.cfgT); A.cfgT = 0;   // bỏ qua mọi câu trả lời còn đang trên đường về của phòng cũ
     A.code = ""; A.st = null; A.play = null; A.draft = null; A.words = {}; A.xw = {}; A.wn = 0; A.confirmLeave = false;
-    A.screen = "menu"; A.err = msg || ""; save();
+    A.screen = homeScreen(); A.err = msg || ""; save();
     if (S.view === "game" || S.view === "arena") { if (S.view !== "arena") go("arena"); else draw(true); }
   }
   async function sync() {
@@ -188,6 +199,7 @@
     tickUi();
   }
   const errHtml = () => (A.err ? `<div class="err" role="alert">${esc(A.err)}</div>` : "") + `<div class="note ar-net" id="ar-net" ${A.net ? "" : "hidden"}>Mất kết nối mạng, đang thử lại…</div>`;
+  const homeScreen = () => (A.home === "sb" ? "sbmenu" : "menu");   // vào từ thẻ Scrabble thì quay về màn Scrabble
   const head = (title, backAttr, backLabel) => `<div class="page-h"><button class="iconbtn" type="button" ${backAttr} aria-label="${esc(backLabel || "Quay lại")}">${ICON.back}</button><h1>${esc(title)}</h1></div>`;
 
   function menuHtml() {
@@ -197,18 +209,17 @@
       <div class="ar-cards">
         <button class="ar-card" type="button" data-arena="create" ${A.busy ? "disabled" : ""}><span class="ar-ic" aria-hidden="true">👫</span><b>${A.busy === "create" ? "Đang tạo phòng…" : "Tạo phòng thi với bạn"}</b><em>Con nhận mã 6 số để gửi cho bạn, rồi chọn trò, phạm vi từ và số phút.</em></button>
         <button class="ar-card" type="button" data-arena="joinform"><span class="ar-ic" aria-hidden="true">🔑</span><b>Vào phòng bằng mã</b><em>Bạn gửi cho con mã 6 số thì nhập vào đây.</em></button>
-        <button class="ar-card" type="button" data-arena="randomform"><span class="ar-ic" aria-hidden="true">🎲</span><b>Thách đấu ngẫu nhiên</b><em>Chọn trình độ rồi chờ bạn cùng trình độ vào thi. Chờ 1 phút chưa có ai thì Bạn AI vào thi cùng.</em></button>
-        <button class="ar-card" type="button" data-arena="sbmenu"><span class="ar-ic" aria-hidden="true">🔠</span><b>Scrabble</b><em>Bàn cờ thật 15×15, mỗi bạn 7 chữ, đi theo lượt. Chơi với Bạn AI ngay, hoặc mời bạn vào phòng.</em></button>
+        <button class="ar-card" type="button" data-arena="randomform"><span class="ar-ic" aria-hidden="true">🎲</span><b>Thách đấu ngẫu nhiên</b><em>Chọn trình độ rồi chờ bạn cùng trình độ vào thi. Chờ 1 phút chưa có ai thì Bạn ONTAP (người chơi máy) vào thi cùng.</em></button>
       </div>
       <p class="note">Không có ô trò chuyện: các bạn chỉ thấy tên và biểu tượng của nhau.</p>
       ${errHtml()}</div>`;
   }
   function sbMenuHtml() {
     const mins = A.sbMin || 20;
-    return `<div class="page arena sb-menu">${head("Scrabble", 'data-arena="menu"')}
+    return `<div class="page arena sb-menu">${head("Scrabble", 'data-act="home"')}
       <div class="ar-cards">
-        <button class="ar-card" type="button" data-arena="solo" ${A.busy ? "disabled" : ""}><span class="ar-ic" aria-hidden="true">🤖</span><b>${A.busy === "solo" ? "Đang bày bàn cờ…" : "Chơi với Bạn AI"}</b><em>Bắt đầu ngay, con đi trước. Bạn AI luôn ghi rõ chữ AI và luôn để con thắng sát nút.</em></button>
-        <button class="ar-card" type="button" data-arena="sbroom" ${A.busy ? "disabled" : ""}><span class="ar-ic" aria-hidden="true">👫</span><b>${A.busy === "sbroom" ? "Đang tạo phòng…" : "Tạo phòng Scrabble, mời bạn"}</b><em>Con nhận mã 6 số gửi cho bạn. 2–4 người, thêm được Bạn AI.</em></button>
+        <button class="ar-card" type="button" data-arena="solo" ${A.busy ? "disabled" : ""}><span class="ar-ic" aria-hidden="true">🤖</span><b>${A.busy === "solo" ? "Đang bày bàn cờ…" : "Chơi với Bạn ONTAP"}</b><em>Bắt đầu ngay, con đi trước. Bạn ONTAP là người chơi máy (luôn có chữ “máy” bên tên) và luôn để con thắng sát nút.</em></button>
+        <button class="ar-card" type="button" data-arena="sbroom" ${A.busy ? "disabled" : ""}><span class="ar-ic" aria-hidden="true">👫</span><b>${A.busy === "sbroom" ? "Đang tạo phòng…" : "Tạo phòng Scrabble, mời bạn"}</b><em>Con nhận mã 6 số gửi cho bạn. 2–4 người, thêm được Bạn ONTAP.</em></button>
         <button class="ar-card" type="button" data-arena="joinform"><span class="ar-ic" aria-hidden="true">🔑</span><b>Vào phòng bằng mã</b><em>Bạn gửi cho con mã 6 số thì nhập vào đây.</em></button>
       </div>
       <div class="sheet ar-set"><div class="field"><label for="sb-min">Thời gian cả ván</label><select id="sb-min" class="inp">${minuteOptions(mins, "scrabble")}</select></div></div>
@@ -237,17 +248,17 @@
         <div class="field"><label for="ar-rlevel">Trình độ</label><select id="ar-rlevel" class="inp">${levelOptions(d.level)}</select></div>
         <div class="field"><label for="ar-rgame">Trò chơi</label><select id="ar-rgame" class="inp">${gameOptions(d.game)}</select></div>
         <div class="field"><label for="ar-rmin">Số phút</label><select id="ar-rmin" class="inp">${minuteOptions(d.minutes, d.game)}</select></div>
-        <p class="muted small" style="margin:10px 0 0">Gặp bạn đang chờ sẵn thì chơi theo cách bạn ấy đã chọn. Từ do AI tạo theo trình độ, cả hai bạn chung một bộ từ.</p>
+        <p class="muted small" style="margin:10px 0 0">Gặp bạn đang chờ sẵn thì chơi theo cách bạn ấy đã chọn. Từ do ONTAP tạo theo trình độ, cả hai bạn chung một bộ từ.</p>
         <div class="row" style="margin-top:14px"><button class="btn primary" type="button" data-arena="random" ${A.busy ? "disabled" : ""}>${A.busy === "random" ? "Đang tìm…" : "🎲 Tìm bạn thi"}</button></div>
       </div>${errHtml()}</div>`;
   }
   function playersHtml(st) {
     const canEdit = isOwner() && ["lobby", "results"].includes(st.status);
-    return st.players.map((p) => `<div class="ar-pl${p.online ? "" : " off"}${p.pid === st.me ? " me" : ""}"><span class="ar-ava" aria-hidden="true">${esc(p.icon)}</span><span class="ar-nm">${esc(p.name)}${p.pid === st.me ? " (con)" : ""}</span>${p.ai ? '<i class="ai-tag" title="Người chơi máy (AI)">AI</i>' : ""}${p.owner ? '<span class="ar-tag">Chủ phòng</span>' : ""}${p.online ? "" : '<span class="ar-tag off">mất kết nối</span>'}${p.ai && canEdit ? `<button class="btn sm ghost" type="button" data-arena="airm" data-ai="${esc(p.pid)}" aria-label="Bớt ${esc(p.name)}">Bớt</button>` : ""}</div>`).join("");
+    return st.players.map((p) => `<div class="ar-pl${p.online ? "" : " off"}${p.pid === st.me ? " me" : ""}"><span class="ar-ava" aria-hidden="true">${esc(p.icon)}</span><span class="ar-nm">${esc(p.name)}${p.pid === st.me ? " (con)" : ""}</span>${p.ai ? '<i class="ai-tag" title="Người chơi máy">máy</i>' : ""}${p.owner ? '<span class="ar-tag">Chủ phòng</span>' : ""}${p.online ? "" : '<span class="ar-tag off">mất kết nối</span>'}${p.ai && canEdit ? `<button class="btn sm ghost" type="button" data-arena="airm" data-ai="${esc(p.pid)}" aria-label="Bớt ${esc(p.name)}">Bớt</button>` : ""}</div>`).join("");
   }
   const aiAddHtml = (st) => (isOwner() && st.mode === "friends" && ["lobby", "results"].includes(st.status) && st.players.length < 8
-    ? `<div class="row" style="margin-top:8px"><button class="btn sm" type="button" data-arena="aiadd" ${A.busy ? "disabled" : ""}>＋ Thêm Bạn AI</button><span class="muted small">Bạn AI luôn ghi rõ chữ AI và luôn để các bạn thắng.</span></div>` : "");
-  const SB_NOTE = '<p class="muted small" style="margin:8px 0 0">Scrabble: bàn cờ chung 15×15, 2–4 người (tính cả Bạn AI), mỗi bạn 7 chữ, đi lần lượt; một lượt ghép được nhiều từ nối liền nhau. Từ là mọi từ tiếng Anh có trong từ điển. Mỗi lượt tối đa 2 phút.</p>';
+    ? `<div class="row" style="margin-top:8px"><button class="btn sm" type="button" data-arena="aiadd" ${A.busy ? "disabled" : ""}>＋ Thêm Bạn ONTAP</button><span class="muted small">Bạn ONTAP là người chơi máy, luôn có chữ “máy” bên tên và luôn để các bạn thắng.</span></div>` : "");
+  const SB_NOTE = '<p class="muted small" style="margin:8px 0 0">Scrabble: bàn cờ chung 15×15, 2–4 người (tính cả Bạn ONTAP), mỗi bạn 7 chữ, đi lần lượt; một lượt ghép được nhiều từ nối liền nhau. Từ là mọi từ tiếng Anh có trong từ điển. Mỗi lượt tối đa 2 phút.</p>';
   function settingsHtml(st) {
     if (!isOwner()) {
       if (st.cfg.game === "scrabble") {
@@ -285,18 +296,18 @@
     if (st.status === "playing") return playingHtml(st);
     if (st.status === "results") return resultsHtml(st);
     if (st.status === "final") return finalHtml(st);
-    if (st.status === "closed") return `<div class="page arena">${head("Thi đấu", 'data-arena="menu"')}<div class="sheet"><b>Phòng ${esc(st.code)} đã đóng.</b><p class="muted">${st.closedBy ? esc(st.closedBy) + " (chủ phòng) đã rời phòng." : ""}</p><button class="btn primary" type="button" data-arena="menu">Về Thi đấu</button></div></div>`;
+    if (st.status === "closed") return `<div class="page arena">${head(A.home === "sb" ? "Scrabble" : "Thi đấu", 'data-arena="menu"')}<div class="sheet"><b>Phòng ${esc(st.code)} đã đóng.</b><p class="muted">${st.closedBy ? esc(st.closedBy) + " (chủ phòng) đã rời phòng." : ""}</p><button class="btn primary" type="button" data-arena="menu">${A.home === "sb" ? "Về Scrabble" : "Về Thi đấu"}</button></div></div>`;
     return lobbyHtml(st);
   }
   function codeHtml(st) {
     return st.mode === "random" ? "" : `<div class="ar-code"><span class="lbl">Mã phòng</span><b class="ar-digits">${esc(st.code.slice(0, 3) + " " + st.code.slice(3))}</b><button class="btn sm" type="button" data-arena="copy">Sao chép mã</button></div>`;
   }
   function startHtml(st, again) {
-    if (!isOwner()) return `<div class="note">${st.prep ? "Chủ phòng đang nhờ AI chuẩn bị bộ từ…" : again ? "Chờ chủ phòng chọn ván tiếp theo…" : "Chờ chủ phòng bắt đầu…"}</div>`;
+    if (!isOwner()) return `<div class="note">${st.prep ? "ONTAP đang chuẩn bị bộ từ…" : again ? "Chờ chủ phòng chọn ván tiếp theo…" : "Chờ chủ phòng bắt đầu…"}</div>`;
     const sc = st.cfg.game === "scrabble", two = st.players.length >= 2, many = sc && st.players.length > 4;
-    const label = A.busy === "start" ? (!sc && st.cfg.rule && st.cfg.rule.scope === "common" ? "AI đang chuẩn bị bộ từ…" : "Đang bắt đầu…") : again ? "▶ Ván tiếp theo" : "▶ Bắt đầu";
+    const label = A.busy === "start" ? (!sc && st.cfg.rule && st.cfg.rule.scope === "common" ? "ONTAP đang chuẩn bị bộ từ…" : "Đang bắt đầu…") : again ? "▶ Ván tiếp theo" : "▶ Bắt đầu";
     return `<div class="row"><button class="btn primary" type="button" data-arena="start" ${two && !many && !A.busy ? "" : "disabled"}>${label}</button>${again ? `<button class="btn" type="button" data-arena="finish" ${A.busy ? "disabled" : ""}>🏁 Kết thúc &amp; trao vương miện</button>` : ""}</div>
-      ${!two ? `<p class="muted small" style="margin:0">Cần ít nhất 2 người. Gửi mã phòng cho bạn${st.mode === "friends" ? " hoặc thêm Bạn AI" : ""} nhé!</p>` : many ? '<p class="muted small" style="margin:0">Scrabble chơi tối đa 4 người (tính cả Bạn AI). Bớt Bạn AI hoặc chọn trò khác nhé.</p>' : ""}`;
+      ${!two ? `<p class="muted small" style="margin:0">Cần ít nhất 2 người. Gửi mã phòng cho bạn${st.mode === "friends" ? " hoặc thêm Bạn ONTAP" : ""} nhé!</p>` : many ? '<p class="muted small" style="margin:0">Scrabble chơi tối đa 4 người (tính cả Bạn ONTAP). Bớt Bạn ONTAP hoặc chọn trò khác nhé.</p>' : ""}`;
   }
   function lobbyHtml(st) {
     return `<div class="page arena">${head(st.mode === "random" ? "Thách đấu" : "Phòng thi", 'data-arena="away"', "Ra trang chính, vẫn giữ phòng")}
@@ -311,7 +322,7 @@
         <b>Đang tìm bạn · ${esc(levelLabel(st.level))}</b>
         <div class="ar-clock" id="ar-wait">0:00</div>
         <p class="muted small" id="ar-waitnote" style="margin:0"></p>
-        <p class="muted small" style="margin:0">Trò ${esc(gameName(st.cfg.game))} · ${st.cfg.minutes} phút. Bạn AI luôn có ghi chữ <i class="ai-tag">AI</i> bên tên.</p>
+        <p class="muted small" style="margin:0">Trò ${esc(gameName(st.cfg.game))} · ${st.cfg.minutes} phút. Bạn ONTAP là người chơi máy, luôn có chữ <i class="ai-tag">máy</i> bên tên.</p>
         <button class="btn" type="button" data-arena="leaveyes">Huỷ tìm</button></div>${errHtml()}</div>`;
   }
   function boardRows(st) {
@@ -323,7 +334,7 @@
     }).sort((a, b) => b.p - a.p || (a.ai - b.ai));
   }
   function boardHtml(st) {
-    return boardRows(st).map((r, i) => `<div class="ar-row${r.me ? " me" : ""}"><span class="pos">${i + 1}</span><span class="ar-ava" aria-hidden="true">${esc(r.icon)}</span><span class="ar-nm">${esc(r.name)}${r.ai ? '<i class="ai-tag">AI</i>' : ""}</span>${r.f ? '<span class="ar-tag">xong</span>' : ""}<span class="pts">${r.p} điểm</span></div>`).join("");
+    return boardRows(st).map((r, i) => `<div class="ar-row${r.me ? " me" : ""}"><span class="pos">${i + 1}</span><span class="ar-ava" aria-hidden="true">${esc(r.icon)}</span><span class="ar-nm">${esc(r.name)}${r.ai ? '<i class="ai-tag">máy</i>' : ""}</span>${r.f ? '<span class="ar-tag">xong</span>' : ""}<span class="pts">${r.p} điểm</span></div>`).join("");
   }
   function playingHtml(st) {
     const r = st.round, p = A.play, sn = snow();
@@ -334,7 +345,7 @@
   }
   function resultsHtml(st) {
     const last = st.last || { rank: [] };
-    const rows = last.rank.map((r, i) => `<div class="ar-row${r.pid === st.me ? " me" : ""}"><span class="pos">${r.p > 0 && r.place <= 3 ? MEDAL[r.place - 1] : r.place}</span><span class="ar-ava" aria-hidden="true">${esc(r.i)}</span><span class="ar-nm">${esc(r.n)}${r.ai ? '<i class="ai-tag">AI</i>' : ""}</span><span class="pts">${r.p} điểm</span></div>`).join("");
+    const rows = last.rank.map((r, i) => `<div class="ar-row${r.pid === st.me ? " me" : ""}"><span class="pos">${r.p > 0 && r.place <= 3 ? MEDAL[r.place - 1] : r.place}</span><span class="ar-ava" aria-hidden="true">${esc(r.i)}</span><span class="ar-nm">${esc(r.n)}${r.ai ? '<i class="ai-tag">máy</i>' : ""}</span><span class="pts">${r.p} điểm</span></div>`).join("");
     const top = last.game === "scrabble" && sbui() ? sbui().resultsTop(st)
       : `<section class="sheet"><div class="lbl">Ván ${last.n || st.n} · ${esc(gameName(last.game || st.cfg.game))}</div><div class="ar-board" style="margin-top:8px">${rows}</div></section>`;
     return `<div class="page arena">${head("Kết quả ván " + (last.n || st.n), 'data-arena="away"', "Ra trang chính, vẫn giữ phòng")}
@@ -348,7 +359,7 @@
     return st.players.map((p) => ({ ...p, t: Number((st.totals || {})[p.pid]) || 0 })).sort((a, b) => b.t - a.t || (a.ai - b.ai));
   }
   function totalsHtml(st) {
-    return totalRows(st).map((r, i) => `<div class="ar-row${r.pid === st.me ? " me" : ""}"><span class="pos">${i + 1}</span><span class="ar-ava" aria-hidden="true">${esc(r.icon)}</span><span class="ar-nm">${esc(r.name)}${r.ai ? '<i class="ai-tag">AI</i>' : ""}</span><span class="pts">${r.t} điểm</span></div>`).join("");
+    return totalRows(st).map((r, i) => `<div class="ar-row${r.pid === st.me ? " me" : ""}"><span class="pos">${i + 1}</span><span class="ar-ava" aria-hidden="true">${esc(r.icon)}</span><span class="ar-nm">${esc(r.name)}${r.ai ? '<i class="ai-tag">máy</i>' : ""}</span><span class="pts">${r.t} điểm</span></div>`).join("");
   }
   function finalHtml(st) {
     const rows = totalRows(st), top = rows.length ? rows[0].t : 0;
@@ -372,7 +383,7 @@
     if (st.status === "waiting") {
       const el = sn - Number(st.waitStart || sn), w = $("#ar-wait"), note = $("#ar-waitnote");
       if (w) w.textContent = fmtClock(el);
-      if (note) note.textContent = el < WAIT_AI ? `Chưa có bạn thì Bạn AI vào thi sau ${Math.ceil((WAIT_AI - el) / 1000)} giây.` : "Bạn AI đang vào thi…";
+      if (note) note.textContent = el < WAIT_AI ? `Chưa có bạn thì Bạn ONTAP vào thi sau ${Math.ceil((WAIT_AI - el) / 1000)} giây.` : "Bạn ONTAP đang vào thi…";
     }
   }
 
@@ -494,7 +505,7 @@
     const el = $("#ar-bar");
     if (!el || !A.st || !A.play) return;
     const left = A.play.end - snow();
-    el.innerHTML = `<span class="ab-time${left < 15000 ? " hot" : ""}">⏱ ${fmtClock(left)}</span>` + boardRows(A.st).map((r) => `<span class="ab-p${r.me ? " me" : ""}">${esc(r.icon)} ${esc(short(r.name))}${r.ai ? '<i class="ai-tag">AI</i>' : ""} <b>${r.p}</b></span>`).join("");
+    el.innerHTML = `<span class="ab-time${left < 15000 ? " hot" : ""}">⏱ ${fmtClock(left)}</span>` + boardRows(A.st).map((r) => `<span class="ab-p${r.me ? " me" : ""}">${esc(r.icon)} ${esc(short(r.name))}${r.ai ? '<i class="ai-tag">máy</i>' : ""} <b>${r.p}</b></span>`).join("");
   }
   HOOKS.onRecord = function (ctx, w, credit) {
     const p = A.play;
@@ -586,9 +597,9 @@
 
   /* ---------- nút bấm ---------- */
   async function act(a, el) {
-    if (a === "open") return open();
-    if (a === "sbhome") return open("sbmenu");   // thẻ Scrabble ở trang chính (đang ở phòng thì vào lại phòng)
-    if (a === "menu") { if (A.st && A.st.status === "closed") forget(""); A.screen = "menu"; A.err = ""; return draw(true); }
+    if (a === "open") { A.home = ""; return open(); }
+    if (a === "sbhome") { A.home = "sb"; return open("sbmenu"); }   // thẻ Scrabble trong danh sách trò chơi (đang ở phòng thì vào lại phòng)
+    if (a === "menu") { if (A.st && A.st.status === "closed") forget(""); A.screen = homeScreen(); A.err = ""; return draw(true); }
     if (a === "sbmenu") { A.screen = "sbmenu"; A.err = ""; return draw(true); }
     if (a === "solo" || a === "sbroom") {
       // Scrabble với Bạn AI (bắt đầu ngay) / phòng Scrabble mời bạn (tạo phòng rồi chọn sẵn Scrabble)
@@ -692,7 +703,7 @@
     if (!t || !t.closest) return;
     const sug = t.closest("[data-arena-sug]");
     if (sug && A.draft) {
-      const v = sug.dataset.arenaSug, req = v === "Để AI chọn chủ đề" ? "" : v;
+      const v = sug.dataset.arenaSug, req = v === "Để ONTAP chọn chủ đề" ? "" : v;
       A.draft.req = req;
       const inp = $("#ar-req"); if (inp) inp.value = req;
       scheduleConfig();
@@ -738,5 +749,5 @@
   });
   document.addEventListener("visibilitychange", () => { if (!document.hidden && A.code && inArena()) sync(); });
 
-  window.Arena = { init, entryHtml, render: renderArena, open, quit: () => HOOKS.quit(), _A: A };
+  window.Arena = { init, entryHtml, gameCardHtml, render: renderArena, open, quit: () => HOOKS.quit(), _A: A };
 })();

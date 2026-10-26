@@ -1,7 +1,7 @@
 {
   "name": "Ôn Tập",
   "short_name": "Ôn Tập",
-  "description": "Bạn học AI giúp con ôn bài mỗi ngày",
+  "description": "Người bạn giúp con ôn bài mỗi ngày",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F4F9F8",

@@ -84,7 +84,7 @@
       const turnPid = sb.order[sb.turn], left = (st.round.turnMs || 120000) - (api.snow() - Math.max(st.round.start, sb.turnStart));
       return sb.order.map((pid) => {
         const p = pl(st, pid), on = !sb.over && pid === turnPid && started(st);
-        return `<div class="sb-pl${on ? " turn" : ""}${pid === st.me ? " me" : ""}${p ? "" : " gone"}"><span class="ic" aria-hidden="true">${esc(p ? p.icon : "👋")}</span><span class="nm">${esc(api.short(p ? p.name : "Đã rời"))}${p && p.ai ? '<i class="ai-tag">AI</i>' : ""}</span><b class="pts">${sb.scores[pid] || 0}</b>${on ? `<span class="tm" id="sb-turn">${api.fmtClock(left)}</span>` : ""}</div>`;
+        return `<div class="sb-pl${on ? " turn" : ""}${pid === st.me ? " me" : ""}${p ? "" : " gone"}"><span class="ic" aria-hidden="true">${esc(p ? p.icon : "👋")}</span><span class="nm">${esc(api.short(p ? p.name : "Đã rời"))}${p && p.ai ? '<i class="ai-tag">máy</i>' : ""}</span><b class="pts">${sb.scores[pid] || 0}</b>${on ? `<span class="tm" id="sb-turn">${api.fmtClock(left)}</span>` : ""}</div>`;
       }).join("");
     }
     function statusHtml(st, sb) {
@@ -290,7 +290,7 @@
     });
 
     /* ---------- hết ván: kết quả + vương miện; ghi buổi chơi vào báo cáo Ôn Tập ---------- */
-    // vương miện: bạn thật nhiều điểm nhất (Bạn AI không nhận vương miện); bằng điểm thì cùng nhận
+    // vương miện: bạn thật nhiều điểm nhất (người chơi máy "Bạn ONTAP" không nhận vương miện); bằng điểm thì cùng nhận
     const crownOf = (rank) => { const hs = rank.filter((x) => !x.ai), top = hs.length ? Math.max(...hs.map((x) => x.p)) : 0; return top > 0 ? hs.filter((x) => x.p === top) : []; };
     function finish(prev, cur) {
       const key = prev.code + ":" + (prev.round && prev.round.n);
@@ -322,7 +322,7 @@
       const meWin = winners.some((x) => x.pid === st.me);
       const rows = rank.map((x) => {
         const adj = x.adj ? (x.adj > 0 ? ` <span class="muted small">(${x.base} + ${x.adj} chữ của bạn)</span>` : ` <span class="muted small">(${x.base} − ${-x.adj} chữ còn lại)</span>`) : "";
-        return `<div class="ar-row${x.pid === st.me ? " me" : ""}"><span class="pos">${x.p > 0 && x.place <= 3 ? ["🥇", "🥈", "🥉"][x.place - 1] : x.place}</span><span class="ar-ava" aria-hidden="true">${esc(x.i)}</span><span class="ar-nm">${esc(x.n)}${x.ai ? '<i class="ai-tag">AI</i>' : ""}</span><span class="pts">${x.p} điểm${adj}</span></div>`;
+        return `<div class="ar-row${x.pid === st.me ? " me" : ""}"><span class="pos">${x.p > 0 && x.place <= 3 ? ["🥇", "🥈", "🥉"][x.place - 1] : x.place}</span><span class="ar-ava" aria-hidden="true">${esc(x.i)}</span><span class="ar-nm">${esc(x.n)}${x.ai ? '<i class="ai-tag">máy</i>' : ""}</span><span class="pts">${x.p} điểm${adj}</span></div>`;
       }).join("");
       const words = rank.map((x) => { const w = (sbl.words || {})[x.pid] || []; return w.length ? `<div><b>${esc(x.n)}:</b> ${w.map((s) => `<span class="w">${esc(s)}</span>`).join(", ")}</div>` : ""; }).join("");
       return `<section class="sheet ar-champ sb-res">${winners.length ? `<div class="ar-crown" aria-hidden="true">👑</div><div class="ar-winner">${winners.map((w) => esc(w.i + " " + w.n)).join(" &amp; ")}</div><p style="margin:0">${meWin ? "Con thắng ván Scrabble! 🎉" : "thắng ván Scrabble! 🎉"}</p>` : "<b>Ván này chưa ai ghi điểm.</b>"}
