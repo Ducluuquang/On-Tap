@@ -212,12 +212,13 @@
         <button class="ar-card" type="button" data-arena="joinform"><span class="ar-ic" aria-hidden="true">🔑</span><b>Vào phòng bằng mã</b><em>Bạn gửi cho con mã 6 số thì nhập vào đây.</em></button>
       </div>
       <div class="sheet ar-set"><div class="field"><label for="sb-min">Thời gian cả ván</label><select id="sb-min" class="inp">${minuteOptions(mins, "scrabble")}</select></div></div>
-      <section class="sheet"><div class="lbl">Luật chơi (như ngoài đời)</div>
+      <section class="sheet"><div class="lbl">Luật chơi</div>
         <ul class="sb-rules">
           <li>Bộ 100 quân: 98 chữ cái và 2 quân trắng (thay được mọi chữ, 0 điểm). Mỗi bạn có 7 chữ trên giá.</li>
-          <li>Lần lượt đặt một từ tiếng Anh lên bàn 15×15. Lượt đầu đi qua ô ★ giữa bàn, các từ sau phải nối vào chữ đã có.</li>
+          <li>Lần lượt đặt chữ lên bàn 15×15 để ghép thành từ tiếng Anh. Lượt đầu đi qua ô ★ giữa bàn, các lượt sau phải nối vào chữ đã có.</li>
+          <li>Một lượt ghép được nhiều từ cùng lúc (ví dụ hình chữ L), miễn các chữ đặt nối liền nhau và từ nào ghép thành cũng có trong từ điển. (Luật Scrabble chuẩn chỉ cho đặt trên một hàng ngang hoặc một cột dọc.)</li>
           <li>Đặt xong, máy bốc thêm cho đủ 7 chữ. Bỏ lượt thì đổi cả 7 chữ.</li>
-          <li>Điểm = điểm từng chữ × ô nhân điểm; đặt hết 7 chữ trong một lượt được thêm 50 điểm. Mỗi lượt tối đa 2 phút.</li>
+          <li>Điểm = điểm từng chữ × ô nhân điểm, mọi từ ghép thành trong lượt đều được tính; đặt hết 7 chữ trong một lượt được thêm 50 điểm. Mỗi lượt tối đa 2 phút.</li>
           <li>Hết ván khi hết giờ, hết chữ, hoặc chủ phòng bấm kết thúc. Máy tính điểm và trao vương miện 👑.</li>
         </ul></section>
       ${errHtml()}</div>`;
@@ -246,7 +247,7 @@
   }
   const aiAddHtml = (st) => (isOwner() && st.mode === "friends" && ["lobby", "results"].includes(st.status) && st.players.length < 8
     ? `<div class="row" style="margin-top:8px"><button class="btn sm" type="button" data-arena="aiadd" ${A.busy ? "disabled" : ""}>＋ Thêm Bạn AI</button><span class="muted small">Bạn AI luôn ghi rõ chữ AI và luôn để các bạn thắng.</span></div>` : "");
-  const SB_NOTE = '<p class="muted small" style="margin:8px 0 0">Scrabble: bàn cờ chung 15×15, 2–4 người (tính cả Bạn AI), mỗi bạn 7 chữ, đi lần lượt. Từ là mọi từ tiếng Anh có trong từ điển. Mỗi lượt tối đa 2 phút.</p>';
+  const SB_NOTE = '<p class="muted small" style="margin:8px 0 0">Scrabble: bàn cờ chung 15×15, 2–4 người (tính cả Bạn AI), mỗi bạn 7 chữ, đi lần lượt; một lượt ghép được nhiều từ nối liền nhau. Từ là mọi từ tiếng Anh có trong từ điển. Mỗi lượt tối đa 2 phút.</p>';
   function settingsHtml(st) {
     if (!isOwner()) {
       if (st.cfg.game === "scrabble") {

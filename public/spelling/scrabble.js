@@ -94,10 +94,12 @@
       if (p && p.ai) return `${esc(p.name)} đang nghĩ…`;
       return `Đang chờ ${esc(p ? p.name : "bạn")} đặt từ… Con cứ xếp thử chữ trên bàn trước.`;
     }
+    // các từ chính của một lượt (m.m = số từ chính khi ghép nhiều từ cùng lúc), còn lại là từ phụ
+    const mainWords = (m) => (m.w || []).slice(0, m.m || 1), sideWords = (m) => (m.w || []).slice(m.m || 1);
     function logHtml(st, sb) {
       const rows = (sb.moves || []).slice(-6).reverse().map((m) => {
-        const who = esc(nameOf(st, m.p));
-        if (m.k === "play") return `<li><b>${who}</b> đặt <span class="w">${esc((m.w || [])[0] || "")}</span>${(m.w || []).length > 1 ? ` <span class="muted">(+ ${esc(m.w.slice(1).join(", "))})</span>` : ""} <b class="pl">+${m.s}</b>${m.bingo ? ' <span class="bingo">hết 7 chữ +50!</span>' : ""}</li>`;
+        const who = esc(nameOf(st, m.p)), side = sideWords(m);
+        if (m.k === "play") return `<li><b>${who}</b> đặt <span class="w">${esc(mainWords(m).join(", "))}</span>${side.length ? ` <span class="muted">(+ ${esc(side.join(", "))})</span>` : ""} <b class="pl">+${m.s}</b>${m.bingo ? ' <span class="bingo">hết 7 chữ +50!</span>' : ""}</li>`;
         const why = m.k === "time" ? "hết giờ lượt" : m.k === "away" ? "vắng mặt" : "bỏ lượt";
         return `<li><b>${who}</b> ${why}${m.x ? `, đổi ${m.x} chữ` : ""}</li>`;
       });
@@ -111,7 +113,7 @@
       if (sn < r.start) {
         return `<div class="page arena sbp" id="sbp"><div class="ar-count"><div class="lbl">Scrabble · Ván ${r.n}</div><div class="ar-big" id="ar-count">${Math.max(1, Math.ceil((r.start - sn) / 1000))}</div>
           <div class="ar-rinfo">Thứ tự đi: ${sb.order.map((pid, k) => `${k + 1}. ${esc(nameOf(st, pid))}`).join(" · ")}</div>
-          <p class="muted small" style="margin:0">Mỗi bạn 7 chữ. Đặt từ lên bàn (lượt đầu qua ô ★), bốc thêm cho đủ 7. Bỏ lượt = đổi cả 7 chữ. Mỗi lượt tối đa ${Math.round((r.turnMs || 120000) / 60000)} phút.</p></div></div>`;
+          <p class="muted small" style="margin:0">Mỗi bạn 7 chữ. Đặt chữ lên bàn ghép thành từ, một lượt ghép được nhiều từ nối liền nhau (lượt đầu qua ô ★), rồi bốc thêm cho đủ 7. Bỏ lượt = đổi cả 7 chữ. Mỗi lượt tối đa ${Math.round((r.turnMs || 120000) / 60000)} phút.</p></div></div>`;
       }
       const mine = myTurn(st), me = inGame(st);
       const acts = !me ? "" : `<div class="sb-acts">
@@ -217,7 +219,7 @@
       if (!j.error) {
         const sb = j.round && j.round.sb, m = sb && sb.moves && sb.moves[sb.moves.length - 1];
         U.placed = []; U.cur = -1;
-        if (m && m.p === st.me && m.k === "play") setMsg(`${m.w[0]} +${m.s} điểm!${m.bingo ? " Đặt hết 7 chữ, thưởng 50!" : ""}`, "good");
+        if (m && m.p === st.me && m.k === "play") setMsg(`${mainWords(m).join(", ")} +${m.s} điểm!${m.bingo ? " Đặt hết 7 chữ, thưởng 50!" : ""}`, "good");
         SFX.play("ok");
         api.apply(j); draw();
         return;

@@ -12,6 +12,7 @@
 // Không có ô chat; người chơi chỉ thấy tên + biểu tượng của nhau.
 //  3) SCRABBLE (24/10/2026 — "như ngoài đời"): chơi THEO LƯỢT trên MỘT bàn chung 15×15 (2–4 người, có thể có Bạn AI),
 //     bộ 100 quân (98 chữ + 2 quân trắng), mỗi người 7 chữ, đặt từ xong bốc thêm cho đủ 7; bỏ lượt = đổi cả 7 chữ.
+//     Luật nhà (26/10/2026): một lượt ghép được nhiều từ nối liền nhau (hình chữ L, chữ T…), không chỉ một hàng.
 //     Máy chủ giữ bàn, túi chữ, giá chữ của từng người, kiểm tra từ bằng từ điển và tính điểm (api/_scrabble/engine.mjs).
 //     Ván kết thúc khi hết giờ, chủ phòng bấm kết thúc, hết chữ, hoặc ai cũng bỏ lượt 2 lần liền; máy trao vương miện.
 //  4) NHIỀU TỪ, KHÔNG LẶP LẠI (24/10/2026): bạn nào sắp chơi hết bộ từ thì máy xin thêm ("more") — AI tạo thêm từ MỚI
@@ -688,7 +689,7 @@ export default async function handler(req, res) {
         if (action === "sb_pass") E.applyPass(sb, me.pid, t, "pass");
         else {
           const chk = E.checkMove(sb, me.pid, body.tiles, await E.getDict());
-          if (!chk.ok) return send(res, 422, { error: "sb_bad", code: chk.error, msg: chk.msg, ...view(s2, me.pid, t) });
+          if (!chk.ok) return send(res, 422, { error: "sb_bad", ...view(s2, me.pid, t), bad: chk.error, msg: chk.msg });
           E.applyPlay(sb, me.pid, chk, t);
         }
         if (sb.over) await sbClose(code, s2, t, sb.reason, E);
