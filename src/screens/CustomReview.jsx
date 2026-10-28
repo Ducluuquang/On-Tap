@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { BackHeader, SubjectTile } from '../components.jsx'
-import { selectConcepts, describeSelection, needReviewCount } from '../lib/review.js'
+import { selectConcepts, describeSelection, needReviewCount, needsReview } from '../lib/review.js'
 import { subjectsWithTone, subjectDisplayName, subjectModes, subjectKey } from '../lib/subjects.js'
 
 // MÀN "BẮT ĐẦU ÔN" — giao diện mới (anh duyệt hình mẫu 28/10/2026, file "sua 26 Oct 2026" mục 4):
@@ -75,7 +75,11 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true,
   const needCount = needReviewCount(memSub)
   const heroLevel = needCount > 0 ? 'weak' : 'all' // đã vững hết -> ôn tổng hợp giữ phong độ
   const heroNames = selectConcepts(memSub, { time: 'all', level: heroLevel, text: '' })
-  const heroTopics = heroNames.slice(0, 2).join(' • ')
+  // Dòng tên chủ đề dưới "N chủ đề cần ôn" chỉ ghi chủ đề CẦN ÔN (không ghi chủ đề đã vững dù bài ôn có xen vào),
+  // để chữ khớp với con số. Đã vững hết thì ghi các chủ đề sẽ ôn tổng hợp.
+  const needNames = new Set(memSub.filter(needsReview).map((c) => c.name))
+  const heroShow = needCount > 0 ? heroNames.filter((n) => needNames.has(n)) : heroNames
+  const heroTopics = (heroShow.length ? heroShow : heroNames).slice(0, 2).join(' • ')
 
   // Đổi môn: nếu chế độ đang chọn không hợp môn mới thì đưa về mặc định an toàn.
   function pickSubject(s) {
