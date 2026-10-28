@@ -1,21 +1,29 @@
 import { useState } from 'react'
-import { Brand, RewardTrack } from '../components.jsx'
-import { streakDays } from '../lib/stats.js'
-import { FEATURED_SUBJECTS, subjectDisplayName } from '../lib/subjects.js'
+import { Brand, RewardTrack, SubjectTile } from '../components.jsx'
+import { todayMinutes } from '../lib/stats.js'
+import { subjectsWithTone, subjectDisplayName } from '../lib/subjects.js'
+import { needReviewCount } from '../lib/review.js'
 import { iconFor } from '../lib/icons.js'
 
 const SLOGAN_HINT = 'Mục tiêu hay khẩu hiệu học tập của con'
 
+// TRANG CHỦ CỦA CON — giao diện mới (anh duyệt hình mẫu 28/10/2026, file "sua 26 Oct 2026" mục 4):
+// mỗi vùng một màu, mỗi màn chỉ MỘT việc nổi bật nhất (nút vàng "Bắt đầu ôn"), chữ ngắn, nút to.
+//  ⭐ Việc chính hôm nay (xanh ngọc): mục tiêu số phút + thanh tiến độ + nút "Bắt đầu ôn" + số chủ đề đang chờ ôn
+//  🔥 Chuỗi ngày + phần thưởng (cam nhạt) · 🧩 Việc khác: Thêm bài học (xanh dương), Xem báo cáo (tím)
+//  📚 Môn học của con: mỗi môn một màu kèm "N cần ôn"; chạm vào môn là vào màn Bắt đầu ôn của môn đó.
 // Trò chơi từ vựng: KHÔNG đặt thẻ riêng ở trang chủ (chốt 12/10/2026) — vào qua "Bắt đầu ôn" → Tiếng Anh.
-export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSlogan, onReview, onCapture, onReport, onSwitchChild }) {
-  const streak = stats ? streakDays(stats) : 0
+// Nút "Đổi người học" chỉ còn ở thanh trên cùng (không lặp lại trong khung).
+export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSlogan, onReview, onReviewSubject, onCapture, onReport }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(slogan)
 
-  // Các môn: 3 môn nổi bật (luôn dùng được) + các môn khác con đã có bài.
-  const present = new Set((mem || []).map((c) => subjectDisplayName(c.subject)))
-  const featuredNames = FEATURED_SUBJECTS.map((s) => s.name)
-  const extraSubjects = [...present].filter((n) => n && !featuredNames.includes(n))
+  const goal = (stats && stats.goalMin) || 15
+  const done = stats ? todayMinutes(stats) : 0
+  const met = done >= goal
+  const pct = Math.max(0, Math.min(100, (done / goal) * 100))
+  const waiting = needReviewCount(mem)
+  const subjects = subjectsWithTone(mem)
 
   function saveSlogan() {
     setEditing(false)
@@ -24,23 +32,20 @@ export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSl
   }
 
   return (
-    <div className="screen">
-      <header className="topbar">
+    <div className="screen kh">
+      <header className="kh-top">
         <Brand />
-        <div className="streak" title="Chuỗi ngày đạt mục tiêu">
-          <span className="flame">🔥</span> {streak} ngày
-        </div>
+        {child && (
+          <span className="kh-kid">
+            <span className="kh-av" aria-hidden="true">{iconFor(child)}</span>
+            <b>{child.name}</b>{child.grade ? <small>· {child.grade}</small> : null}
+          </span>
+        )}
       </header>
 
-      {child && (
-        <div className="who-row">
-          <span className="who-pill">{iconFor(child)} {child.name}{child.grade ? ` · ${child.grade}` : ''}</span>
-          {onSwitchChild && <button className="who-switch" onClick={onSwitchChild}>Đổi người học</button>}
-        </div>
-      )}
-
-      {/* Khẩu hiệu/mục tiêu học tập — con tự ghi (bấm để sửa) */}
-      <section className="hello">
+      {/* Lời chào + khẩu hiệu học tập (con tự ghi, bấm để sửa) */}
+      <section className="hello kh-greet">
+        <h1>Chào {child?.name || 'con'}! 👋</h1>
         {editing ? (
           <input
             className="slogan-input"
@@ -53,63 +58,69 @@ export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSl
             onKeyDown={(e) => { if (e.key === 'Enter') saveSlogan() }}
           />
         ) : (
-          <h1
+          <p
             className={'slogan' + (slogan ? '' : ' slogan-empty')}
             onClick={() => { setDraft(slogan || ''); setEditing(true) }}
             title="Bấm để sửa khẩu hiệu học tập"
           >
-            {slogan || SLOGAN_HINT}
+            {slogan ? `“${slogan}”` : SLOGAN_HINT}
             <span className="slogan-edit" aria-hidden="true"> ✏️</span>
-          </h1>
+          </p>
         )}
       </section>
 
-      {/* Đường đến phần thưởng — mốc 7, 15, 30 ngày, rồi cứ 30 ngày một lần */}
-      <RewardTrack stats={stats} />
-
-      <section className="home-cards" aria-label="Chọn việc muốn làm">
-        <button className="home-card primary" onClick={onReview}>
-          <span className="hc-ic">🎯</span>
-          <span className="hc-body">
-            <b>Bắt đầu ôn</b>
-            <em>Chọn môn, chọn phần con muốn ôn rồi chơi</em>
-          </span>
-          <span className="hc-go">→</span>
+      {/* ⭐ VÙNG 1 — việc chính hôm nay */}
+      <div className="kh-zone">⭐ Việc chính hôm nay</div>
+      <section className="kh-today">
+        <div className="kh-goal">
+          <span>⏱ Mục tiêu: học đủ {goal} phút</span>
+          <em>{met ? `Đạt rồi ✓ (${done} phút)` : `${done} / ${goal} phút`}</em>
+        </div>
+        <div className="kh-bar" role="progressbar" aria-label="Thời gian học hôm nay" aria-valuemin={0} aria-valuemax={goal} aria-valuenow={Math.min(done, goal)}>
+          <i style={{ width: pct + '%' }} />
+        </div>
+        <button className="kh-cta" onClick={onReview}>
+          <span className="kh-play" aria-hidden="true">▶</span>Bắt đầu ôn
         </button>
+        <div className="kh-sub">
+          {waiting > 0
+            ? `Có ${waiting} chủ đề đang chờ con ôn`
+            : mem.length > 0
+              ? 'Con đã vững hết các bài rồi, ôn lại để giữ phong độ nhé!'
+              : 'Thêm bài học đầu tiên để bắt đầu ôn nhé!'}
+        </div>
+      </section>
 
-        <button className="home-card" onClick={onCapture}>
-          <span className="hc-ic">📸</span>
-          <span className="hc-body">
-            <b>Thêm bài học hôm nay</b>
-            <em>Chụp ảnh hoặc gõ bài con vừa học để ghi nhớ</em>
-          </span>
-          <span className="hc-go">→</span>
+      {/* 🔥 VÙNG 2 — chuỗi ngày + phần thưởng (mốc 7, 15, 30 ngày, rồi cứ 30 ngày một lần) */}
+      <RewardTrack stats={stats} variant="kid" />
+
+      {/* 🧩 VÙNG 3 — việc khác */}
+      <div className="kh-zone">🧩 Việc khác</div>
+      <div className="kh-two">
+        <button className="kh-tile tone-blue" onClick={onCapture}>
+          <span className="kh-ti" aria-hidden="true">📸</span>
+          <b>Thêm bài học</b>
+          <em>Chụp hoặc gõ bài con vừa học trên lớp</em>
         </button>
-
         {onReport && (
-          <button className="home-card" onClick={onReport}>
-            <span className="hc-ic">📊</span>
-            <span className="hc-body">
-              <b>Báo cáo học tập</b>
-              <em>Xem thời gian học, phần đã vững và phần cần ôn</em>
-            </span>
-            <span className="hc-go">→</span>
+          <button className="kh-tile tone-purple" onClick={onReport}>
+            <span className="kh-ti" aria-hidden="true">📊</span>
+            <b>Xem báo cáo</b>
+            <em>Thời gian học, phần đã vững, phần cần ôn</em>
           </button>
         )}
-      </section>
+      </div>
 
-      <section className="subjects" aria-label="Môn học">
-        <h3>Môn học</h3>
-        <div className="chips">
-          {FEATURED_SUBJECTS.map((s) => (
-            <span key={s.name} className={'chip' + (present.has(s.name) ? ' on' : '')}>{s.icon} {s.name}</span>
-          ))}
-          {extraSubjects.map((n) => (
-            <span key={n} className="chip on">📚 {n}</span>
-          ))}
-        </div>
-        <p className="cr-hint">Chụp/thêm bài môn nào là con ôn được môn đó. Các môn khác (Khoa học, Lịch sử…) cũng ôn được.</p>
-      </section>
+      {/* 📚 VÙNG 4 — môn học của con */}
+      <div className="kh-zone">📚 Môn học của con</div>
+      <div className="sj-grid">
+        {subjects.map((s) => (
+          <SubjectTile key={s.name} s={s} chevron
+            need={needReviewCount(mem.filter((c) => subjectDisplayName(c.subject) === s.name))}
+            onClick={() => (onReviewSubject ? onReviewSubject(s.name) : onReview && onReview())} />
+        ))}
+      </div>
+      <p className="kh-note">Chạm vào một môn để vào ôn môn đó. Môn nào chưa có bài thì bấm “Thêm bài học”.</p>
     </div>
   )
 }

@@ -122,3 +122,9 @@ export function resolveTopic(text, mem, { limit = 5, vocabLimit = 15 } = {}) {
   const name = (topic || raw).trim()
   return name ? [name.charAt(0).toLocaleUpperCase('vi') + name.slice(1)] : []
 }
+
+// "Cần ôn" = chưa thành thạo (mastery < 80) HOẶC chưa ôn lần nào. Dùng CHUNG cho trang chủ của con
+// (ô môn học, "Có N chủ đề đang chờ con ôn") và màn Bắt đầu ôn (thẻ gợi ý, ô chọn môn) -> số luôn khớp nhau.
+export function needReviewCount(list) {
+  return (list || []).filter((c) => (c.reviews || 0) === 0 || (c.mastery || 0) < 80).length
+}

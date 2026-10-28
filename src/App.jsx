@@ -740,8 +740,10 @@ export default function App() {
       screen = <ChildHome mem={mem} stats={stats} child={activeChild}
         slogan={settings.slogan || ''}
         onSetSlogan={(s) => setSettings((x) => ({ ...x, slogan: s }))}
-        onReview={() => { setCrSubject(null); setView('custom') }} onCapture={() => setView('capture')}
-        onReport={() => setView('report')} onSwitchChild={switchChild} />
+        onReview={() => { setCrSubject(null); setView('custom') }}
+        onReviewSubject={(name) => { setCrSubject(name); setView('custom') }}
+        onCapture={() => setView('capture')}
+        onReport={() => setView('report')} />
     }
   } else {
     // Phụ huynh chỉ xem báo cáo + vào Cài đặt (mục tiêu, bật/tắt trắc nghiệm).

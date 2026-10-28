@@ -72,10 +72,27 @@ export function BackHeader({ title, onBack }) {
   )
 }
 
+// Ô MÔN HỌC (giao diện mới 28/10/2026) — dùng ở trang chủ của con và màn Bắt đầu ôn.
+// Mỗi môn một màu (tone); dòng nhỏ: "N cần ôn" / "đã vững" / "chưa có bài".
+export function SubjectTile({ s, need = 0, selected = false, chevron = false, onClick }) {
+  const has = (s.count || 0) > 0
+  const state = !has ? 'chưa có bài' : need > 0 ? `${need} cần ôn` : 'đã vững'
+  return (
+    <button type="button" className={'sj-tile tone-' + s.tone + (selected ? ' on' : '') + (has ? '' : ' empty')} onClick={onClick}
+      aria-pressed={chevron ? undefined : selected}>
+      <span className="sj-ic" aria-hidden="true">{s.icon}</span>
+      <span className="sj-body"><b>{s.name}</b><small>{state}</small></span>
+      {chevron && <span className="sj-go" aria-hidden="true">›</span>}
+      {selected && <span className="sj-ck" aria-hidden="true">✓</span>}
+    </button>
+  )
+}
+
 // Đường đến phần thưởng — DÙNG CHUNG cho cả trang Con và trang Phụ huynh,
 // nên "số ngày đạt mục tiêu" luôn KHỚP nhau ở hai nơi.
 // Vạch LIỀN: ô XANH = ngày đã đạt, ô ĐỎ = ngày còn thiếu. Đứt mạch thì quay lại đầu chặng.
-export function RewardTrack({ stats }) {
+// variant="kid" (trang chủ của con, giao diện mới 28/10/2026): ô đánh số từng ngày, ô đã đạt tô cam, cuối là 🎁.
+export function RewardTrack({ stats, variant }) {
   const streak = stats ? streakDays(stats) : 0
   const next = nextReward(streak)
   const prev = prevReward(streak)
@@ -84,6 +101,32 @@ export function RewardTrack({ stats }) {
   const remaining = Math.max(0, next - streak)
   const pct = Math.max(0, Math.min(100, (into / span) * 100))
   const seg = span <= 12 // chặng ngắn: vẽ từng ô ngày; chặng dài: vẽ thanh liền
+
+  if (variant === 'kid') {
+    const goal = (stats && stats.goalMin) || 15
+    return (
+      <section className="kh-reward" aria-label="Chuỗi ngày học và phần thưởng">
+        <div className="kh-rw-row">
+          <b>🔥 Chuỗi {streak} ngày</b>
+          <span>Ngày thứ {next}: nhận quà 🎁</span>
+        </div>
+        {seg ? (
+          <div className="kh-dots">
+            {Array.from({ length: span }).map((_, i) => (
+              <i key={i} className={i < into ? 'on' : ''} title={`Ngày ${prev + i + 1}`}>{prev + i + 1}</i>
+            ))}
+            <span className="kh-gift" aria-hidden="true">🎁</span>
+          </div>
+        ) : (
+          <div className="kh-dots">
+            <span className="kh-rw-bar"><i style={{ width: pct + '%' }} /><em>{into}/{span} ngày</em></span>
+            <span className="kh-gift" aria-hidden="true">🎁</span>
+          </div>
+        )}
+        <p>{seg ? `Mỗi ngày học đủ ${goal} phút là tô thêm 1 ô.` : `Mỗi ngày học đủ ${goal} phút là thanh dài thêm 1 ngày.`}</p>
+      </section>
+    )
+  }
 
   return (
     <section className="reward" aria-label="Đường đến phần thưởng">

@@ -71,7 +71,6 @@ body{
 .brand-logo{height:38px;width:auto;display:block}
 .brand-name em{font-style:normal;font-weight:600;letter-spacing:.02em;color:var(--muted)}
 .streak{background:#FFF3E0;color:#9A5A12;font-weight:700;font-size:.82rem;padding:6px 12px;border-radius:999px;border:1px solid #F6E2C4}
-.who-pill{background:var(--teal-soft);color:var(--teal-dark);font-weight:600;font-size:.76rem;padding:6px 12px;border-radius:999px}
 
 /* Hello */
 .hello h1{margin:0;font-size:1.55rem;font-weight:800;letter-spacing:-.01em}
@@ -105,7 +104,6 @@ body{
 .ghost.small{width:auto;padding:9px 16px;font-size:.9rem}
 
 /* Chips / subjects */
-.subjects h3{margin:2px 0 10px;font-size:.76rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .chips{display:flex;flex-wrap:wrap;gap:9px}
 .chip{background:#fff;border:1px solid var(--border);border-radius:999px;padding:9px 15px;font-size:.9rem;font-weight:600;color:var(--muted)}
 .chip.on{background:var(--teal);border-color:var(--teal);color:#fff}
@@ -367,22 +365,6 @@ select.auth-in{appearance:auto;cursor:pointer}
 .ds-logout{border:1px solid var(--border);background:#fff;color:var(--muted);cursor:pointer;font-family:inherit;font-weight:600;font-size:clamp(.76rem,3.3vw,.82rem);padding:7px clamp(8px,2.2vw,13px);border-radius:999px;transition:.15s;white-space:nowrap}
 .ds-logout:hover{border-color:var(--weak);color:var(--weak-tx)}
 
-/* ===== Home action cards (2 mục) ===== */
-.home-cards{display:flex;flex-direction:column;gap:12px}
-.home-card{display:flex;align-items:center;gap:14px;background:#fff;border:1.5px solid var(--border);border-radius:18px;padding:17px;cursor:pointer;font-family:inherit;text-align:left;transition:transform .12s,border-color .12s;box-shadow:0 8px 20px rgba(20,33,46,.05)}
-.home-card:hover{border-color:var(--teal);transform:translateY(-1px)}
-.home-card:active{transform:scale(.99)}
-.home-card.primary{background:var(--teal);border-color:var(--teal);box-shadow:0 12px 26px rgba(15,118,110,.26)}
-.hc-ic{font-size:1.6rem;width:52px;height:52px;border-radius:14px;background:var(--teal-soft);display:grid;place-items:center;flex:none}
-.home-card.primary .hc-ic{background:rgba(255,255,255,.18)}
-.hc-body{flex:1;display:flex;flex-direction:column;gap:3px;min-width:0}
-.hc-body b{font-size:1.08rem;font-weight:700;color:var(--ink)}
-.hc-body em{font-style:normal;font-size:.84rem;color:var(--muted);line-height:1.35}
-.home-card.primary .hc-body b{color:#fff}
-.home-card.primary .hc-body em{color:rgba(255,255,255,.85)}
-.hc-go{font-size:1.2rem;font-weight:800;color:var(--teal);flex:none}
-.home-card.primary .hc-go{color:#fff}
-
 /* ===== Game: Thả rơi ===== */
 .screen.shake{animation:shake .4s}
 .fall-q{font-size:1.15rem}
@@ -468,9 +450,6 @@ select.auth-in{appearance:auto;cursor:pointer}
    BỔ SUNG: game mới + hiệu ứng Boss/Quick Fire + tab Master
    ============================================================ */
 
-/* ===== Chip Master trong "Theo mức độ" ===== */
-.chip-master{border-color:#E7C77A;color:#8A5B12;background:linear-gradient(180deg,#FFF7E6,#FDEFCF)}
-.chip-master.on{background:linear-gradient(180deg,#E0A32F,#C9861A);border-color:#C9861A;color:#fff}
 .cr-master-note{margin:10px 0 0;background:#FFF7E6;border:1px solid #F0DBA6;border-radius:12px;padding:11px 14px;font-size:.85rem;color:#7A521A;line-height:1.5}
 .cr-master-note b{color:#8A5B12}
 
@@ -636,51 +615,73 @@ select.auth-in{appearance:auto;cursor:pointer}
    ========================================================= */
 .screen.cr{padding-bottom:0}
 
-/* --- TẦNG 1: Thẻ gợi ý "ÔN NGAY" (điểm nhấn) --- */
-.cr-hero{
-  position:relative;overflow:hidden;border-radius:18px;
-  padding:17px 18px 19px;color:#fff;
-  background:linear-gradient(135deg,#0F857B 0%,#0B5C55 100%);
-  box-shadow:0 12px 28px rgba(15,118,110,.30);
-}
-.cr-hero::after{content:"";position:absolute;right:-30px;top:-30px;width:130px;height:130px;border-radius:50%;
-  background:radial-gradient(circle,rgba(246,197,96,.30),transparent 70%);pointer-events:none}
-.cr-hero-tag{position:relative;display:inline-block;background:rgba(255,255,255,.16);color:#FFE6BE;
-  font-weight:800;font-size:.72rem;letter-spacing:.04em;padding:5px 11px;border-radius:999px;text-transform:uppercase}
-.cr-hero-big{position:relative;font-size:1.4rem;font-weight:900;margin:11px 0 4px;line-height:1.16;letter-spacing:-.01em}
-.cr-hero-sub{position:relative;margin:0;font-size:.9rem;color:rgba(255,255,255,.86);font-weight:500;line-height:1.4}
-.cr-hero-cta{position:relative;margin-top:14px;width:100%;border:0;cursor:pointer;font-family:inherit;
-  font-weight:900;font-size:1.06rem;letter-spacing:.02em;padding:14px;border-radius:13px;
-  color:#5A3B08;background:linear-gradient(180deg,#F7CB68,#E0A32F);
-  box-shadow:0 8px 18px rgba(224,163,47,.40);transition:transform .08s}
-.cr-hero-cta:active{transform:scale(.985)}
+/* --- CÁCH 1: thẻ gợi ý "Ôn ngay" (điểm nhấn lớn nhất) — giao diện mới 28/10/2026 --- */
+.cr-way{display:flex;align-items:center;gap:8px;margin:2px 2px -6px;font-size:.78rem;font-weight:800;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-soft)}
+.cr-way b{flex:none;background:var(--teal);color:#fff;border-radius:999px;padding:3px 10px;letter-spacing:.04em}
+.cr-way.alt b{background:#fff;color:var(--teal);border:1.5px solid var(--teal);padding:1.5px 8.5px}
+.cr-hero{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:8px;border-radius:22px;
+  padding:16px 18px 18px;color:#fff;background:linear-gradient(150deg,#0F766E,#13917F);
+  box-shadow:0 14px 30px rgba(15,118,110,.28)}
+.cr-hero::after{content:"";position:absolute;right:-40px;top:-40px;width:150px;height:150px;border-radius:50%;
+  background:rgba(255,255,255,.08);pointer-events:none}
+.cr-hero-subj{position:relative;align-self:flex-start;display:inline-flex;align-items:center;gap:6px;
+  background:rgba(255,255,255,.16);border-radius:999px;padding:4px 11px;font-size:.8rem;font-weight:700}
+.cr-hero-big{position:relative;font-size:1.35rem;font-weight:800;margin:2px 0 0;line-height:1.2;letter-spacing:-.01em}
+.cr-hero-sub{position:relative;margin:0;font-size:.88rem;color:rgba(255,255,255,.92);font-weight:500;line-height:1.45}
+.cr-hero-meta{position:relative;display:flex;gap:8px;flex-wrap:wrap}
+.cr-hero-meta span{background:rgba(255,255,255,.16);border-radius:10px;padding:5px 10px;font-size:.82rem;font-weight:700}
+.cr-hero-cta{position:relative;z-index:1;margin-top:8px;width:100%;border:0;cursor:pointer;font-family:inherit;
+  display:flex;align-items:center;justify-content:center;gap:10px;font-weight:800;font-size:1.25rem;padding:14px;border-radius:16px;
+  color:#3B2600;background:linear-gradient(180deg,#FFC861,#F2A93B);
+  box-shadow:0 6px 0 #C9781A,0 10px 20px rgba(0,0,0,.18);transition:transform .08s,box-shadow .08s}
+.cr-hero-cta:active{transform:translateY(3px);box-shadow:0 3px 0 #C9781A,0 6px 12px rgba(0,0,0,.18)}
+.cr-play{width:32px;height:32px;border-radius:50%;background:#3B2600;color:#FFC861;display:grid;place-items:center;font-size:.9rem;flex:none}
+.cr-or{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:.85rem;font-weight:700;margin:2px 0}
+.cr-or::before,.cr-or::after{content:"";flex:1;height:1px;background:#D7E2E0}
 
-/* --- TẦNG 2: Tự chọn bài ôn (thẻ trắng, dưới hero) --- */
-.cr-tier{background:#fff;border:1px solid var(--border);border-radius:16px;
-  padding:15px 15px 17px;display:flex;flex-direction:column;gap:15px;box-shadow:var(--shadow)}
-.cr-tier-h{font-size:1rem;font-weight:900;color:var(--ink);letter-spacing:-.01em}
-
-/* Chip MÔN — 2 dòng: tên + "N cần ôn" (rõ nghĩa) */
-.chip-subj{display:inline-flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;
-  padding:8px 14px;border-radius:14px;line-height:1.15}
-.cs-name{font-weight:800;font-size:.92rem}
-.cs-need{font-weight:600;font-size:.72rem;color:var(--weak-tx)}
-.cs-need.cs-ok{color:var(--strong-tx)}
-.chip-subj.on .cs-need{color:#FFE0C4}
-.chip-subj.on .cs-need.cs-ok{color:#D8EEE9}
-
-/* Chip MỨC ĐỘ — lưới 2 cột, có icon; Master chiếm cả hàng (tạo động lực) */
-.chips-lv{display:grid;grid-template-columns:1fr 1fr;gap:9px}
-.chip-lv{width:100%;justify-content:center;text-align:center;padding:11px 8px;font-weight:700;font-size:.9rem}
-.chip-lv .lv-ic{margin-right:1px}
-.chip-lv.chip-master{grid-column:1 / -1}
+/* --- CÁCH 2: tự chọn bài ôn — thẻ trắng, 3 bước đánh số --- */
+.cr-self{background:#fff;border:1px solid var(--border);border-radius:22px;padding:16px;display:flex;flex-direction:column;gap:18px;
+  box-shadow:0 8px 20px rgba(20,33,46,.05)}
+.cr-step h3{display:flex;align-items:center;gap:9px;margin:0 0 10px;font-size:1rem;font-weight:800;color:var(--ink)}
+.cr-n{width:26px;height:26px;border-radius:50%;background:var(--teal);color:#fff;display:grid;place-items:center;font-size:.85rem;flex:none}
+/* vùng riêng của Tiếng Anh: chỉ hiện khi chọn Tiếng Anh */
+.cr-en{margin-top:12px;background:var(--green-bg);border:1.5px dashed #9ED9C3;border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.cr-en-h{font-size:.74rem;font-weight:800;letter-spacing:.08em;color:var(--green);text-transform:uppercase}
+.cr-en .cr-vocab{margin:0;padding:10px 12px;border-radius:13px;background:#fff;border:1px solid #CBEBDD}
+.cr-en .cr-vocab-ic{width:36px;height:36px;flex-basis:36px;font-size:1.15rem;background:#E8F8F1}
+.cr-en .cr-vocab-body b{font-size:.92rem;color:var(--ink)}
+.cr-en .cr-vocab-body em{font-size:.76rem}
+.cr-en .cr-vocab-go{color:var(--green)}
+.cr-lang{display:flex;align-items:center;gap:8px;font-size:.84rem;font-weight:700;color:var(--ink-soft);flex-wrap:wrap}
+.cr-segb{display:inline-flex;background:#fff;border:1px solid #CBEBDD;border-radius:999px;padding:3px}
+.cr-segb button{border:0;background:transparent;cursor:pointer;font-family:inherit;padding:6px 12px;border-radius:999px;
+  font-size:.82rem;font-weight:700;color:var(--muted)}
+.cr-segb button.on{background:var(--green);color:#fff}
+.cr-en-note{margin:-2px 0 0;font-size:.74rem;color:#3F6E5E;line-height:1.4}
+/* bước 2: 4 ô có biểu tượng + một dòng giải thích; "Thử thách Master" vàng chiếm cả hàng */
+.cr-lv{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cr-lvc{display:flex;gap:9px;align-items:flex-start;min-width:0;text-align:left;cursor:pointer;font-family:inherit;color:var(--ink);
+  background:#fff;border:1.5px solid var(--border);border-radius:15px;padding:10px 11px;transition:transform .1s}
+.cr-lvc:active{transform:scale(.98)}
+.cr-li{font-size:1.25rem;line-height:1;flex:none}
+.cr-lvb{min-width:0}
+.cr-lvb b{display:block;font-size:.88rem}
+.cr-lvb em{display:block;font-style:normal;font-size:.72rem;color:var(--muted);margin-top:2px;line-height:1.3}
+.cr-lvc.on{border-color:var(--teal);background:var(--teal-soft);box-shadow:inset 0 0 0 1px var(--teal)}
+.cr-lvc.master{grid-column:1 / -1;background:linear-gradient(90deg,#FFF6DD,#FFEBC2);border-color:#F2CF83}
+.cr-lvc.master b{color:#8A5B00}
+.cr-lvc.master.on{border-color:#C9861A;box-shadow:inset 0 0 0 1px #C9861A,0 0 0 3px rgba(201,134,26,.15)}
+.cr-self .cr-adv{background:#FAFCFC;border-color:#CFDAD8}
 
 /* Chip SỐ CÂU — 4 cột, 2 dòng: "N câu" + "~x phút" */
 .chips-count{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.chip-count{display:flex;flex-direction:column;align-items:center;gap:1px;padding:9px 4px;line-height:1.12}
-.cc-n{font-weight:800;font-size:.9rem}
-.cc-t{font-weight:600;font-size:.71rem;opacity:.75}
-.chip-count.on .cc-t{opacity:.92}
+.chip-count{display:flex;flex-direction:column;align-items:center;gap:1px;padding:9px 4px;line-height:1.12;border-radius:13px;
+  border:1.5px solid var(--border);color:var(--ink);cursor:pointer;font-family:inherit}
+.cc-n{font-weight:800;font-size:.95rem}
+.cc-t{font-weight:600;font-size:.72rem;color:var(--muted)}
+.chip-count.on{background:var(--teal-soft);border-color:var(--teal);color:var(--ink);box-shadow:inset 0 0 0 1px var(--teal)}
+.chip-count.on .cc-t{color:var(--teal-dark)}
 
 /* --- TẦNG 3: Tuỳ chỉnh nâng cao (thu gọn) --- */
 .cr-adv{border:1px dashed #D7E0E0;border-radius:14px;background:#fff;padding:2px 14px 6px}
@@ -700,7 +701,7 @@ select.auth-in{appearance:auto;cursor:pointer}
   padding:10px 15px calc(10px + env(safe-area-inset-bottom,0px));
   background:#fff;border-top:1px solid var(--border);box-shadow:0 -8px 22px rgba(20,33,46,.12)}
 .cr-sticky-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
-.cr-sticky-top{font-size:.94rem;font-weight:800;color:var(--ink)}
+.cr-sticky-top{font-size:.95rem;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cr-sticky-top b{color:var(--teal-dark)}
 .cr-sticky-sub{font-size:.76rem;font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cr-sticky-warn{color:var(--weak-tx);white-space:normal}
@@ -717,12 +718,6 @@ select.auth-in{appearance:auto;cursor:pointer}
 /* Đăng ký: chọn gói + ghi chú */
 .auth-plan{margin:2px 0 2px}
 .auth-hint{margin:6px 0 2px;font-size:.8rem;color:var(--muted);line-height:1.5}
-
-/* Chip "con đang học" ở trang chủ + nút đổi con */
-.who-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-4px 0 2px}
-.who-switch{border:1px solid var(--border);background:#fff;color:var(--teal-dark);font-family:inherit;
-  font-weight:700;font-size:.82rem;padding:7px 13px;border-radius:999px;cursor:pointer}
-.who-switch:active{transform:scale(.98)}
 
 /* Màn CHỌN CON */
 .pick .hello h1{margin-bottom:2px}
@@ -845,3 +840,137 @@ select.auth-in{appearance:auto;cursor:pointer}
 .spelling-open .stage{padding-bottom:14px}
 .spelling-frame{display:block;width:100%;border:0;background:#FBFAFF;min-height:440px;
   height:calc(100vh - var(--sp-top, 98px) - 15px);height:calc(100svh - var(--sp-top, 98px) - 15px)}
+
+/* =========================================================
+   TRANG CHỦ CỦA CON + MÀN BẮT ĐẦU ÔN — GIAO DIỆN MỚI (anh duyệt hình mẫu 28/10/2026)
+   Mỗi vùng một màu: việc chính xanh ngọc + nút vàng to · phần thưởng cam nhạt · Thêm bài học xanh dương ·
+   Báo cáo tím · mỗi môn một màu (Toán xanh dương, Tiếng Việt hồng, Tiếng Anh xanh lá, môn khác vàng/tím/…).
+   ========================================================= */
+:root{
+  --blue:#2F6FD6; --blue-bg:#EAF2FF; --blue-bd:#CFE0FB; --blue-tx:#1F4FA3;
+  --rose:#D6456A; --rose-bg:#FDEBF0; --rose-bd:#F7CDD9;
+  --green:#0F9D73; --green-bg:#E3F6EF; --green-bd:#C6EBDD;
+  --gold:#B8760A; --gold-bg:#FDF2DF; --gold-bd:#F4DDB3;
+  --purple:#6A4FD8; --purple-bg:#F1EDFF; --purple-bd:#DDD3FB; --purple-tx:#4B33B0;
+  --teal2:#0E7C70; --teal2-bg:#E1F2EF; --teal2-bd:#C3E3DD;
+  --orange:#D9581F; --orange-bg:#FFF0E6; --orange-bd:#F8D3BD;
+  --fire:#E8622C; --fire-bg:#FFF3E8;
+}
+
+/* Đầu trang: logo + tên con */
+.kh-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.kh-top .brand{min-width:0}
+.kh-kid{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:58%;background:#fff;border:1px solid var(--border);
+  border-radius:999px;padding:4px 12px 4px 5px;font-size:.88rem}
+.kh-kid b{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kh-kid small{flex:none;color:var(--muted);font-weight:600;font-size:.8rem;white-space:nowrap}
+.kh-av{width:28px;height:28px;border-radius:50%;background:#FFE7CC;display:grid;place-items:center;font-size:1rem;flex:none}
+
+/* Lời chào + khẩu hiệu (bấm để sửa) */
+.kh-greet h1{margin:0;font-size:1.55rem;font-weight:800;letter-spacing:-.01em}
+.kh-greet .slogan{margin:4px -6px -4px;padding:4px 6px;font-size:.92rem;font-weight:500;font-style:italic;line-height:1.45;color:var(--ink-soft)}
+.kh-greet .slogan-empty{color:var(--muted);font-weight:600}
+.kh-greet .slogan-input{margin-top:6px;font-size:.98rem;font-weight:600}
+
+/* Tiêu đề vùng: ⭐ Việc chính hôm nay · 🧩 Việc khác · 📚 Môn học của con */
+.kh-zone{display:flex;align-items:center;gap:8px;margin:2px 2px -6px;font-size:.78rem;font-weight:800;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink-soft)}
+
+/* VÙNG 1 — việc chính hôm nay */
+.kh-today{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:12px;color:#fff;border-radius:22px;
+  padding:18px 18px 16px;background:linear-gradient(150deg,#0F766E,#13917F);box-shadow:0 14px 30px rgba(15,118,110,.28)}
+.kh-today::after{content:"";position:absolute;right:-40px;top:-40px;width:150px;height:150px;border-radius:50%;
+  background:rgba(255,255,255,.08);pointer-events:none}
+.kh-goal{position:relative;display:flex;justify-content:space-between;align-items:baseline;gap:4px 10px;flex-wrap:wrap;font-weight:700;font-size:1.02rem}
+.kh-goal em{font-style:normal;font-size:.85rem;font-weight:600;opacity:.92;white-space:nowrap}
+.kh-bar{position:relative;height:12px;border-radius:99px;background:rgba(255,255,255,.22);overflow:hidden}
+.kh-bar i{display:block;height:100%;border-radius:99px;background:#FFD66B;transition:width .5s}
+.kh-cta{position:relative;z-index:1;margin-top:2px;width:100%;border:0;cursor:pointer;font-family:inherit;border-radius:16px;
+  display:flex;align-items:center;justify-content:center;gap:10px;padding:16px;font-weight:800;font-size:1.3rem;
+  color:#3B2600;background:linear-gradient(180deg,#FFC861,#F2A93B);box-shadow:0 6px 0 #C9781A,0 10px 20px rgba(0,0,0,.18);
+  transition:transform .08s,box-shadow .08s}
+.kh-cta:active{transform:translateY(3px);box-shadow:0 3px 0 #C9781A,0 6px 12px rgba(0,0,0,.18)}
+.kh-play{width:34px;height:34px;border-radius:50%;background:#3B2600;color:#FFC861;display:grid;place-items:center;font-size:.95rem;flex:none}
+.kh-sub{position:relative;margin-top:2px;text-align:center;font-size:.86rem;opacity:.95;line-height:1.4}
+
+/* VÙNG 2 — chuỗi ngày + phần thưởng */
+.kh-reward{background:var(--fire-bg);border:1.5px solid #F8D9BD;border-radius:18px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.kh-rw-row{display:flex;justify-content:space-between;align-items:center;gap:4px 10px;flex-wrap:wrap;font-size:.92rem}
+.kh-rw-row b{color:var(--fire)}
+.kh-rw-row span{color:#9A5A1C;font-weight:700;font-size:.85rem}
+.kh-dots{display:flex;align-items:center;gap:6px}
+.kh-dots i{flex:1;min-width:0;height:30px;border-radius:9px;background:#fff;border:2px dashed #F2C49B;display:grid;place-items:center;
+  font-style:normal;font-size:.72rem;font-weight:700;color:#C99062}
+.kh-dots i.on{background:#FF8A3D;border:2px solid #FF8A3D;color:#fff}
+.kh-gift{font-size:1.5rem;flex:none;line-height:1}
+.kh-rw-bar{position:relative;flex:1;height:24px;border-radius:999px;background:#fff;border:2px dashed #F2C49B;overflow:hidden}
+.kh-rw-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:#FF8A3D;transition:width .5s}
+.kh-rw-bar em{position:relative;display:block;text-align:center;font-style:normal;font-size:.74rem;font-weight:800;color:#7A3E0C;line-height:20px}
+.kh-reward p{margin:0;font-size:.8rem;color:#8A5A2E}
+
+/* VÙNG 3 — việc khác: 2 ô cạnh nhau */
+.kh-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.kh-tile{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:0;min-height:126px;padding:14px;text-align:left;
+  border-radius:18px;border:1.5px solid transparent;cursor:pointer;font-family:inherit;color:var(--ink);transition:transform .12s}
+.kh-tile:active{transform:scale(.98)}
+.kh-ti{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:1.35rem;background:#fff}
+.kh-tile b{font-size:1rem}
+.kh-tile em{font-style:normal;font-size:.8rem;color:var(--ink-soft);line-height:1.35}
+.kh-tile.tone-blue{background:var(--blue-bg);border-color:var(--blue-bd)}
+.kh-tile.tone-blue b{color:var(--blue-tx)}
+.kh-tile.tone-purple{background:var(--purple-bg);border-color:var(--purple-bd)}
+.kh-tile.tone-purple b{color:var(--purple-tx)}
+.kh-note{margin:-4px 2px 0;font-size:.8rem;color:var(--muted);line-height:1.45}
+
+/* Ô MÔN HỌC (trang chủ + bước 1 màn Bắt đầu ôn) */
+.sj-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sj-tile{position:relative;display:flex;align-items:center;gap:10px;min-width:0;padding:11px 12px;text-align:left;cursor:pointer;
+  font-family:inherit;color:var(--ink);border-radius:16px;border:1.5px solid transparent;transition:transform .1s,box-shadow .12s}
+.sj-tile:active{transform:scale(.98)}
+.sj-ic{width:38px;height:38px;border-radius:11px;background:#fff;display:grid;place-items:center;font-size:1.2rem;flex:none}
+.sj-body{display:flex;flex-direction:column;flex:1;min-width:0}
+.sj-body b{font-size:.95rem;font-weight:700;line-height:1.25;overflow-wrap:break-word}
+.sj-body small{margin-top:1px;font-size:.76rem;font-weight:700}
+.sj-go{flex:none;color:var(--muted);font-weight:700;font-size:1.15rem}
+.sj-tile.tone-blue{background:var(--blue-bg);border-color:var(--blue-bd)} .sj-tile.tone-blue small{color:var(--blue)}
+.sj-tile.tone-rose{background:var(--rose-bg);border-color:var(--rose-bd)} .sj-tile.tone-rose small{color:var(--rose)}
+.sj-tile.tone-green{background:var(--green-bg);border-color:var(--green-bd)} .sj-tile.tone-green small{color:var(--green)}
+.sj-tile.tone-gold{background:var(--gold-bg);border-color:var(--gold-bd)} .sj-tile.tone-gold small{color:var(--gold)}
+.sj-tile.tone-purple{background:var(--purple-bg);border-color:var(--purple-bd)} .sj-tile.tone-purple small{color:var(--purple)}
+.sj-tile.tone-teal{background:var(--teal2-bg);border-color:var(--teal2-bd)} .sj-tile.tone-teal small{color:var(--teal2)}
+.sj-tile.tone-orange{background:var(--orange-bg);border-color:var(--orange-bd)} .sj-tile.tone-orange small{color:var(--orange)}
+.sj-tile.empty small{color:var(--muted);font-weight:600}
+.sj-tile.on{border-color:var(--teal);box-shadow:0 0 0 3px rgba(15,118,110,.18)}
+.sj-ck{position:absolute;top:-8px;right:-6px;width:22px;height:22px;border-radius:50%;background:var(--teal);color:#fff;
+  display:grid;place-items:center;font-size:.75rem;font-weight:800;border:2px solid #fff}
+
+/* Điện thoại thường (≤ 420px, vd iPhone 390/393, Android 412): ô môn học + ô "Con muốn ôn gì?" gọn lại một chút
+   để tên ("Tiếng Việt", "Tiếng Anh", "Cần ôn nhất", "Ôn tổng hợp") nằm MỘT dòng như hình mẫu anh đã duyệt. */
+@media (max-width:420px){
+  .cr-self{padding:14px 12px}
+  .sj-tile{gap:8px;padding:10px 8px 10px 10px}
+  .sj-ic{width:32px;height:32px;border-radius:10px;font-size:1.05rem}
+  .sj-body b{font-size:.9rem}
+  .sj-go{margin-left:-3px}
+  .cr-lvc{gap:7px;padding:10px 8px 10px 10px}
+  .cr-li{font-size:1.1rem}
+  .cr-lvb b{font-size:.84rem}
+}
+/* Máy nhỏ (≤ 380px, vd iPhone SE/mini 375) */
+@media (max-width:380px){
+  .sj-ic{width:28px;height:28px;border-radius:9px;font-size:.95rem}
+  .sj-body b{font-size:.86rem}
+}
+/* Màn hẹp (≤ 360px): chữ và đệm nhỏ lại một chút để không tràn ngang */
+@media (max-width:360px){
+  .kh-cta{font-size:1.15rem;padding:14px}
+  .kh-tile{padding:12px;min-height:118px}
+  .sj-tile{gap:7px;padding:9px 6px 9px 8px}
+  .cr-self{padding:12px 10px}
+  .cr-lvc{gap:6px;padding:9px 6px 9px 8px}
+  .cr-way{letter-spacing:.04em}
+}
+@media (max-width:350px){
+  .sj-grid{grid-template-columns:1fr}   /* màn rất hẹp: mỗi môn một hàng cho đủ chỗ ghi "N cần ôn" */
+  .kh-goal{font-size:.95rem}
+}

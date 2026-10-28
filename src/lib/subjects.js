@@ -161,3 +161,19 @@ export function subjectsFromMem(mem) {
   }
   return [...seen.values()]
 }
+
+// Màu riêng của từng môn (giao diện mới 28/10/2026): Toán xanh dương, Tiếng Việt hồng, Tiếng Anh xanh lá,
+// các môn khác lần lượt vàng, tím, xanh ngọc, cam (otherIndex = thứ tự của môn đó trong các "môn khác").
+const OTHER_TONES = ['gold', 'purple', 'teal', 'orange']
+export function subjectTone(name, otherIndex = 0) {
+  const k = subjectKey(name)
+  if (k === 'toan') return 'blue'
+  if (k === 'tieng-viet') return 'rose'
+  if (k === 'tieng-anh') return 'green'
+  return OTHER_TONES[Math.abs(otherIndex) % OTHER_TONES.length]
+}
+// Danh sách môn kèm màu (cùng thứ tự ở trang chủ và màn Bắt đầu ôn).
+export function subjectsWithTone(mem) {
+  let other = 0
+  return subjectsFromMem(mem).map((s) => ({ ...s, tone: subjectKey(s.name) === 'default' ? subjectTone(s.name, other++) : subjectTone(s.name) }))
+}
