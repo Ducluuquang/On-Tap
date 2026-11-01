@@ -113,7 +113,7 @@
       if (sn < r.start) {
         return `<div class="page arena sbp" id="sbp"><div class="ar-count"><div class="lbl">Scrabble · Ván ${r.n}</div><div class="ar-big" id="ar-count">${Math.max(1, Math.ceil((r.start - sn) / 1000))}</div>
           <div class="ar-rinfo">Thứ tự đi: ${sb.order.map((pid, k) => `${k + 1}. ${esc(nameOf(st, pid))}`).join(" · ")}</div>
-          <p class="muted small" style="margin:0">Mỗi bạn 7 chữ. Đặt chữ lên bàn ghép thành từ, một lượt ghép được nhiều từ nối liền nhau (lượt đầu qua ô ★), rồi bốc thêm cho đủ 7. Bỏ lượt = đổi cả 7 chữ. Mỗi lượt tối đa ${Math.round((r.turnMs || 120000) / 60000)} phút.</p></div></div>`;
+          <p class="muted small" style="margin:0">Mỗi bạn 7 chữ. Đặt chữ lên bàn ghép thành từ, một lượt ghép được nhiều từ ở nhiều chỗ, mỗi từ chạm vào chữ có sẵn (lượt đầu qua ô ★), rồi bốc thêm cho đủ 7. Bỏ lượt = đổi cả 7 chữ. Mỗi lượt tối đa ${Math.round((r.turnMs || 120000) / 60000)} phút.</p></div></div>`;
       }
       const mine = myTurn(st), me = inGame(st);
       const acts = !me ? "" : `<div class="sb-acts">

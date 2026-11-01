@@ -100,12 +100,16 @@ export function newGame(order, now) {
 
 /* ---------- Kiểm tra một nước đi + tính điểm ----------
    tiles: [{ i: ô 0–224, l: chữ "A"–"Z", b: 1 nếu dùng quân trắng }]
-   Luật nhà (anh chốt 26/10/2026): một lượt được ghép NHIỀU từ cùng lúc (ví dụ hình chữ L: PAD + DUG), miễn các chữ
-   vừa đặt nối liền nhau (sát nhau, hoặc nối qua chữ có sẵn trên bàn) và mọi từ ghép thành đều có trong từ điển.
-   Luật Scrabble chuẩn thì mỗi lượt chỉ đặt trên một hàng ngang hoặc một cột dọc (vẫn đúng ở đây, là trường hợp riêng).
+   Luật nhà (anh chốt 31/10/2026, thay luật 26/10): một lượt được đặt chữ ở NHIỀU CHỖ trên bàn và ghép nhiều từ cùng lúc
+   (ví dụ PEELED ở một cột + FOR ở chỗ khác; hay hình chữ L: PAD + DUG), không cần các chữ vừa đặt nối liền nhau, miễn:
+     - chữ nào vừa đặt cũng nằm trong một từ (từ 2 chữ trở lên);
+     - mỗi cụm từ vừa ghép (các từ chung ô với nhau là một cụm) chạm vào chữ đã có trên bàn
+       (lượt đầu: phải có chữ ở ô ★, và mọi cụm phải đi qua ô ★, tức là chỉ một cụm);
+     - mọi từ ghép thành đều có trong từ điển.
+   Luật 26/10 (các chữ vừa đặt phải nối liền nhau) và luật Scrabble chuẩn (chỉ một hàng ngang hoặc một cột dọc) là trường hợp riêng.
    Mỗi từ (từ 2 chữ trở lên, đi qua ít nhất một chữ vừa đặt) đều được tính điểm; ô nhân điểm chỉ tính cho chữ vừa đặt. */
 const bad = (error, msg) => ({ ok: false, error, msg });
-const LINE_MSG = "Các chữ con đặt phải nối liền nhau, và chữ nào cũng phải ghép vào một từ.";
+const ALONE_MSG = "Chữ nào con đặt cũng phải ghép vào một từ (từ 2 chữ trở lên).";
 export function checkMove(sb, pid, tiles, dict) {
   const board = sb.board;
   if (!Array.isArray(tiles) || tiles.length < 1 || tiles.length > RACK) return bad("tiles", "Con chưa đặt chữ nào lên bàn.");
@@ -129,14 +133,6 @@ export function checkMove(sb, pid, tiles, dict) {
   const isNew = new Set(place.map((p) => p.i));
   const empty = !/[^.]/.test(board);
   const rc = (i) => [Math.floor(i / N), i % N];
-  // đặt trên cùng một hàng (hoặc một cột) mà để ô trống ở giữa: nhắc cụ thể
-  const rows = new Set(place.map((p) => Math.floor(p.i / N))), cols = new Set(place.map((p) => p.i % N));
-  if (place.length > 1 && (rows.size === 1 || cols.size === 1)) {
-    const step = rows.size === 1 ? [0, 1] : [1, 0];
-    const idx = place.map((p) => p.i).sort((a, b) => a - b);
-    const [r0, c0] = rc(idx[0]), [r1, c1] = rc(idx[idx.length - 1]);
-    for (let r = r0, c = c0; r <= r1 && c <= c1; r += step[0], c += step[1]) if (!filled(r, c)) return bad("gap", "Các chữ phải liền nhau, không để ô trống ở giữa.");
-  }
   // từ (đọc theo một chiều) đi qua ô (r,c)
   const wordAt = (r, c, dr, dc) => {
     let sr = r, sc = c;
@@ -156,21 +152,26 @@ export function checkMove(sb, pid, tiles, dict) {
       found.push({ cells, dir: dr, k: cells.filter((i) => isNew.has(i)).length });
     }
   }
-  if (!found.length) return place.length > 1 ? bad("line", LINE_MSG) : empty ? bad("short", "Phải ghép thành từ có ít nhất 2 chữ.") : bad("connect", "Từ mới phải nối vào chữ đã có trên bàn.");
-  // chữ nào vừa đặt cũng phải nằm trong một từ, và các từ ghép trong lượt này phải nối liền nhau (chung ô)
-  if (place.some((p) => !found.some((w) => w.cells.includes(p.i)))) return bad("line", LINE_MSG);
+  if (!found.length) return place.length > 1 ? bad("alone", ALONE_MSG) : empty ? bad("short", "Phải ghép thành từ có ít nhất 2 chữ.") : bad("connect", "Từ mới phải chạm vào chữ đã có trên bàn.");
+  // chữ nào vừa đặt cũng phải nằm trong một từ
+  if (place.some((p) => !found.some((w) => w.cells.includes(p.i)))) return bad("alone", ALONE_MSG);
+  if (empty && !isNew.has(CENTER)) return bad("center", "Lượt đầu tiên phải có một chữ đặt vào ô ★ ở giữa bàn.");
+  // gom các từ chung ô thành từng cụm; mỗi cụm phải chạm chữ đã có trên bàn (lượt đầu: cụm phải đi qua ô ★)
   const par = found.map((_, k) => k), top = (k) => (par[k] === k ? k : (par[k] = top(par[k])));
   for (let a = 0; a < found.length; a++) for (let b = a + 1; b < found.length; b++) if (found[a].cells.some((i) => found[b].cells.includes(i))) par[top(a)] = top(b);
-  if (found.some((_, k) => top(k) !== top(0))) return bad("line", LINE_MSG);
-  if (empty) {
-    if (!isNew.has(CENTER)) return bad("center", "Lượt đầu tiên phải có một chữ đặt vào ô ★ ở giữa bàn.");
-  } else {
-    const touches = place.some((p) => { const [r, c] = rc(p.i); return [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].some(([rr, cc]) => filled(rr, cc) && !isNew.has(rr * N + cc)); });
-    if (!touches) return bad("connect", "Từ mới phải nối vào chữ đã có trên bàn.");
+  const groups = new Map();
+  found.forEach((w, k) => { const t = top(k); if (!groups.has(t)) groups.set(t, []); groups.get(t).push(w); });
+  const text = (w) => w.cells.map((i) => tmp[i].toUpperCase()).join("");
+  const longest = (ws) => ws.slice().sort((a, b) => b.cells.length - a.cells.length || a.dir - b.dir)[0];
+  for (const ws of groups.values()) {
+    if (ws.some((w) => w.cells.some((i) => (empty ? i === CENTER : !isNew.has(i))))) continue;
+    const w = text(longest(ws));
+    return bad("connect", empty ? `Lượt đầu, từ “${w}” phải nối với từ đi qua ô ★ ở giữa bàn.` : `Từ “${w}” phải chạm vào chữ đã có trên bàn.`);
   }
-  // từ chính: từ có từ 2 chữ vừa đặt trở lên (đặt 1 chữ thì lấy từ dài nhất); các từ khác là từ phụ (vẫn tính điểm)
-  let main = found.filter((w) => w.k >= 2);
-  if (!main.length) main = [found.slice().sort((a, b) => b.cells.length - a.cells.length || a.dir - b.dir)[0]];
+  // từ chính: trong mỗi cụm, từ có từ 2 chữ vừa đặt trở lên (cụm chỉ có 1 chữ mới thì lấy từ dài nhất của cụm);
+  // các từ khác là từ phụ (vẫn tính điểm)
+  const main = [];
+  for (const ws of groups.values()) { const m2 = ws.filter((w) => w.k >= 2); main.push(...(m2.length ? m2 : [longest(ws)])); }
   main.sort((a, b) => b.k - a.k || a.cells[0] - b.cells[0] || a.dir - b.dir);
   const words = main.concat(found.filter((w) => !main.includes(w))).map((w) => w.cells);
   const wrong = [], out = [];
