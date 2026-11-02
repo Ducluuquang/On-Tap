@@ -208,6 +208,23 @@ if (only === 'all' || only === 'r') {
   check('"Bắt đầu →" (Lịch sử, 20 câu) -> soạn bài môn Lịch sử (Nhà Trần, Nhà Lý…), từ 20 câu trở lên (app xin dư vài câu dự phòng)', p2.subject === 'Lịch sử' && (p2.concepts || []).includes('Nhà Trần') && p2.count >= 20 && p2.count <= 26 && !q2.includes('Phân số'), q2.slice(0, 300))
   await K2.ctx.close()
 
+  // Lỗi 02/11/2026: chọn chủ đề cụ thể ở "Yêu cầu cụ thể" rồi bấm "Ôn ngay" (Cách 1) -> trước đây vẫn ra "phần yếu nhất" (lạc đề)
+  const K4 = await kid({ id: 'kidR4' })
+  await K4.page.click('.kh-cta'); await K4.page.waitForSelector('.screen.cr')
+  await K4.page.click('.cr-self .sj-tile.tone-blue')
+  await K4.page.click('.cr-adv-toggle')
+  await K4.page.click('.cr-pick .cr-select'); await K4.page.click('.cr-pick-opt:has-text("Diện tích hình chữ nhật")')
+  const h4 = await txt(K4, '.cr-hero')
+  check('chọn "Diện tích hình chữ nhật" ở Yêu cầu cụ thể -> thẻ Cách 1 đổi thành "Theo yêu cầu của con: Diện tích hình chữ nhật"', /Theo yêu cầu của con/.test(h4) && /Diện tích hình chữ nhật/.test(h4) && !/Số thập phân/.test(h4), h4)
+  await K4.page.locator('.cr-hero').screenshot({ path: `${OUT}/r_hero_req.png` })
+  await K4.page.click('.cr-hero-cta')
+  await K4.page.waitForFunction(() => !document.querySelector('.screen.cr'), null, { timeout: 8000 })
+  for (let i = 0; i < 40 && !K4.ai.length; i++) await sleep(100)
+  const p4 = (K4.ai[0] || {}).payload || {}
+  const c4 = JSON.stringify(p4.concepts || [])
+  check('…bấm "Ôn ngay" -> soạn đúng "Diện tích hình chữ nhật" (không ra Phân số / Số thập phân)', p4.subject === 'Toán' && c4.includes('Diện tích hình chữ nhật') && !c4.includes('Phân số') && !c4.includes('Số thập phân'), c4)
+  await K4.ctx.close()
+
   // môn chưa có bài
   const K3 = await kid({ id: 'kidR3', mem: [] })
   await K3.page.click('.kh-cta'); await K3.page.waitForSelector('.screen.cr')

@@ -125,10 +125,23 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true,
     else setAdvOpen(true) // Master cần gõ chủ đề -> mở luôn phần tuỳ chỉnh thêm
   }
 
+  // Ôn Tập (02/11/2026): con đã gõ / chọn chủ đề ở "Yêu cầu cụ thể" mà bấm "Ôn ngay" ở Cách 1 thì vẫn
+  // ôn ĐÚNG chủ đề đó (trước đây "Ôn ngay" bỏ qua ô này -> ra "phần yếu nhất", vd Dãy số, lạc đề).
+  const req = text.trim()
+
   // ÔN NGAY theo gợi ý: 10 câu, phần cần ôn nhất (hoặc tổng hợp nếu đã vững hết), chế độ mặc định của môn.
   function startHero() {
     const defMode = allowChoice ? 'quiz' : 'typed'
     const useMode = subjectModes(subject).includes(defMode) ? defMode : 'typed'
+    if (req) {
+      onStart({
+        title: `${subject} · ${describeSelection({ time, level, text })}`,
+        conceptNames: names, count: 10, mode: useMode, subject,
+        enLang: isEnglish ? enLang : undefined,
+        master: isMaster, masterText: isMaster ? req : '',
+      })
+      return
+    }
     onStart({
       title: `${subject} · ${describeSelection({ time: 'all', level: heroLevel, text: '' })}`,
       conceptNames: heroNames, count: 10, mode: useMode, subject,
@@ -171,10 +184,19 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true,
           </>
         ) : (
           <>
-            <div className="cr-hero-big">
-              {needCount > 0 ? `${needCount} chủ đề cần ôn` : 'Ôn tổng hợp giữ phong độ'}
-            </div>
-            {heroTopics && <p className="cr-hero-sub">{heroTopics}</p>}
+            {req ? (
+              <>
+                <div className="cr-hero-big">Theo yêu cầu của con</div>
+                <p className="cr-hero-sub cr-hero-req">{isMaster ? `Thử thách Master: ${req}` : req}</p>
+              </>
+            ) : (
+              <>
+                <div className="cr-hero-big">
+                  {needCount > 0 ? `${needCount} chủ đề cần ôn` : 'Ôn tổng hợp giữ phong độ'}
+                </div>
+                {heroTopics && <p className="cr-hero-sub">{heroTopics}</p>}
+              </>
+            )}
             <div className="cr-hero-meta"><span>10 câu</span><span>~{estMinutes(10)} phút</span></div>
             <button className="cr-hero-cta" onClick={startHero}><span className="cr-play" aria-hidden="true">▶</span>Ôn ngay</button>
           </>
