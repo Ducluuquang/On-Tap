@@ -1,0 +1,31 @@
+// Gộp danh sách con khi hai máy từng đăng ký riêng cùng số điện thoại (src/lib/sync.js — mergeChildren), các trường hợp biên.
+import { mergeChildren, matchesLogin, tokenPhone, toRemote, fromRemote } from '../src/lib/sync.js'
+const res = {}; const check = (n, c, x = '') => { res[n] = !!c; console.log((c ? '  ✓ ' : '  ✗ ') + n + (c ? '' : '  → ' + x)) }
+const k = (id, name) => ({ id, name, pin: '', icon: '🐱', grade: 'Lớp 1' })
+const none = () => false
+let m = mergeChildren([k('a', 'An')], [k('a', 'An')], none)
+check('cùng id -> không đổi gì', m.children.length === 1 && !m.remaps.length && !m.appended.length)
+m = mergeChildren([k('x', 'Mai')], [k('y', 'Mai')], none)
+check('cùng tên, máy chưa có dữ liệu của con trên máy chủ -> chuyển dữ liệu sang id máy chủ', m.children.length === 1 && JSON.stringify(m.remaps) === '[["x","y"]]')
+m = mergeChildren([k('x', 'Mai')], [k('y', 'Mai')], (id) => id === 'y')
+check('cùng tên nhưng máy ĐÃ có dữ liệu của con trên máy chủ -> giữ cả hai (thêm con), không ghi đè', m.children.length === 2 && !m.remaps.length && JSON.stringify(m.appended) === '["x"]')
+m = mergeChildren([k('x', '  MAI '), k('z', 'Mai')], [k('y', 'mai')], none)
+check('hai con trên máy cùng tên -> chỉ một con được ghép, con kia thêm vào', m.children.length === 2 && m.remaps.length === 1 && m.appended.length === 1)
+m = mergeChildren([k('y', 'Mai'), k('x', 'Mai')], [k('y', 'Mai')], none)
+check('con máy chủ đã có trên máy (cùng id) -> không ghép con khác vào nó', m.children.length === 2 && !m.remaps.length && JSON.stringify(m.appended) === '["x"]')
+m = mergeChildren([k('x', 'Lân')], [k('y', 'Lan')], none)
+check('tên khác dấu (Lân / Lan) -> là hai con khác nhau: thêm con, không gộp nhầm dữ liệu', m.children.length === 2 && !m.remaps.length)
+m = mergeChildren([k('x', 'Mai')], [k('y', 'Mai'.normalize('NFD'))], none)
+check('cùng tên nhưng máy lưu dạng chữ khác (NFC/NFD) -> vẫn nhận là một con', m.children.length === 1 && m.remaps.length === 1)
+m = mergeChildren([], [k('y', 'Mai')], none)
+check('máy chưa có con -> lấy danh sách máy chủ', m.children.length === 1 && !m.appended.length)
+const acc = { username: '0912345678', phone: '0912345678', email: 'Ba@Vidu.com', parentPass: '12345678', password: '12345678', children: [] }
+check('đăng nhập trên máy (mất mạng): số điện thoại', matchesLogin(acc, '0912 345 678', '12345678'))
+check('đăng nhập trên máy (mất mạng): email không phân biệt hoa thường', matchesLogin(acc, ' ba@vidu.com ', '12345678'))
+check('đăng nhập trên máy: sai mật khẩu / sai số -> không', !matchesLogin(acc, '0912345678', '1234') && !matchesLogin(acc, '0999999999', '12345678') && !matchesLogin(acc, '', '12345678'))
+check('đọc số điện thoại trong chìa khoá', tokenPhone(Buffer.from('0912345678').toString('base64url') + '.1.abc') === '0912345678')
+const r = toRemote({ ...acc, plan: 2, pin: '5', children: [{ id: 'c1', name: 'An', pin: '1', icon: '🐶', grade: 'Lớp 2', school: 'TH', schoolType: 'Công lập', extra: 'x' }] })
+check('gửi lên máy chủ: không kèm mật khẩu, chỉ các mục của con', !('password' in r) && !('parentPass' in r) && r.children[0].extra === undefined && r.plan === 2 && r.pin === '5')
+const back = fromRemote({ phone: '0912345678', email: 'ba@vidu.com', plan: 2, pin: '5', children: r.children, rev: 3 }, acc)
+check('nhận từ máy chủ: giữ mật khẩu trên máy, lấy danh sách con + PIN mới', back.password === '12345678' && back.pin === '5' && back.children.length === 1 && back.username === '0912345678')
+console.log(Object.values(res).every(Boolean) ? `ALL PASS ✓ (${Object.keys(res).length} checks)` : 'FAILED: ' + Object.entries(res).filter(([, v]) => !v).map(([k]) => k).join(' | '))

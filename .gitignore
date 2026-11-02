@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Phép thử: ảnh chụp / nhật ký và phông cài riêng
+tests/out
+tests/.deps
