@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { BackHeader, SubjectTile } from '../components.jsx'
 import { selectConcepts, describeSelection, needReviewCount, needsReview } from '../lib/review.js'
 import { subjectsWithTone, subjectDisplayName, subjectModes, subjectKey } from '../lib/subjects.js'
@@ -39,6 +39,38 @@ const GAMES = [
 
 // Ước lượng thời gian theo số câu (~0.8 phút/câu, tối thiểu 1 phút).
 function estMinutes(n) { return Math.max(1, Math.round((n || 0) * 0.8)) }
+
+// Ôn Tập: danh sách chọn chủ đề TỰ VẼ (thay <select>): danh sách xổ xuống của trình duyệt
+// (nhất là Windows khi phóng to trang) hiện chữ rất nhỏ — tự vẽ để chữ to bằng chữ trong ô.
+function TopicPicker({ label, items, onPick }) {
+  const [open, setOpen] = useState(false)
+  const box = useRef(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (e) => { if (box.current && !box.current.contains(e.target)) setOpen(false) }
+    const esc = (e) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', esc) }
+  }, [open])
+  return (
+    <div className={'cr-pick' + (open ? ' open' : '')} ref={box}>
+      <button type="button" className="cr-select" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <span className="cr-pick-label">{label}</span>
+        <span className="cr-pick-arrow" aria-hidden="true">▾</span>
+      </button>
+      {open && (
+        <div className="cr-pick-list" role="listbox">
+          {items.map((c) => (
+            <button type="button" role="option" key={c.id} className="cr-pick-opt" onClick={() => { onPick(c.name); setOpen(false) }}>
+              {c.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function CustomReview({ mem, onStart, onBack, allowChoice = true, onVocab, initialSubject = null }) {
   const subjectList = subjectsWithTone(mem)
@@ -235,19 +267,14 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true,
                   onChange={(e) => setText(e.target.value)}
                 />
                 {memSub.length > 0 && (
-                  <select
-                    className="cr-select"
-                    value=""
-                    onChange={(e) => {
-                      const v = e.target.value
-                      if (!v) return
+                  <TopicPicker
+                    label={isMaster ? 'Thêm chủ đề từ bản đồ kiến thức' : 'Hoặc chọn chủ đề từ bản đồ kiến thức'}
+                    items={memSub}
+                    onPick={(v) => {
                       if (isMaster) setText((t) => (t.trim() ? t.trim().replace(/[,\s]*$/, '') + ', ' + v : v))
                       else setText(v)
                     }}
-                  >
-                    <option value="">{isMaster ? '— Thêm chủ đề từ bản đồ kiến thức —' : '— Hoặc chọn chủ đề từ bản đồ kiến thức —'}</option>
-                    {memSub.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-                  </select>
+                  />
                 )}
                 <p className="cr-hint">
                   {isMaster

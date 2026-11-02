@@ -585,8 +585,16 @@ select.auth-in{appearance:auto;cursor:pointer}
 .q-multiline{white-space:pre-line}
 
 /* Dropdown chọn chủ đề từ bản đồ kiến thức */
-.cr-select{width:100%;margin-top:8px;border:1.5px solid var(--border);border-radius:12px;padding:11px 13px;font-family:inherit;font-size:.95rem;color:var(--ink);background:#fff;cursor:pointer}
-.cr-select:focus{outline:none;border-color:var(--teal)}
+.cr-pick{position:relative;margin-top:8px}
+.cr-select{width:100%;display:flex;align-items:center;gap:8px;text-align:left;border:1.5px solid var(--border);border-radius:12px;padding:11px 13px;font-family:inherit;font-size:.95rem;color:var(--ink);background:#fff;cursor:pointer}
+.cr-select:focus-visible,.cr-pick.open .cr-select{outline:none;border-color:var(--teal)}
+.cr-pick-label{flex:1;min-width:0}
+.cr-pick-arrow{flex:none;color:var(--muted);font-size:1.1rem;transition:transform .15s}
+.cr-pick.open .cr-pick-arrow{transform:rotate(180deg)}
+.cr-pick-list{margin-top:6px;border:1.5px solid var(--border);border-radius:12px;background:#fff;max-height:300px;overflow-y:auto;box-shadow:0 8px 20px rgba(0,0,0,.10)}
+.cr-pick-opt{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--border);background:transparent;padding:12px 14px;font-family:inherit;font-size:.95rem;line-height:1.3;color:var(--ink);cursor:pointer}
+.cr-pick-opt:last-child{border-bottom:0}
+.cr-pick-opt:hover,.cr-pick-opt:focus-visible{outline:none;background:var(--teal-soft)}
 
 /* Cung tên (Bắn bóng) — thay cho khẩu súng cũ */
 .bl-bow{position:absolute;z-index:3;pointer-events:none;line-height:0;transition:transform .07s ease;filter:drop-shadow(0 3px 4px rgba(0,0,0,.24))}
