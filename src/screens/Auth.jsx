@@ -9,6 +9,19 @@ const PLANS = [1, 2, 3, 4, 5]
 
 const blankKid = () => ({ name: '', pin: '', icon: '', grade: '', school: '', schoolType: '' })
 
+// Lời báo cho phụ huynh (kết quả từ máy chủ tài khoản).
+const MSG = {
+  bad_login: 'Sai số điện thoại / email hoặc mật khẩu.',
+  slow_down: 'Nhập sai nhiều lần quá. Đợi 15 phút rồi thử lại nhé.',
+  offline: 'Chưa kết nối được máy chủ. Kiểm tra mạng rồi thử lại.',
+  phone_taken: 'Số điện thoại này đã có tài khoản. Bấm “← Quay lại” rồi chọn “Đăng nhập” (đăng nhập được trên mọi máy).',
+  email_taken: 'Email này đã dùng cho một tài khoản khác. Dùng email khác, hoặc đăng nhập bằng tài khoản đó.',
+  error: 'Chưa làm được, anh/chị thử lại sau ít phút nhé.',
+  reset_other_device: 'Máy này chưa đăng nhập tài khoản này lần nào. Hãy vào “Quên mật khẩu” trên máy đã đăng nhập trước đây để đặt mật khẩu mới, rồi đăng nhập ở đây bằng mật khẩu mới.',
+  reset_offline: 'Chưa kết nối được máy chủ. Kiểm tra mạng rồi thử lại.',
+  reset_stale: 'Mật khẩu tài khoản đã được đổi ở máy khác. Hãy đăng nhập bằng mật khẩu mới, hoặc đặt lại trên máy đang đăng nhập.',
+}
+
 // QR giả (chỉ để minh hoạ trang thanh toán) — 3 ô định vị góc + rải ô theo seed.
 function qrCells(seed) {
   const N = 25, cells = []
@@ -40,8 +53,11 @@ function QR({ seed }) {
   )
 }
 
-export default function Auth({ account, onRegister, onLogin, onReset }) {
-  const [mode, setMode] = useState('landing') // landing | login | register | pay | forgot
+// ĐĂNG NHẬP NHIỀU MÁY (01/11/2026): tài khoản lưu ở máy chủ — đăng ký ở máy nào cũng đăng nhập được ở máy khác,
+// bằng SỐ ĐIỆN THOẠI hoặc EMAIL + mật khẩu (onLogin/onRegister/onReset gọi máy chủ nên chờ kết quả).
+export default function Auth({ account, notice = '', onRegister, onLogin, onReset, onCheck }) {
+  const [mode, setMode] = useState(notice ? 'login' : 'landing') // landing | login | register | pay | forgot
+  const [busy, setBusy] = useState(false) // đang chờ máy chủ
   const [touched, setTouched] = useState(false)
   // Phụ huynh
   const [parentName, setParentName] = useState('')
@@ -89,26 +105,51 @@ export default function Auth({ account, onRegister, onLogin, onReset }) {
   const regValid = vName && vPhone && vEmail && vPass && vPass2 && vProv && allKids
   const ec = (ok) => 'auth-in' + (touched && !ok ? ' auth-in--err' : '') // tô đỏ ô còn thiếu (sau khi bắt đầu điền)
 
-  function goPay() {
+  async function goPay() {
     setTouched(true)
     if (!regValid) { setErr('Còn mục chưa điền (được tô màu) — bổ sung để tiếp tục.'); return }
-    setErr(''); setMode('pay')
+    setErr('')
+    // số điện thoại / email đã có tài khoản (đăng ký ở máy khác) -> báo ngay, không cho đăng ký trùng
+    if (onCheck) {
+      setBusy(true)
+      const c = await onCheck(onlyDigits(phone), email.trim()).catch(() => ({}))
+      setBusy(false)
+      if (c.phoneTaken) { setErr(MSG.phone_taken); return }
+      if (c.emailTaken) { setErr(MSG.email_taken); return }
+    }
+    setMode('pay')
   }
-  function finishRegister() {
-    onRegister({
+  async function finishRegister() {
+    if (busy) return
+    setErr(''); setBusy(true)
+    const r = await onRegister({
       parentName: parentName.trim(), phone: onlyDigits(phone), email: email.trim(),
       parentPass: pass, province: province.trim(), plan,
       children: kids.map((k) => ({ name: k.name.trim(), pin: k.pin, icon: k.icon, grade: k.grade, school: k.school.trim(), schoolType: k.schoolType })),
-    })
+    }).catch(() => ({ error: 'error' }))
+    setBusy(false)
+    if (r && r.error) setErr(MSG[r.error] || MSG.error)
   }
-  function submitLogin() { setErr(''); if (!onLogin(u.trim(), p)) setErr('Sai số điện thoại hoặc mật khẩu.') }
-  function submitReset() {
+  async function submitLogin() {
+    if (busy) return
+    setErr('')
+    if (!u.trim() || !p) { setErr('Nhập số điện thoại (hoặc email) và mật khẩu.'); return }
+    setBusy(true)
+    const r = await onLogin(u.trim(), p).catch(() => ({ error: 'offline' }))
+    setBusy(false)
+    if (!r || !r.ok) setErr(MSG[(r && r.error) || 'bad_login'] || MSG.bad_login)
+  }
+  async function submitReset() {
+    if (busy) return
     setErr('')
     const ph = onlyDigits(u)
     if (!/^\d{8,12}$/.test(ph)) { setErr('Nhập số điện thoại đã đăng ký.'); return }
     if (!/^\d{8}$/.test(np)) { setErr('Mật khẩu mới phải gồm ĐÚNG 8 chữ số.'); return }
     if (np !== np2) { setErr('Hai ô mật khẩu chưa khớp.'); return }
-    if (!onReset(ph, np)) { setErr('Số điện thoại này chưa được đăng ký trên máy.') }
+    setBusy(true)
+    const r = await onReset(ph, np).catch(() => 'offline')
+    setBusy(false)
+    if (r !== true) setErr(MSG['reset_' + r] || MSG.error)
   }
 
   const Brandline = ({ big = false }) => <div className="auth-brand"><img className={'auth-logo' + (big ? ' big' : '')} src={logoFull} alt="Ôn Tập" /></div>
@@ -136,14 +177,15 @@ export default function Auth({ account, onRegister, onLogin, onReset }) {
         <div className="auth-card">
           <Brandline />
           <h1>Đăng nhập</h1>
-          <p className="auth-sub">Đăng nhập bằng số điện thoại và mật khẩu phụ huynh (8 chữ số).</p>
-          <label className="auth-lbl">Số điện thoại</label>
-          <input className="auth-in" inputMode="numeric" placeholder="Số điện thoại" value={u} onChange={(e) => setU(e.target.value)} />
+          {notice && <div className="auth-notice">{notice}</div>}
+          <p className="auth-sub">Dùng số điện thoại hoặc email và mật khẩu phụ huynh. Đăng ký ở máy nào cũng đăng nhập được ở máy khác.</p>
+          <label className="auth-lbl">Số điện thoại hoặc email</label>
+          <input className="auth-in" type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="Số điện thoại hoặc email" value={u} onChange={(e) => setU(e.target.value)} />
           <label className="auth-lbl">Mật khẩu phụ huynh</label>
           <input className="auth-in" type="password" inputMode="numeric" placeholder="Mật khẩu 8 số" value={p}
             onChange={(e) => setP(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submitLogin()} />
           {err && <div className="err">{err}</div>}
-          <button className="cta" onClick={submitLogin}>Đăng nhập</button>
+          <button className="cta" disabled={busy} onClick={submitLogin}>{busy ? 'Đang đăng nhập…' : 'Đăng nhập'}</button>
           <button className="linkbtn" onClick={() => { setMode('forgot'); setErr(''); setNp(''); setNp2('') }}>Quên mật khẩu?</button>
           <button className="ghost small" onClick={() => { setMode('landing'); setErr('') }}>← Quay lại</button>
         </div>
@@ -158,7 +200,7 @@ export default function Auth({ account, onRegister, onLogin, onReset }) {
         <div className="auth-card">
           <Brandline />
           <h1>Quên mật khẩu</h1>
-          <p className="auth-sub">Nhập số điện thoại đã đăng ký và đặt mật khẩu mới (8 chữ số).</p>
+          <p className="auth-sub">Nhập số điện thoại đã đăng ký và đặt mật khẩu mới (8 chữ số). Làm trên máy đã từng đăng nhập tài khoản này; xong thì mọi máy dùng mật khẩu mới.</p>
           <label className="auth-lbl">Số điện thoại</label>
           <input className="auth-in" inputMode="numeric" placeholder="Số điện thoại đã đăng ký" value={u} onChange={(e) => setU(e.target.value)} />
           <label className="auth-lbl">Mật khẩu mới (8 số)</label>
@@ -167,7 +209,7 @@ export default function Auth({ account, onRegister, onLogin, onReset }) {
           <input className="auth-in" type="password" inputMode="numeric" maxLength={8} placeholder="Nhập lại 8 chữ số" value={np2}
             onChange={(e) => setNp2(onlyDigits(e.target.value))} onKeyDown={(e) => e.key === 'Enter' && submitReset()} />
           {err && <div className="err">{err}</div>}
-          <button className="cta" onClick={submitReset}>Đặt lại mật khẩu</button>
+          <button className="cta" disabled={busy} onClick={submitReset}>{busy ? 'Đang đặt lại…' : 'Đặt lại mật khẩu'}</button>
           <button className="ghost small" onClick={() => { setMode('login'); setErr('') }}>← Quay lại đăng nhập</button>
         </div>
       </div>
@@ -212,7 +254,7 @@ export default function Auth({ account, onRegister, onLogin, onReset }) {
           <p className="auth-note">⚠️ <b>Bản demo</b>: giá gói do Admin đặt theo thời điểm. Việc đọc tiền/xác nhận thẻ và gửi <b>mã kích hoạt qua email</b> sẽ chạy khi ghép <b>cổng thanh toán + máy chủ</b>. Tuyệt đối không lưu số thẻ thô — dùng cổng thanh toán đạt chuẩn (vd Stripe).</p>
 
           {err && <div className="err">{err}</div>}
-          <button className="cta" onClick={finishRegister}>Hoàn tất & vào học →</button>
+          <button className="cta" disabled={busy} onClick={finishRegister}>{busy ? 'Đang tạo tài khoản…' : 'Hoàn tất & vào học →'}</button>
           <button className="ghost small" onClick={() => { setMode('register'); setErr('') }}>← Sửa thông tin đăng ký</button>
         </div>
       </div>
@@ -279,10 +321,10 @@ export default function Auth({ account, onRegister, onLogin, onReset }) {
         ))}
 
         {err && <div className="err">{err}</div>}
-        <button className="cta" disabled={!regValid} onClick={goPay}>Tiếp theo →</button>
+        <button className="cta" disabled={!regValid || busy} onClick={goPay}>{busy ? 'Đang kiểm tra…' : 'Tiếp theo →'}</button>
         {!regValid && touched && <p className="auth-hint auth-hint--warn">Còn mục được tô màu chưa điền.</p>}
         <button className="ghost small" onClick={() => { setMode('landing'); setErr('') }}>← Quay lại</button>
-        <p className="auth-note">📱 Sắp có trên App Store &amp; Google Play. Đăng nhập nhiều máy sẽ có ở bản kế tiếp (cần máy chủ).</p>
+        <p className="auth-note">📱 Đăng ký xong, đăng nhập được trên mọi máy (điện thoại, máy tính bảng, máy tính) bằng số điện thoại hoặc email và mật khẩu này. Sắp có trên App Store &amp; Google Play.</p>
       </div>
     </div>
   )

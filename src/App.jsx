@@ -6,6 +6,10 @@ import { plainText, hasPhrase, isVocabItem, topicFamilyOf } from './lib/topics.j
 import { buildReview } from './lib/mockAI.js'
 import { generateQuestions } from './lib/aiClient.js'
 import { loadAccount, saveAccount, loadSession, setSession as persistSession, normalizeAccount, newChildId } from './lib/auth.js'
+import {
+  call as accountCall, syncNow, pushAccount, getToken, setToken, tokenPhone, getSyncState, setSyncState, fromRemote, toRemote,
+  mergeChildren, remapChildData, backupAccount, backupAccounts, dropBackup, matchesLogin, phoneOf, validPhone, onlyDigits,
+} from './lib/sync.js'
 import { setActiveChild, getActiveChild, migrateGlobalToChild } from './lib/active.js'
 import { loadStats, saveStats, addSeconds, addSession, setGoalMin, resetStats } from './lib/stats.js'
 import { loadSettings, saveSettings } from './lib/settings.js'
@@ -247,11 +251,14 @@ if (INIT_ACCOUNT && RAW_ACCOUNT && !(Array.isArray(RAW_ACCOUNT.children) && RAW_
 export default function App() {
   const [account, setAccount] = useState(INIT_ACCOUNT)
   const [authed, setAuthed] = useState(() => loadSession() && !!INIT_ACCOUNT)
+  const [authNotice, setAuthNotice] = useState('') // lời nhắn ở màn đăng nhập (vd mật khẩu đã đổi ở máy khác)
   // Con đang học (null = chưa chọn -> hiện màn chọn con). Khôi phục nếu đã chọn từ trước.
   const [activeChild, setActiveChildState] = useState(() => {
     const aid = getActiveChild()
     return (INIT_ACCOUNT?.children || []).find((c) => c.id === aid) || null
   })
+  const activeRef = useRef(null)
+  useEffect(() => { activeRef.current = activeChild }, [activeChild])
   // CỔNG PHỤ HUYNH bằng MÃ PIN phụ huynh (cùng PIN với bật/tắt trắc nghiệm & xoá dữ liệu).
   // Mật khẩu tài khoản CHỈ dùng lúc đăng nhập (và khi quên PIN).
   const [parentGate, setParentGate] = useState(null) // { onOk } khi đang mở cổng
@@ -322,10 +329,59 @@ export default function App() {
     const acc = { ...account, children: [...(account.children || []), child] }
     saveAccount(acc); setAccount(acc)
     setToast(`Đã thêm tài khoản con: ${child.name} ✓`)
+    pushAccount(acc) // gửi lên máy chủ: máy khác đăng nhập cũng thấy con mới (chưa gửi được thì lần sau gửi)
   }
 
   // ---- Đăng ký / đăng nhập / tài khoản ----
-  function handleRegister(profile) {
+  // ĐĂNG NHẬP NHIỀU MÁY (01/11/2026): tài khoản lưu ở máy chủ (/api/account) — máy nào cũng đăng nhập được bằng
+  // số điện thoại hoặc email + mật khẩu. Mất mạng / máy chủ chưa có kho -> dùng tài khoản trên máy như trước.
+  function finishAuth() {
+    persistSession(true); setAuthed(true); setParentUnlocked(false); setAuthNotice('')
+    setActiveChild(null); setActiveChildState(null) // -> màn chọn con (các con hiện ra)
+  }
+  // Tài khoản từ máy chủ (đồng bộ khi mở app): lưu lại; con đang học đổi id (gộp dữ liệu) / bị bỏ -> cập nhật theo.
+  function applySyncedAccount(acc, remaps = []) {
+    saveAccount(acc); setAccount(acc)
+    const cur = activeRef.current   // con đang học LÚC NÀY (kết quả máy chủ có thể về sau khi con đã chọn)
+    if (!cur) return
+    const moved = remaps.find(([from]) => from === cur.id)
+    const id = moved ? moved[1] : cur.id
+    const kid = (acc.children || []).find((c) => c.id === id)
+    if (!kid) { switchChild(); return }
+    if (moved) { setActiveChild(id); reloadChildData() }
+    setActiveChildState(kid)
+  }
+  // Mật khẩu đã đổi ở máy khác -> máy này đăng xuất, đăng nhập lại bằng mật khẩu mới.
+  function forceRelogin() {
+    persistSession(false); setAuthed(false); setParentUnlocked(false); setHomeLearnerId(null)
+    setActiveChild(null); setActiveChildState(null); setRole('child'); setView('home')
+    setAuthNotice('Mật khẩu tài khoản đã được đổi trên máy khác. Anh/chị đăng nhập lại bằng mật khẩu mới nhé.')
+  }
+  // Mở app (đã đăng nhập) hoặc vừa đăng nhập xong: đồng bộ tài khoản với máy chủ.
+  useEffect(() => {
+    if (!authed || !account) return undefined
+    let alive = true
+    syncNow(account).then((r) => {
+      if (!alive || !r) return
+      if (r.logout) forceRelogin()
+      else if (r.account) applySyncedAccount(r.account, r.remaps || [])
+    }).catch(() => { /* mất mạng: dùng tài khoản trên máy */ })
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authed])
+  // Có mạng trở lại: gửi các thay đổi tài khoản chưa gửi được.
+  useEffect(() => {
+    const onOnline = () => { if (authed && account && getSyncState().dirty) pushAccount(account) }
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [authed, account])
+
+  // Kiểm tra số điện thoại / email đã có tài khoản chưa (màn đăng ký, trước khi sang trang thanh toán).
+  async function checkAvailable(phone, email) {
+    const r = await accountCall('check', { phone, email })
+    return r.ok ? { phoneTaken: !!r.phoneTaken, emailTaken: !!r.emailTaken } : {}
+  }
+  async function handleRegister(profile) {
     const pr = profile || {}
     // Gói N học sinh -> tạo N tài khoản con (mỗi con id riêng, có icon + PIN 1-2 số).
     const children = (pr.children || []).map((c) => ({
@@ -339,43 +395,111 @@ export default function App() {
       parentName: pr.parentName || '', parentPass: pr.parentPass || '',
       plan: pr.plan || children.length, children,
     }
+    const r = await accountCall('register', { ...toRemote(acc), pass: acc.parentPass || acc.password })
+    if (r.ok) {
+      setToken(r.token); setSyncState({ dirty: false, conflict: '' })
+      if (r.emailOk === false) acc.email = ''
+      acc.rev = r.account.rev
+    } else if (!r.offline) {
+      return { error: r.error || 'error' } // phone_taken / email_taken / slow_down…
+    } // mất mạng: tạo trên máy như trước; mở app lần sau sẽ tự chuyển tài khoản lên máy chủ
+    const local = account || normalizeAccount(loadAccount())
+    if (local && phoneOf(local) && phoneOf(local) !== acc.phone) backupAccount(local)
     saveAccount(acc); setAccount(acc)
-    persistSession(true); setAuthed(true); setParentUnlocked(false)
-    setActiveChild(null); setActiveChildState(null) // đăng ký xong -> màn chọn con (các con hiện ra)
+    finishAuth()
+    return { ok: true }
   }
-  function handleLogin(u, p) {
-    const acc = account || normalizeAccount(loadAccount())
-    const okUser = acc && (u === acc.phone || u === acc.username)
-    const okPass = acc && (p === acc.parentPass || p === acc.password)
-    if (okUser && okPass) {
-      persistSession(true); setAuthed(true); setParentUnlocked(false)
-      setActiveChild(null); setActiveChildState(null) // -> hiện màn chọn con
-      return true
+  async function handleLogin(u, p) {
+    const local = account || normalizeAccount(loadAccount())
+    const r = await accountCall('login', { id: u, pass: p })
+    if (r.ok) {
+      const remote = r.account
+      // cùng tài khoản đang có trên máy (hoặc bản sao cũ trên máy) -> gộp con (không mất dữ liệu học tập trên máy)
+      const base = local && phoneOf(local) === remote.phone ? local : backupAccounts().find((a) => phoneOf(a) === remote.phone) || null
+      const m = base ? mergeChildren(base.children || [], remote.children || []) : { children: remote.children || [], remaps: [], appended: [] }
+      m.remaps.forEach(([a, b]) => remapChildData(a, b))
+      let acc = fromRemote({ ...remote, children: m.children }, base, p)
+      setToken(r.token); setSyncState({ dirty: false, conflict: '' })
+      if (m.appended.length) { const pr = await pushAccount(acc); if (pr.ok) acc = { ...pr.account, password: p, parentPass: p } }
+      if (local && phoneOf(local) && phoneOf(local) !== remote.phone) backupAccount(local)
+      dropBackup(remote.phone)
+      saveAccount(acc); setAccount(acc)
+      finishAuth()
+      return { ok: true }
     }
-    return false
-  }
-  function handleReset(phone, newPass) {
-    const acc = account || normalizeAccount(loadAccount())
-    if (acc && (phone === acc.phone || phone === acc.username)) {
-      const next = { ...acc, parentPass: newPass, password: newPass }
-      saveAccount(next); setAccount(next); persistSession(true); setAuthed(true); setParentUnlocked(false)
-      setActiveChild(null); setActiveChildState(null)
-      return true
+    if (r.offline) {
+      // mất mạng / máy chủ chưa có kho: dùng tài khoản trên máy (hoặc bản sao cũ) như trước
+      const cand = [local, ...backupAccounts()].find((a) => matchesLogin(a, u, p))
+      if (!cand) return { error: 'offline' }
+      if (cand !== local) { if (local) backupAccount(local); dropBackup(phoneOf(cand)); saveAccount(cand); setAccount(cand) }
+      finishAuth()
+      return { ok: true }
     }
-    return false
+    if (r.error === 'slow_down') return { error: 'slow_down' }
+    // Tài khoản trên máy CHƯA từng lên máy chủ (đăng ký trước đây) mà khớp -> vẫn cho vào; mở app sẽ tự chuyển lên máy chủ.
+    const tok = getToken()
+    if (local && matchesLogin(local, u, p) && !(tok && tokenPhone(tok) === phoneOf(local))) { finishAuth(); return { ok: true } }
+    return { error: 'bad_login' }
   }
-  function changePassword(cur, next) {
-    if (!account || (cur !== account.parentPass && cur !== account.password)) return false
+  // Quên mật khẩu: làm được trên máy ĐÃ đăng nhập tài khoản này. Trả true | 'other_device' | 'offline' | 'stale' | 'error'.
+  async function handleReset(phone, newPass) {
+    const ph = onlyDigits(phone)
+    const local = account || normalizeAccount(loadAccount())
+    const cand = local && phoneOf(local) === ph ? local : backupAccounts().find((a) => phoneOf(a) === ph)
+    if (!cand) return 'other_device'
+    const tok = getToken()
+    let next
+    if (tok && tokenPhone(tok) === ph) {
+      const r = await accountCall('reset', { next: newPass }, tok)
+      if (r.offline) return 'offline'
+      if (!r.ok) return r.error === 'bad_token' ? 'stale' : 'error'
+      setToken(r.token); setSyncState({ dirty: false, conflict: '' })
+      next = fromRemote(r.account, cand, newPass)
+    } else {
+      next = { ...cand, parentPass: newPass, password: newPass } // chưa từng lên máy chủ: đặt lại trên máy như trước
+    }
+    if (cand !== local) { if (local) backupAccount(local); dropBackup(ph) }
+    saveAccount(next); setAccount(next)
+    finishAuth()
+    return true
+  }
+  // Đổi mật khẩu (Cài đặt). Trả true | false (sai mật khẩu hiện tại) | 'offline' | 'stale' | 'slow_down'.
+  async function changePassword(cur, next) {
+    if (!account) return false
+    const tok = getToken()
+    if (tok && tokenPhone(tok) === phoneOf(account)) {
+      const r = await accountCall('password', { cur, next }, tok)
+      if (r.offline) return 'offline'
+      if (!r.ok) return r.error === 'bad_token' ? 'stale' : r.error === 'slow_down' ? 'slow_down' : false
+      setToken(r.token)
+      const acc = fromRemote(r.account, account, next)
+      saveAccount(acc); setAccount(acc); return true
+    }
+    if (cur !== account.parentPass && cur !== account.password) return false
     const acc = { ...account, parentPass: next, password: next }
     saveAccount(acc); setAccount(acc); return true
   }
-  function saveEmail(email) {
+  // Đổi email. Trả { ok } | { error: 'email_taken' } | { offline } (đã lưu trên máy, có mạng sẽ gửi lên).
+  async function saveEmail(email) {
     const acc = { ...account, email }
-    saveAccount(acc); setAccount(acc)
+    const r = await pushAccount(acc)
+    if (r.error === 'email_taken') return { error: 'email_taken' }
+    const saved = r.ok ? { ...acc, ...r.account, password: acc.password, parentPass: acc.parentPass } : acc
+    saveAccount(saved); setAccount(saved)
+    return r.ok ? { ok: true } : { offline: true }
   }
   function setParentPin(pin) {
     const acc = { ...account, pin: String(pin) }
     saveAccount(acc); setAccount(acc)
+    pushAccount(acc)
+  }
+  // Tình trạng đồng bộ (hiện trong Cài đặt).
+  function syncInfo() {
+    const tok = getToken(), st = getSyncState()
+    if (!account || !validPhone(phoneOf(account))) return { state: 'local' }
+    if (st.conflict === 'phone_taken') return { state: 'conflict' }
+    if (tok && tokenPhone(tok) === phoneOf(account)) return { state: st.dirty ? 'pending' : 'synced' }
+    return { state: 'pending' }
   }
   // Xoá dữ liệu học tập CỦA CON ĐANG HỌC (bản đồ kiến thức, báo cáo, thời gian, lịch sử câu) — làm lại từ đầu.
   function resetLearningData() {
@@ -678,7 +802,7 @@ export default function App() {
     return (
       <div className="stage">
         <div className="phone">
-          <Auth account={account} onRegister={handleRegister} onLogin={handleLogin} onReset={handleReset} />
+          <Auth account={account} notice={authNotice} onRegister={handleRegister} onLogin={handleLogin} onReset={handleReset} onCheck={checkAvailable} />
         </div>
       </div>
     )
@@ -699,6 +823,7 @@ export default function App() {
   let screen = null
   if (view === 'settings') {
     screen = <Settings account={account} settings={settings} stats={stats} unlocked={parentUnlocked} childName={activeChild?.name || ''}
+      sync={syncInfo()}
       onChangePassword={changePassword} onSaveEmail={saveEmail} onSetPin={setParentPin} onResetData={resetLearningData}
       onSetGoal={(min) => setStats((s) => setGoalMin(s, min))}
       onToggleChoice={(v) => setSettings((s) => ({ ...s, allowChoice: v }))}

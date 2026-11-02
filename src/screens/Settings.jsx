@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { BackHeader } from '../components.jsx'
 
-export default function Settings({ account, settings, stats, unlocked = false, childName = '', onChangePassword, onSaveEmail, onSetPin, onResetData, onSetGoal, onToggleChoice, onBack }) {
+export default function Settings({ account, settings, stats, unlocked = false, childName = '', sync = null, onChangePassword, onSaveEmail, onSetPin, onResetData, onSetGoal, onToggleChoice, onBack }) {
   // Mục tiêu & dữ liệu học tập là RIÊNG TỪNG CON -> ghi rõ tên con đang cài (tránh xoá nhầm con).
   const forKid = childName ? ` · ${childName}` : ''
   const [confirmReset, setConfirmReset] = useState(false)
@@ -23,16 +23,27 @@ export default function Settings({ account, settings, stats, unlocked = false, c
   const [resetUser, setResetUser] = useState('')
   const [pinMsg, setPinMsg] = useState('')
 
-  function savePw() {
+  const [busy, setBusy] = useState(false)
+  // Đổi mật khẩu: tài khoản đã lên máy chủ thì đổi ở máy chủ (mọi máy dùng mật khẩu mới).
+  async function savePw() {
     setPwMsg(null)
     if (np.length < 4) { setPwMsg({ ok: false, text: 'Mật khẩu mới cần ít nhất 4 ký tự.' }); return }
     if (np !== np2) { setPwMsg({ ok: false, text: 'Hai ô mật khẩu chưa khớp.' }); return }
-    if (!onChangePassword(cur, np)) { setPwMsg({ ok: false, text: 'Mật khẩu hiện tại chưa đúng.' }); return }
-    setCur(''); setNp(''); setNp2(''); setPwMsg({ ok: true, text: 'Đã đổi mật khẩu ✓' })
+    setBusy(true)
+    const r = await Promise.resolve(onChangePassword(cur, np)).catch(() => 'offline')
+    setBusy(false)
+    if (r === true) { setCur(''); setNp(''); setNp2(''); setPwMsg({ ok: true, text: 'Đã đổi mật khẩu ✓ Các máy khác cần đăng nhập lại bằng mật khẩu mới.' }); return }
+    const text = r === 'offline' ? 'Cần có mạng để đổi mật khẩu. Kiểm tra mạng rồi thử lại.'
+      : r === 'stale' ? 'Mật khẩu đã được đổi ở máy khác. Đăng xuất rồi đăng nhập lại bằng mật khẩu mới.'
+        : r === 'slow_down' ? 'Nhập sai nhiều lần quá. Đợi 15 phút rồi thử lại nhé.'
+          : 'Mật khẩu hiện tại chưa đúng.'
+    setPwMsg({ ok: false, text })
   }
-  function saveEmail() {
-    onSaveEmail(email.trim()); setEmailMsg('Đã lưu email ✓')
-    setTimeout(() => setEmailMsg(''), 2000)
+  async function saveEmail() {
+    const r = await Promise.resolve(onSaveEmail(email.trim())).catch(() => ({ offline: true }))
+    if (r && r.error === 'email_taken') { setEmailMsg('Email này đã dùng cho một tài khoản khác.'); return }
+    setEmailMsg(r && r.offline ? 'Đã lưu trên máy ✓ (có mạng sẽ tự cập nhật lên máy chủ)' : 'Đã lưu email ✓')
+    setTimeout(() => setEmailMsg(''), 2500)
   }
   function changeGoal(v) { onSetGoal(v) }
 
@@ -77,6 +88,14 @@ export default function Settings({ account, settings, stats, unlocked = false, c
       <section className="set-sec">
         <h3>Tài khoản</h3>
         <div className="set-row"><span>Tên đăng nhập</span><b>{account?.username || '—'}</b></div>
+        {account?.email ? <div className="set-row"><span>Hoặc email</span><b>{account.email}</b></div> : null}
+        {sync && (
+          <div className="set-sync">
+            {sync.state === 'synced' && <><b className="ok">✓ Đăng nhập được trên mọi máy</b><span>Trên máy khác, bấm Đăng nhập rồi dùng số điện thoại hoặc email và mật khẩu này.</span></>}
+            {sync.state === 'pending' && <><b className="warn">Đang chờ mạng để lưu tài khoản lên máy chủ</b><span>Có mạng app sẽ tự lưu; sau đó đăng nhập được trên máy khác.</span></>}
+            {sync.state === 'conflict' && <><b className="warn">Số điện thoại này đã đăng ký ở máy khác với mật khẩu khác</b><span>Tài khoản trên máy này chưa đồng bộ. Đăng xuất rồi đăng nhập bằng mật khẩu đã đặt ở máy kia.</span></>}
+          </div>
+        )}
       </section>
 
       <section className="set-sec">
@@ -85,13 +104,13 @@ export default function Settings({ account, settings, stats, unlocked = false, c
         <input className="auth-in" type="password" placeholder="Mật khẩu mới" value={np} onChange={(e) => setNp(e.target.value)} />
         <input className="auth-in" type="password" placeholder="Nhập lại mật khẩu mới" value={np2} onChange={(e) => setNp2(e.target.value)} />
         {pwMsg && <div className={pwMsg.ok ? 'ok-msg' : 'err'}>{pwMsg.text}</div>}
-        <button className="cta small" onClick={savePw}>Đổi mật khẩu</button>
+        <button className="cta small" disabled={busy} onClick={savePw}>{busy ? 'Đang đổi…' : 'Đổi mật khẩu'}</button>
       </section>
 
       <section className="set-sec">
-        <h3>Email đặt lại mật khẩu</h3>
+        <h3>Email (đăng nhập + đặt lại mật khẩu)</h3>
         <input className="auth-in" type="email" placeholder="email@vidu.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-        {emailMsg && <div className="ok-msg">{emailMsg}</div>}
+        {emailMsg && <div className={/đã dùng/.test(emailMsg) ? 'err' : 'ok-msg'}>{emailMsg}</div>}
         <button className="cta small" onClick={saveEmail}>Lưu email</button>
         <p className="cr-hint">Bản chính thức dùng email này để gửi link đặt lại mật khẩu khi quên.</p>
       </section>

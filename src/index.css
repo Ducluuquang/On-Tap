@@ -360,6 +360,9 @@ select.auth-in{appearance:auto;cursor:pointer}
 .auth-grouplbl{font-weight:800;color:var(--teal-dark);font-size:.9rem;margin:12px 0 0;padding-top:10px;border-top:1px solid var(--border)}
 .auth .cta{margin-top:12px}
 .auth .err{margin-top:2px}
+.auth-notice{background:#FFF6DD;border:1px solid #F2CF83;color:#7A5200;border-radius:12px;padding:10px 12px;font-size:.86rem;line-height:1.45;text-align:center}
+.set-sync{display:flex;flex-direction:column;gap:4px;font-size:.86rem;line-height:1.45}
+.set-sync b.ok{color:var(--teal-dark)} .set-sync b.warn{color:#9A5A1C}
 
 /* logout in demo switch */
 .ds-logout{border:1px solid var(--border);background:#fff;color:var(--muted);cursor:pointer;font-family:inherit;font-weight:600;font-size:clamp(.76rem,3.3vw,.82rem);padding:7px clamp(8px,2.2vw,13px);border-radius:999px;transition:.15s;white-space:nowrap}
