@@ -34,6 +34,9 @@ body{
 #root{min-height:100vh}
 
 /* Stage + demo switch */
+/* Ôn Tập (02/11/2026): màn máy tính rộng -> tự phóng to cả app (--fit do src/main.jsx tính), vẫn nằm giữa,
+   không tràn ngang. Điện thoại: --fit = 1 (giữ nguyên). */
+.stage{zoom:var(--fit,1);width:calc(100% / var(--fit,1));margin:0 auto}
 .stage{min-height:100vh;display:flex;flex-direction:column;align-items:center;gap:14px;padding:22px 14px 40px}
 /* Thanh trên cùng: RỘNG ĐÚNG BẰNG khung màn hình bên dưới (thẳng mép trái/phải) — chốt 13/10/2026.
    Con/Phụ huynh bên trái · Đổi người học + Đăng xuất bên phải. Màn hẹp: chữ/đệm thu nhỏ để vẫn một hàng. */
@@ -49,7 +52,7 @@ body{
   background:linear-gradient(180deg,#FBFDFC,#F4F9F8);
   border-radius:26px;border:1px solid var(--border);
   box-shadow:0 30px 70px rgba(20,33,46,.13);
-  overflow:hidden;
+  overflow:hidden;overflow:clip; /* clip: vẫn cắt góc bo nhưng cho thanh "Bắt đầu" dính đáy (sticky) hoạt động */
 }
 /* Modal nhỏ (mã PIN phụ huynh) */
 .modal-back{position:absolute;inset:0;z-index:60;background:rgba(20,33,46,.45);display:flex;align-items:center;justify-content:center;padding:22px}
@@ -706,9 +709,8 @@ select.auth-in{appearance:auto;cursor:pointer}
 .cr-adv-body{display:flex;flex-direction:column;gap:15px;padding:6px 0 8px}
 
 /* --- Thanh "BẮT ĐẦU ÔN" dính đáy (luôn hiển thị) --- */
-.cr-stickyspace{height:74px}
-.cr-sticky{position:fixed;left:50%;transform:translateX(-50%);bottom:0;z-index:45;
-  width:100%;max-width:430px;display:flex;align-items:center;gap:12px;
+.cr-sticky{position:sticky;bottom:0;z-index:45;margin:0 -20px;
+  display:flex;align-items:center;gap:12px;
   padding:10px 15px calc(10px + env(safe-area-inset-bottom,0px));
   background:#fff;border-top:1px solid var(--border);box-shadow:0 -8px 22px rgba(20,33,46,.12)}
 .cr-sticky-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
@@ -848,7 +850,7 @@ select.auth-in{appearance:auto;cursor:pointer}
    (bên trong Vở Spelling tự cuộn như app riêng). --sp-top = vị trí đầu khung (đo lúc mở);
    15px = lề dưới 14px + viền khung 1px. svh = chiều cao màn hình khi thanh địa chỉ đang hiện. */
 .spelling-open body,.spelling-open #root,.spelling-open .stage{min-height:0}
-.spelling-open .stage{padding-bottom:14px}
+.spelling-open .stage{padding-bottom:14px;zoom:1;width:auto} /* Vở Spelling tự lo bố cục riêng: không phóng to */
 .spelling-frame{display:block;width:100%;border:0;background:#FBFAFF;min-height:440px;
   height:calc(100vh - var(--sp-top, 98px) - 15px);height:calc(100svh - var(--sp-top, 98px) - 15px)}
 

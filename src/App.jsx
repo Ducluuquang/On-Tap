@@ -278,6 +278,9 @@ export default function App() {
   const [mem, setMem] = useState(loadMemory)
   const [role, setRole] = useState('child')
   const [view, setView] = useState('home')
+  // Ôn Tập (02/11/2026): sang màn mới (vd bấm "Bắt đầu" ở cuối trang) thì về ĐẦU TRANG — trước đây giữ chỗ đang cuộn,
+  // màn câu hỏi mở ra bị khuất phần trên, phải tự kéo lên.
+  useEffect(() => { window.scrollTo(0, 0) }, [view])
   const [session, setSession] = useState(null)
   const [pending, setPending] = useState(null)
   const [streak, setStreak] = useState(5)

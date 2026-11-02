@@ -260,6 +260,63 @@ if (only === 'all' || only === 'w') {
   }
 }
 
+// ======================= D — màn máy tính (02/11/2026) =======================
+// App tự phóng to vừa màn hình rộng, nằm giữa, không tràn ngang; thanh "Bắt đầu" nằm ngay sau phần chọn (không lơ lửng xa).
+if (only === 'all' || only === 'd') {
+  console.log('— D. Màn máy tính')
+  const geo = (k) => k.page.evaluate(() => {
+    const r = document.querySelector('.phone').getBoundingClientRect(), d = document.scrollingElement
+    return { left: r.left, right: d.clientWidth - r.right, width: r.width, vw: d.clientWidth, scrollW: d.scrollWidth, fit: getComputedStyle(document.documentElement).getPropertyValue('--fit') }
+  })
+  for (const [w, h, minFit] of [[1920, 950, 1.6], [1366, 650, 1.1], [390, 844, 1]]) {
+    const K = await kid({ id: 'kidD' + w, width: w, height: h })
+    const g = await geo(K)
+    check(`${w}×${h}: app phóng to ≥ ${minFit} lần (${g.fit}), nằm giữa, không tràn ngang`, Number(g.fit) >= minFit && (w > 500 ? Math.abs(g.left - g.right) <= 2 : true) && g.scrollW <= g.vw + 1 && (w > 500 ? g.width >= 430 * minFit - 2 : true), JSON.stringify(g))
+    await K.page.click('.kh-cta'); await K.page.waitForSelector('.screen.cr')
+    const g2 = await geo(K)
+    check(`${w}×${h}: màn Bắt đầu ôn cũng nằm giữa, không tràn ngang`, (w > 500 ? Math.abs(g2.left - g2.right) <= 2 : true) && g2.scrollW <= g2.vw + 1, JSON.stringify(g2))
+    // đang ở đầu trang: thanh "Bắt đầu" dính đáy cửa sổ (luôn thấy)
+    const bar = () => K.page.evaluate(() => { const b = document.querySelector('.cr-sticky').getBoundingClientRect(); const ph = document.querySelector('.phone').getBoundingClientRect(); return { top: b.top, bottom: b.bottom, vh: window.innerHeight, phoneBottom: ph.bottom, left: b.left - ph.left, right: ph.right - b.right } })
+    const b1 = await bar()
+    check(`${w}×${h}: đầu trang — thanh "Bắt đầu" thấy ngay ở đáy cửa sổ, thẳng mép khung`, Math.abs(b1.bottom - b1.vh) <= 2 && Math.abs(b1.left) <= 2 && Math.abs(b1.right) <= 2, JSON.stringify(b1))
+    // cuộn hết trang: thanh nằm sát ngay dưới nội dung, cuối khung (không còn khoảng trống lớn giữa nội dung và nút)
+    await K.page.click('.cr-adv-toggle')
+    await K.page.evaluate(() => window.scrollTo(0, document.scrollingElement.scrollHeight))
+    await sleep(300)
+    const b2 = await bar()
+    const gap = await K.page.evaluate(() => { const b = document.querySelector('.cr-sticky').getBoundingClientRect(); const s = document.querySelector('.cr-self').getBoundingClientRect(); return b.top - s.bottom })
+    check(`${w}×${h}: cuối trang — thanh "Bắt đầu" nằm ngay dưới phần chọn (cách ${Math.round(gap)}px), ở đáy khung`, gap >= -1 && gap < 60 && Math.abs(b2.bottom - b2.phoneBottom) <= 2, JSON.stringify({ ...b2, gap }))
+    await K.page.screenshot({ path: `${OUT}/d${w}_review_end.png` })
+    if (w === 1920) {
+      // trò "Bắn bóng" khi app đang phóng to: kéo cung ngắm quả bóng nào thì bắn trúng đúng quả đó
+      // AI giả cho câu hỏi (máy chủ thử chỉ giả AI cho Thi đấu): 13 câu trắc nghiệm Toán
+      await K.page.route('**/api/ai', (r) => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ questions: Array.from({ length: 13 }, (_, i) => ({ q: `Câu ${i + 1}: ${i + 2} + ${i + 3} = ?`, options: [String(2 * i + 5), String(2 * i + 6), String(2 * i + 7), String(2 * i + 8)], answer: 0, explain: 'Cộng hai số.', concept: 'Phân số' })) }) }))
+      await K.page.evaluate(() => window.scrollTo(0, 0))
+      await K.page.click('.cr-self .sj-tile.tone-blue')   // Toán
+      await K.page.click('.chip:has-text("Bắn bóng")')
+      await K.page.click('.cr-sticky-cta')
+      try { await K.page.waitForSelector('.bl-arena .balloon2', { timeout: 30000 }) } catch (e) { await K.page.screenshot({ path: `${OUT}/d1920_balloon_fail.png` }); throw e }
+      await sleep(400)
+      const top = await K.page.evaluate(() => ({ y: window.scrollY, q: document.querySelector('.bl-q').getBoundingClientRect().top }))
+      check('1920: bấm "Bắt đầu" ở cuối trang -> màn trò chơi mở từ ĐẦU TRANG (thấy câu hỏi, không phải kéo lên)', top.y === 0 && top.q > 0 && top.q < 600, JSON.stringify(top))
+      const n = await K.page.locator('.bl-arena .balloon2').count()
+      const target = n - 1
+      await K.page.$eval('.bl-arena', (e) => e.scrollIntoView({ block: 'center' })); await sleep(200)
+      const a = await K.page.$eval('.bl-arena', (e) => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height } })
+      const bb = await K.page.locator('.bl-arena .balloon2').nth(target).boundingBox()
+      const sx = a.x + a.w * 0.5, sy = a.y + a.h * 0.86
+      await K.page.mouse.move(sx, sy); await K.page.mouse.down()
+      await K.page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2, { steps: 6 }); await K.page.mouse.up()
+      await sleep(1500)
+      const shotCls = await K.page.$$eval('.bl-arena .balloon2', (els) => els.map((e) => e.className))
+      check('1920: "Bắn bóng" khi phóng to — kéo cung ngắm quả bóng cuối thì trúng đúng quả đó', / (hit|miss)/.test(shotCls[target]), JSON.stringify(shotCls))
+      await K.page.screenshot({ path: `${OUT}/d1920_balloon.png` })
+    }
+    check(`${w}×${h}: không lỗi trang`, K.errs.length === 0, K.errs.join(' | '))
+    await K.ctx.close()
+  }
+}
+
 await browser.close()
 const fails = Object.entries(results).filter(([, v]) => v !== 'PASS')
 console.log(fails.length ? `FAILED ${fails.length}/${Object.keys(results).length}: ` + fails.map(([k]) => k).join(' | ') : `ALL PASS ✓ (${Object.keys(results).length} checks)`)

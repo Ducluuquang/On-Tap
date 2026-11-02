@@ -339,10 +339,8 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true,
         </div>
       </section>
 
-      {/* Chừa chỗ để nội dung không bị thanh dính đáy che mất */}
-      <div className="cr-stickyspace" />
-
-      {/* ===== Thanh "BẮT ĐẦU" luôn hiển thị (dính đáy), tóm tắt đúng lựa chọn ===== */}
+      {/* ===== Thanh "BẮT ĐẦU" luôn hiển thị, tóm tắt đúng lựa chọn. Ôn Tập (02/11/2026): dính đáy KHI CUỘN,
+          nhưng hết nội dung thì nằm NGAY SAU phần chọn (trước đây dính mép dưới cửa sổ, cách xa, khó thấy) ===== */}
       <div className="cr-sticky">
         <div className="cr-sticky-info">
           {canStart
