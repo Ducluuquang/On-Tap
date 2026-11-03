@@ -17,6 +17,8 @@ const MSG = {
   phone_taken: 'Số điện thoại này đã có tài khoản. Bấm “← Quay lại” rồi chọn “Đăng nhập” (đăng nhập được trên mọi máy).',
   email_taken: 'Email này đã dùng cho một tài khoản khác. Dùng email khác, hoặc đăng nhập bằng tài khoản đó.',
   error: 'Chưa làm được, anh/chị thử lại sau ít phút nhé.',
+  not_on_server: 'Số điện thoại / email này chưa có tài khoản trên máy chủ. Nếu đã đăng ký từ trước trên máy khác: mở Ôn Tập trên máy đó một lần (tài khoản sẽ tự lên máy chủ), rồi đăng nhập lại ở đây. Chưa đăng ký thì bấm “← Quay lại” rồi chọn “Đăng ký”.',
+  reset_not_on_server: 'Số điện thoại này chưa có tài khoản trên máy chủ. Mở Ôn Tập trên máy đã đăng ký một lần (tài khoản sẽ tự lên máy chủ), rồi bấm “Đăng nhập” ở đây bằng mật khẩu cũ.',
   reset_other_device: 'Máy này chưa đăng nhập tài khoản này lần nào. Hãy vào “Quên mật khẩu” trên máy đã đăng nhập trước đây để đặt mật khẩu mới, rồi đăng nhập ở đây bằng mật khẩu mới.',
   reset_offline: 'Chưa kết nối được máy chủ. Kiểm tra mạng rồi thử lại.',
   reset_stale: 'Mật khẩu tài khoản đã được đổi ở máy khác. Hãy đăng nhập bằng mật khẩu mới, hoặc đặt lại trên máy đang đăng nhập.',

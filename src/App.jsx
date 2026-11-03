@@ -9,6 +9,7 @@ import { loadAccount, saveAccount, loadSession, setSession as persistSession, no
 import {
   call as accountCall, syncNow, pushAccount, getToken, setToken, tokenPhone, getSyncState, setSyncState, fromRemote, toRemote,
   mergeChildren, remapChildData, backupAccount, backupAccounts, dropBackup, matchesLogin, phoneOf, validPhone, onlyDigits,
+  uploadIfNeeded, existsOnServer,
 } from './lib/sync.js'
 import { setActiveChild, getActiveChild, migrateGlobalToChild } from './lib/active.js'
 import { loadStats, saveStats, addSeconds, addSession, setGoalMin, resetStats } from './lib/stats.js'
@@ -372,6 +373,13 @@ export default function App() {
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authed])
+  // Mở app trên máy có tài khoản cũ mà đang đăng xuất: vẫn chuyển tài khoản lên máy chủ (để máy khác đăng nhập được).
+  useEffect(() => {
+    if (authed) return
+    const local = account || normalizeAccount(loadAccount())
+    if (local) uploadIfNeeded(local).catch(() => { /* mất mạng: lần sau */ })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   // Có mạng trở lại: gửi các thay đổi tài khoản chưa gửi được.
   useEffect(() => {
     const onOnline = () => { if (authed && account && getSyncState().dirty) pushAccount(account) }
@@ -442,6 +450,8 @@ export default function App() {
     // Tài khoản trên máy CHƯA từng lên máy chủ (đăng ký trước đây) mà khớp -> vẫn cho vào; mở app sẽ tự chuyển lên máy chủ.
     const tok = getToken()
     if (local && matchesLogin(local, u, p) && !(tok && tokenPhone(tok) === phoneOf(local))) { finishAuth(); return { ok: true } }
+    // Sai: báo rõ số điện thoại / email CHƯA có trên máy chủ (tài khoản cũ còn nằm trên máy đã đăng ký) hay sai mật khẩu.
+    if ((await existsOnServer(u)) === false) return { error: 'not_on_server' }
     return { error: 'bad_login' }
   }
   // Quên mật khẩu: làm được trên máy ĐÃ đăng nhập tài khoản này. Trả true | 'other_device' | 'offline' | 'stale' | 'error'.
@@ -449,7 +459,7 @@ export default function App() {
     const ph = onlyDigits(phone)
     const local = account || normalizeAccount(loadAccount())
     const cand = local && phoneOf(local) === ph ? local : backupAccounts().find((a) => phoneOf(a) === ph)
-    if (!cand) return 'other_device'
+    if (!cand) return (await existsOnServer(ph)) === false ? 'not_on_server' : 'other_device'
     const tok = getToken()
     let next
     if (tok && tokenPhone(tok) === ph) {

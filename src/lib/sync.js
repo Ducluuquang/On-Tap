@@ -166,6 +166,30 @@ export async function syncNow(local) {
   return mergeAndPush(local, g.account, token, !!getSyncState().dirty)
 }
 
+// Mở app trên máy có tài khoản cũ mà đang ĐĂNG XUẤT (03/11/2026): vẫn chuyển tài khoản lên máy chủ ngay,
+// để máy khác đăng nhập được mà không phải đăng nhập lại ở máy cũ. Không đổi gì tài khoản trên máy.
+export async function uploadIfNeeded(acc) {
+  const phone = phoneOf(acc)
+  if (!acc || !validPhone(phone)) return {}
+  const tok = getToken()
+  if (tok && tokenPhone(tok) === phone) return {} // đã lên máy chủ rồi
+  const pass = passOf(acc)
+  if (!pass || pass.length < 4) return {}
+  const r = await call('claim', { ...toRemote(acc), pass })
+  if (r.offline) return {}
+  if (!r.ok) { setSyncState({ conflict: r.error || 'error' }); return {} }
+  setToken(r.token); setSyncState({ conflict: '' })
+  return { created: !!r.created }
+}
+// Số điện thoại / email này đã có tài khoản trên máy chủ chưa? true / false; null = không hỏi được (mất mạng…).
+export async function existsOnServer(id) {
+  const s = String(id || '').trim()
+  const body = s.includes('@') ? { email: s.toLowerCase() } : { phone: onlyDigits(s) }
+  const r = await call('check', body)
+  if (!r.ok) return null
+  return s.includes('@') ? !!r.emailTaken : !!r.phoneTaken
+}
+
 // Sau mỗi thay đổi tài khoản trên máy (thêm con, đổi email, đổi PIN): gửi lên máy chủ. Chưa gửi được -> đánh dấu, lần sau gửi.
 export async function pushAccount(acc) {
   const token = getToken()
