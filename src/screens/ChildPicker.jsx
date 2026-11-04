@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Brand } from '../components.jsx'
+import { Brand, SelectPicker } from '../components.jsx'
 import { newChildId } from '../lib/auth.js'
 import { CHILD_ICONS, iconFor } from '../lib/icons.js'
 
@@ -88,10 +88,8 @@ export default function ChildPicker({ account, onEnter, onAddChild, onParent, re
           ))}
         </div>
         <label className="auth-lbl">Lớp</label>
-        <select className="auth-in" value={grade} onChange={(e) => setGrade(e.target.value)}>
-          <option value="">— Chọn lớp —</option>
-          {GRADES.map((g) => <option key={g} value={'Lớp ' + g}>Lớp {g}</option>)}
-        </select>
+        <SelectPicker btnClass="auth-in" value={grade} onChange={setGrade} placeholder="— Chọn lớp —" ariaLabel="Lớp"
+          options={GRADES.map((g) => ({ value: 'Lớp ' + g, label: 'Lớp ' + g }))} />
         <label className="auth-lbl">Trường</label>
         <input className="auth-in" placeholder="VD: Tiểu học Kim Đồng" value={school} onChange={(e) => setSchool(e.target.value)} />
         <label className="auth-lbl">Thuộc khối</label>

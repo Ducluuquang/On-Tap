@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BackHeader } from '../components.jsx'
+import { BackHeader, SelectPicker } from '../components.jsx'
 import { isVocabGroup } from '../lib/topics.js'
 
 // Các môn tiểu học thường gặp (tên CHUẨN) — dùng khi nội dung nhập vào KHÔNG ghi rõ môn.
@@ -24,12 +24,10 @@ export default function ParentApprove({ pending, onSave, onBack }) {
       </p>
 
       <div className="understood">
-        <div className="u-row">
+        <div className="u-row u-row-pick">
           <span>Môn</span>
-          <select className="u-subject" value={subject} onChange={(e) => setSubject(e.target.value)}>
-            <option value="">— Chọn môn —</option>
-            {subjectOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <SelectPicker overlay className="u-pick" btnClass="u-subject" value={subject} onChange={setSubject} placeholder="— Chọn môn —" ariaLabel="Môn"
+            options={subjectOptions.map((s) => ({ value: s, label: s }))} />
         </div>
         <div className="u-row"><span>Chủ đề</span><b>{pending.topic}</b></div>
       </div>

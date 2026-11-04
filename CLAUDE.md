@@ -26,6 +26,7 @@
 - Thi đấu: nhiều từ, không lặp lại trong ván; rời phòng khi mạng chậm không bị kéo lại phòng.
 - Xếp chữ: lúc chơi chỉ có chữ xáo trộn + "Gợi ý 1 chữ"; xếp xong mới hiện hình + nghĩa.
 - Thanh trên cùng (04/11/2026): "Con | Phụ huynh", "Đổi người học", "Đăng xuất" luôn MỘT HÀNG, ba ô cao bằng nhau, thẳng mép khung — kể cả iPhone bật "Thu phóng màn hình" (chỉ rộng 320px): màn hẹp thì chữ + đệm cùng thu nhỏ (`--ds-fs` trong `src/index.css`), không cho xuống hàng. Phép thử: `t_ui28` phần T.
+- Ô chọn (04/11/2026): KHÔNG dùng danh sách xổ xuống của trình duyệt (`<select>`): chữ trong danh sách rất nhỏ (nhất là máy tính), anh đã báo 2 lần. Ôn Tập dùng `SelectPicker` (`src/components.jsx`); Vở Spelling tự đổi mọi `<select class="inp">` thành danh sách vẽ trong trang (đoạn "DANH SÁCH CHỌN TỰ VẼ" trong `public/spelling/index.html`, thẻ select gốc vẫn giữ giá trị + sự kiện "change"). Phép thử: `t_ui_pick`.
 - Giao diện của con (28/10/2026): trang chủ chia vùng màu (việc chính hôm nay, chuỗi ngày + quà, việc khác, môn học); màn "Bắt đầu ôn" có Cách 1 (gợi ý) và Cách 2 (3 bước). Thẻ gợi ý chỉ ghi chủ đề CẦN ÔN.
 - Đăng nhập (01/11/2026): bằng số điện thoại hoặc email trên mọi máy; mật khẩu chỉ lưu mã băm; mất mạng vẫn đăng nhập trên máy như cũ. Bài học / báo cáo của con chưa đồng bộ giữa các máy.
 - Tài khoản đăng ký trước 01/11 chỉ nằm trên máy đã đăng ký: mở app trên máy đó (kể cả đang đăng xuất) là tự lên máy chủ (03/11/2026). Máy mới đăng nhập số chưa có trên máy chủ thì báo rõ phải mở máy cũ hoặc đăng ký.

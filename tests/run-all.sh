@@ -28,7 +28,7 @@ MOCK=1 ARENA=0 PORT=4193 node "$T/server.mjs" > "$OUT/s4193.log" 2>&1 & PIDS+=($
 MOCK=1 PORT=4194 ARENA_SB_TURN_MS=7000 ARENA_SB_AWAY_MS=5000 node "$T/server.mjs" > "$OUT/s4194.log" 2>&1 & PIDS+=($!)
 sleep 3
 
-SUITES=${*:-"t_acct_merge t_api_account t_ui_account t_engine t_engine_many t_engine_multi t_api_arena t_api_limit t_api_scrabble t_api_more t_api_multi t_ui26 t_ui24 t_arena_regress t_solo_games t_leave_race t_ui_more t_ui_multi t_ui28"}
+SUITES=${*:-"t_acct_merge t_api_account t_ui_account t_engine t_engine_many t_engine_multi t_api_arena t_api_limit t_api_scrabble t_api_more t_api_multi t_ui26 t_ui24 t_arena_regress t_solo_games t_leave_race t_ui_more t_ui_multi t_ui28 t_ui_pick"}
 pass=0; fail=0
 for t in $SUITES; do
   # mỗi bộ thử tạo nhiều người chơi/tài khoản từ cùng một địa chỉ: xoá bộ đếm chống spam của kho THỬ trước mỗi bộ

@@ -179,7 +179,8 @@
     if (S.view !== "arena") return;
     const sig = sigOf();
     if (A.screen === "room" && isSb(A.st) && sig === A.sig && sbui()) { sbui().update(A.st); return; }   // Scrabble tự vẽ lại bàn cờ khi cần
-    const focused = document.activeElement && document.activeElement.closest && document.activeElement.closest("#view") && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
+    const focused = (document.activeElement && document.activeElement.closest && document.activeElement.closest("#view") && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName))
+      || !!(window.VSPick && window.VSPick.isOpen());   // Ôn Tập (04/11/2026): đang mở danh sách chọn tự vẽ -> chưa vẽ lại màn
     if (sig !== A.sig && !focused) draw(true); else refresh();
   }
   function draw(full, v) {

@@ -10,7 +10,9 @@
      - Luôn dùng giao diện sáng (data-theme="light") cho hợp với Ôn Tập
      - Bỏ manifest/biểu tượng cài app: trang này không cài riêng ra màn hình chính
      - THI ĐẤU (22/10/2026): arena.css + arena.js (máy chủ /api/arena); trang này chỉ thêm vài móc ghi "Ôn Tập: thi đấu"
-     - SCRABBLE (24/10/2026): scrabble.css + scrabble.js; trò "Xếp câu" (GAMES.sentence) thêm vào danh sách trò -->
+     - SCRABBLE (24/10/2026): scrabble.css + scrabble.js; trò "Xếp câu" (GAMES.sentence) thêm vào danh sách trò
+     - DANH SÁCH CHỌN TỰ VẼ (04/11/2026): mọi <select class="inp"> hiện bằng nút + danh sách vẽ trong trang, chữ to
+       (đoạn mã "DANH SÁCH CHỌN TỰ VẼ" ngay trước mã chính; kiểu .vs-pick) -->
 <!-- Ôn Tập: ?child=<id con>&name=<tên>&icon=<biểu tượng>&grade=<lớp> — tên + biểu tượng hiện cho các bạn cùng phòng thi -->
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="description" content="11 trò chơi đánh vần tiếng Anh trên bộ từ của con: gõ từ, nhập chủ đề hoặc chụp vở.">
@@ -102,6 +104,23 @@ button{cursor:pointer}
 .field label,.lbl{font-size:.74rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .inp,textarea.inp,select.inp{width:100%;min-height:46px;border-radius:10px;border:1.5px solid var(--line);background:var(--sheet);padding:10px 14px;font-size:1rem;outline:none}
 .inp:focus{border-color:var(--accent)}
+/* Ôn Tập (04/11/2026): DANH SÁCH CHỌN TỰ VẼ thay danh sách xổ xuống của trình duyệt (chữ rất nhỏ, nhất là trên máy tính).
+   Thẻ <select> gốc vẫn nằm trong .vs-pick (ẩn, .vs-native) để giữ giá trị; chữ trong danh sách to bằng chữ trong ô (--vs-fs). */
+.vs-pick{position:relative;min-width:0}
+select.inp.vs-native{position:absolute;left:0;bottom:0;width:1px;height:1px;min-height:0;padding:0;border:0;opacity:0;pointer-events:none}
+.vs-pick-btn{display:flex;align-items:center;gap:10px;text-align:left;font-size:var(--vs-fs,1rem);line-height:1.35;color:var(--ink);cursor:pointer}
+.vs-pick-btn .vs-v{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vs-ar{flex:none;width:9px;height:9px;margin:0 3px 4px 0;border-right:2.5px solid var(--ink-soft);border-bottom:2.5px solid var(--ink-soft);transform:rotate(45deg);transition:transform .15s}
+.vs-pick.open .vs-pick-btn{border-color:var(--accent)}
+.vs-pick.open .vs-ar{transform:translateY(4px) rotate(-135deg)}
+.vs-pick-btn[disabled]{opacity:.55;cursor:default}
+.vs-pick-list{margin-top:6px;border:1.5px solid var(--line);border-radius:10px;background:var(--sheet);box-shadow:var(--shadow);max-height:min(62vh,440px);overflow-y:auto;overscroll-behavior:contain}
+.vs-pick-grp{padding:12px 14px 4px;font-size:.8rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.vs-pick-opt{display:flex;align-items:center;gap:10px;width:100%;min-height:46px;border:0;border-top:1px solid var(--line);background:transparent;padding:10px 14px;font-size:var(--vs-fs,1rem);line-height:1.35;text-align:left;color:var(--ink)}
+.vs-pick-list>.vs-pick-opt:first-child,.vs-pick-grp+.vs-pick-opt{border-top:0}
+.vs-pick-opt:hover,.vs-pick-opt:focus-visible{outline:none;background:var(--accent-soft)}
+.vs-pick-opt[aria-selected="true"]{font-weight:700;color:var(--accent-strong)}
+.vs-pick-opt[aria-selected="true"]::after{content:"✓";margin-left:auto;padding-left:8px;color:var(--accent)}
 textarea.inp{min-height:150px;resize:vertical;font-family:var(--font-word);font-size:1.05rem;line-height:1.6}
 .seg{display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px;flex-wrap:wrap}
 .seg button{border:0;background:transparent;border-radius:9px;padding:8px 14px;font-weight:600;font-size:.9rem;color:var(--ink-soft)}
@@ -481,6 +500,135 @@ body::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none
 <main class="wrap" id="view"></main>
 <div id="live" class="sr" aria-live="polite"></div>
 <div id="toast" class="toast" role="status" hidden></div>
+<script>
+/* Ôn Tập (04/11/2026): DANH SÁCH CHỌN TỰ VẼ.
+   Anh báo: danh sách xổ xuống (vd "Trình độ" ở Thách đấu ngẫu nhiên) chữ quá nhỏ — danh sách đó do trình duyệt tự vẽ,
+   không theo cỡ chữ của trang (nhất là trên máy tính). Mọi <select class="inp"> (kể cả vẽ lại sau này) được thay bằng
+   nút + danh sách vẽ ngay trong trang, chữ to bằng chữ trong ô; chạm, chuột, phím mũi tên / Enter / Esc đều dùng được.
+   Thẻ <select> gốc vẫn nằm đó (ẩn) giữ giá trị và báo "change" như cũ, nên mã đang đọc .value / nghe "change" giữ nguyên. */
+(function () {
+  "use strict";
+  let openBox = null;
+  const optEls = (list) => [...list.querySelectorAll(".vs-pick-opt:not([disabled])")];
+  const selOf = (box) => box.querySelector("select");
+  const btnOf = (box) => box.querySelector(".vs-pick-btn");
+  function textOf(sel) { const o = sel.options[sel.selectedIndex]; return o ? o.textContent : ""; }
+  function sync(box) {
+    const sel = selOf(box), btn = btnOf(box);
+    if (!sel || !btn) return;
+    btn.querySelector(".vs-v").textContent = textOf(sel);
+    btn.disabled = sel.disabled;
+  }
+  function close(box, focusBtn) {
+    if (!box) return;
+    const list = box.querySelector(".vs-pick-list");
+    if (list) list.remove();
+    box.classList.remove("open");
+    const btn = btnOf(box);
+    if (btn) { btn.setAttribute("aria-expanded", "false"); if (focusBtn) try { btn.focus({ preventScroll: true }); } catch {} }
+    if (openBox === box) openBox = null;
+  }
+  function addOpt(list, o) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "vs-pick-opt"; b.setAttribute("role", "option");
+    b.dataset.v = o.value; b.textContent = o.textContent;
+    b.setAttribute("aria-selected", o.selected ? "true" : "false");
+    if (o.disabled) b.disabled = true;
+    list.appendChild(b);
+  }
+  function open(box, focusOpt) {
+    if (openBox && openBox !== box) close(openBox);
+    const sel = selOf(box), btn = btnOf(box);
+    if (!sel || !btn || sel.disabled) return;
+    const list = document.createElement("div");
+    list.className = "vs-pick-list"; list.setAttribute("role", "listbox");
+    list.id = (btn.id || "vs-pick") + "-list";
+    for (const ch of sel.children) {
+      if (ch.tagName === "OPTGROUP") {
+        const g = document.createElement("div");
+        g.className = "vs-pick-grp"; g.setAttribute("role", "presentation"); g.textContent = ch.label;
+        list.appendChild(g);
+        for (const o of ch.children) if (o.tagName === "OPTION") addOpt(list, o);
+      } else if (ch.tagName === "OPTION") addOpt(list, ch);
+    }
+    box.appendChild(list);
+    box.classList.add("open");
+    btn.setAttribute("aria-expanded", "true"); btn.setAttribute("aria-controls", list.id);
+    openBox = box;
+    const cur = list.querySelector('.vs-pick-opt[aria-selected="true"]') || optEls(list)[0];
+    if (cur) {
+      list.scrollTop = Math.max(0, cur.offsetTop - (list.clientHeight - cur.offsetHeight) / 2);
+      if (focusOpt) try { cur.focus({ preventScroll: true }); } catch {}
+    }
+    try { list.scrollIntoView({ block: "nearest" }); } catch {}
+  }
+  function pick(box, v) {
+    const sel = selOf(box);
+    if (!sel) return;
+    const changed = sel.value !== v;
+    sel.value = v;
+    close(box, true); sync(box);
+    if (changed) { sel.dispatchEvent(new Event("input", { bubbles: true })); sel.dispatchEvent(new Event("change", { bubbles: true })); }
+  }
+  function enhance(sel) {
+    if (sel.dataset.vsPick || !sel.parentNode) return;
+    sel.dataset.vsPick = "1";
+    const box = document.createElement("div");
+    box.className = "vs-pick";
+    box.style.setProperty("--vs-fs", getComputedStyle(sel).fontSize);
+    sel.parentNode.insertBefore(box, sel);
+    const btn = document.createElement("button");
+    btn.type = "button"; btn.className = "inp vs-pick-btn";
+    if (sel.id) btn.id = sel.id + "-pick";
+    btn.setAttribute("aria-haspopup", "listbox"); btn.setAttribute("aria-expanded", "false");
+    btn.innerHTML = '<span class="vs-v"></span><span class="vs-ar" aria-hidden="true"></span>';
+    box.appendChild(btn); box.appendChild(sel);
+    sel.classList.add("vs-native"); sel.tabIndex = -1; sel.setAttribute("aria-hidden", "true");
+    const lab = sel.id && /^[\w-]+$/.test(sel.id) ? document.querySelector('label[for="' + sel.id + '"]') : null;
+    if (lab && btn.id) lab.htmlFor = btn.id;   // bấm vào chữ "Trình độ"… cũng mở danh sách
+    sync(box);
+    sel.addEventListener("change", () => sync(box));   // mã khác đổi giá trị (vd phép thử) -> ô hiện đúng
+  }
+  function scan(n) {
+    if (!n || n.nodeType !== 1) return;
+    if (n.matches("select.inp")) enhance(n);
+    else n.querySelectorAll("select.inp").forEach(enhance);
+  }
+  window.VSPick = { isOpen: () => !!(openBox && openBox.isConnected), scan };
+  document.addEventListener("click", (e) => {
+    const t = e.target;
+    if (!t || !t.closest) return;
+    const opt = t.closest(".vs-pick-opt");
+    if (opt) { const box = opt.closest(".vs-pick"); if (box && !opt.disabled) pick(box, opt.dataset.v); return; }
+    const btn = t.closest(".vs-pick-btn");
+    if (btn) { const box = btn.closest(".vs-pick"); if (box) { if (box.classList.contains("open")) close(box); else open(box); } }
+  });
+  // chạm/bấm ra ngoài -> đóng danh sách
+  document.addEventListener("pointerdown", (e) => { if (openBox && !(openBox.isConnected && openBox.contains(e.target))) close(openBox); }, true);
+  document.addEventListener("keydown", (e) => {
+    const t = e.target, box = t && t.closest ? t.closest(".vs-pick") : null;
+    if (!box) return;
+    const list = box.querySelector(".vs-pick-list");
+    if (e.key === "Escape" && list) { e.preventDefault(); e.stopPropagation(); close(box, true); return; }
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Home" && e.key !== "End") return;
+    e.preventDefault();
+    if (!list) { open(box, true); return; }
+    const opts = optEls(list);
+    if (!opts.length) return;
+    let i = opts.indexOf(document.activeElement);
+    if (e.key === "Home") i = 0;
+    else if (e.key === "End") i = opts.length - 1;
+    else if (i < 0) i = Math.max(0, opts.findIndex((o) => o.getAttribute("aria-selected") === "true"));
+    else i = Math.min(opts.length - 1, Math.max(0, i + (e.key === "ArrowDown" ? 1 : -1)));
+    try { opts[i].focus(); } catch {}
+  }, true);
+  // bấm Tab sang chỗ khác -> đóng danh sách
+  document.addEventListener("focusout", (e) => { if (openBox && e.relatedTarget && !openBox.contains(e.relatedTarget)) close(openBox); });
+  new MutationObserver((muts) => { for (const m of muts) for (const n of m.addedNodes) scan(n); })
+    .observe(document.body, { childList: true, subtree: true });
+  scan(document.body);
+})();
+</script>
 <script>
 "use strict";
 const APP_MODE = (typeof window !== "undefined" && window.VS_MODE === "web") ? "web" : "artifact";

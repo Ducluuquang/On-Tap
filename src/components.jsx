@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { STATUS_LABEL } from './lib/memory.js'
 import { streakDays, nextReward, prevReward } from './lib/stats.js'
 import logoRow from './assets/logo-row.png'
@@ -154,5 +154,64 @@ export function RewardTrack({ stats, variant }) {
           : <> · con vừa chạm mốc phần thưởng 🎁</>}
       </p>
     </section>
+  )
+}
+
+// Ô CHỌN TỰ VẼ thay <select> (04/11/2026). Danh sách xổ xuống của trình duyệt do trình duyệt tự vẽ, không theo cỡ chữ
+// của trang (nhất là máy tính, khi app phóng to) nên chữ rất nhỏ — anh báo ở "Bắt đầu ôn" (02/11) và Thi đấu (04/11).
+// Danh sách vẽ ngay dưới ô, chữ to; chạm/bấm, phím mũi tên, Enter, Esc đều dùng được.
+//   options: [{ value, label }] · value '' = chưa chọn (ô hiện placeholder) · btnClass: kiểu của ô (vd 'auth-in')
+//   overlay: danh sách nổi đè lên nội dung bên dưới (ô nhỏ nằm trong một hàng), mặc định đẩy nội dung xuống.
+export function SelectPicker({ value, options, onChange, placeholder = '— Chọn —', btnClass = '', className = '', overlay = false, ariaLabel }) {
+  const [open, setOpen] = useState(false)
+  const box = useRef(null)
+  const btn = useRef(null)
+  const list = useRef(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (e) => { if (box.current && !box.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('pointerdown', close, true)
+    // mở ra: ô đang chọn nằm giữa danh sách, cả danh sách hiện trong màn hình
+    const l = list.current
+    const cur = l && (l.querySelector('[aria-selected="true"]') || l.querySelector('.sel-opt'))
+    if (l && cur) l.scrollTop = Math.max(0, cur.offsetTop - (l.clientHeight - cur.offsetHeight) / 2)
+    try { l && l.scrollIntoView({ block: 'nearest' }) } catch { /* noop */ }
+    return () => document.removeEventListener('pointerdown', close, true)
+  }, [open])
+  const cur = options.find((o) => o.value === value && value !== '')
+  function choose(v) {
+    setOpen(false)
+    try { btn.current && btn.current.focus({ preventScroll: true }) } catch { /* noop */ }
+    if (v !== value) onChange(v)
+  }
+  function onKey(e) {
+    if (e.key === 'Escape' && open) { e.preventDefault(); e.stopPropagation(); setOpen(false); try { btn.current.focus() } catch { /* noop */ } return }
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return
+    e.preventDefault()
+    if (!open) { setOpen(true); return }
+    const opts = [...(list.current ? list.current.querySelectorAll('.sel-opt') : [])]
+    if (!opts.length) return
+    let i = opts.indexOf(document.activeElement)
+    if (e.key === 'Home') i = 0
+    else if (e.key === 'End') i = opts.length - 1
+    else if (i < 0) i = Math.max(0, opts.findIndex((o) => o.getAttribute('aria-selected') === 'true'))
+    else i = Math.min(opts.length - 1, Math.max(0, i + (e.key === 'ArrowDown' ? 1 : -1)))
+    opts[i].focus()
+  }
+  function onBlur(e) { if (open && e.relatedTarget && box.current && !box.current.contains(e.relatedTarget)) setOpen(false) } // Tab sang chỗ khác
+  return (
+    <div className={'sel-pick' + (overlay ? ' overlay' : '') + (open ? ' open' : '') + (className ? ' ' + className : '')} ref={box} onKeyDown={onKey} onBlur={onBlur}>
+      <button type="button" ref={btn} className={'sel-btn' + (btnClass ? ' ' + btnClass : '')} aria-haspopup="listbox" aria-expanded={open} aria-label={ariaLabel} onClick={() => setOpen((o) => !o)}>
+        <span className={'sel-v' + (cur ? '' : ' ph')}>{cur ? cur.label : placeholder}</span>
+        <span className="sel-ar" aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="sel-list" role="listbox" ref={list}>
+          {options.filter((o) => o.value !== '').map((o) => (
+            <button type="button" role="option" key={o.value} aria-selected={o.value === value} className="sel-opt" onClick={() => choose(o.value)}>{o.label}</button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }

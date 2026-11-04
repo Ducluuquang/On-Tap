@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { CHILD_ICONS } from '../lib/icons.js'
+import { SelectPicker } from '../components.jsx'
 import logoFull from '../assets/logo-full.png'
 
 // 4 khối trường (bấm tick để chọn).
@@ -307,10 +308,8 @@ export default function Auth({ account, notice = '', onRegister, onLogin, onRese
               ))}
             </div>
             <label className="auth-lbl">Lớp</label>
-            <select className={ec(!!k.grade)} value={k.grade} onChange={(e) => setKid(i, 'grade', e.target.value)}>
-              <option value="">— Chọn lớp —</option>
-              {GRADES.map((g) => <option key={g} value={'Lớp ' + g}>Lớp {g}</option>)}
-            </select>
+            <SelectPicker btnClass={ec(!!k.grade)} value={k.grade} onChange={(v) => setKid(i, 'grade', v)} placeholder="— Chọn lớp —" ariaLabel="Lớp"
+              options={GRADES.map((g) => ({ value: 'Lớp ' + g, label: 'Lớp ' + g }))} />
             <label className="auth-lbl">Trường</label>
             <input className={ec(!!k.school.trim())} placeholder="VD: Tiểu học Kim Đồng" value={k.school} onChange={(e) => setKid(i, 'school', e.target.value)} />
             <label className="auth-lbl">Thuộc khối</label>

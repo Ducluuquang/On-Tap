@@ -15,6 +15,11 @@ const check = (n, c, x = '') => { results[n] = c ? 'PASS' : 'FAIL'; console.log(
 const RUN = String(Date.now()).slice(-6)
 const P = '0911' + RUN, E = `ba${RUN}@vidu.com`, PL = '0922' + RUN, PM = '0933' + RUN
 const rdel = (k) => execFileSync('redis-cli', ['-p', '6390', 'DEL', k]).toString().trim()
+// Ô chọn tự vẽ (SelectPicker, thay <select> 04/11/2026): bấm ô rồi chọn đúng dòng
+async function pickIn(root, label) {
+  await root.locator('.sel-btn').first().click()
+  await root.locator('.sel-opt').filter({ hasText: new RegExp('^' + label + '$') }).click()
+}
 async function api(action, body = {}, token = '') {
   const r = await fetch(BASE + '/api/account', { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.77.' + (Number(RUN) % 250) + '.1', ...(token ? { authorization: 'Bearer ' + token } : {}) }, body: JSON.stringify({ action, ...body }) })
   return r.json()
@@ -55,7 +60,7 @@ async function register(d, { phone, email, pass, parent, kids }) {
     await box.locator('input[placeholder="VD: Anna"]').fill(kids[i].name)
     await box.locator('input[placeholder="VD: 7 hoặc 12"]').fill(kids[i].pin)
     await box.locator('.icon-opt').nth(i).click()
-    await box.locator('select').selectOption('Lớp 5')
+    await pickIn(box, 'Lớp 5')
     await box.locator('input[placeholder="VD: Tiểu học Kim Đồng"]').fill('TH Kim Đồng')
     await box.locator('.reg-types .chip').first().click()
   }
@@ -120,7 +125,7 @@ await A.page.waitForSelector('.pick-card.add', { timeout: 8000 })
 await A.page.click('.pick-card.add')
 await A.page.waitForSelector('.modal input.pin-in'); await A.page.fill('.modal input.pin-in', '5'); await A.page.click('.modal .modal-btns .cta:not(.ghost)')
 await A.page.fill('input[placeholder="VD: Bin"]', 'Chi'); await A.page.fill('input[placeholder="VD: 7 hoặc 12"]', '33')
-await A.page.locator('.icon-opt').nth(2).click(); await A.page.locator('select').selectOption('Lớp 3')
+await A.page.locator('.icon-opt').nth(2).click(); await pickIn(A.page, 'Lớp 3')
 await A.page.fill('input[placeholder="VD: Tiểu học Kim Đồng"]', 'TH Kim Đồng'); await A.page.locator('.reg-types .chip').first().click()
 await A.page.click('button.cta:has-text("Thêm con")')
 await A.page.waitForFunction(() => [...document.querySelectorAll('.pick-name')].some((e) => e.textContent === 'Chi'), null, { timeout: 8000 })
