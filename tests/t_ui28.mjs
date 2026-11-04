@@ -4,6 +4,8 @@
 //     Môn học của con (màu riêng, số cần ôn, chạm vào môn -> màn Bắt đầu ôn của môn đó); không còn "Đổi người học" trong khung.
 //  R  Bắt đầu ôn: Cách 1 (gợi ý + "Ôn ngay"), "hoặc", Cách 2 (3 bước), riêng Tiếng Anh, Master, Tuỳ chỉnh thêm, thanh dính đáy.
 //  W  Màn hẹp 320/360/375/390/430: không tràn ngang; từ 360px tên môn + tên mức ôn nằm một dòng.
+//  T  Thanh trên cùng (anh báo 04/11/2026, iPhone): "Con | Phụ huynh", "Đổi người học", "Đăng xuất" luôn MỘT HÀNG, cao bằng
+//     nhau, thẳng mép khung — từ 280px (iPhone bật "Thu phóng màn hình" = 320px) tới màn máy tính; cả khi phông web chưa tải.
 import { pw, OUT_DIR } from './_env.mjs'
 import { useRealFonts } from './fonts.mjs'
 const OUT = OUT_DIR
@@ -33,11 +35,12 @@ const MEM = [
 // thời gian học: hôm nay 10 phút; 3 ngày trước đó mỗi ngày đủ 15 phút -> chuỗi 3 ngày
 const statsWith = (todayMin, streak) => { const days = {}; if (todayMin) days[iso(0)] = todayMin * 60; for (let k = 1; k <= streak; k++) days[iso(k)] = 16 * 60; return { goalMin: 15, days, log: {} } }
 
-async function kid({ id = 'kidH', name = 'Alex', icon = '🦊', grade = 'Lớp 7', mem = MEM, stats = statsWith(10, 3), width = 390, height = 844 } = {}) {
+async function kid({ id = 'kidH', name = 'Alex', icon = '🦊', grade = 'Lớp 7', mem = MEM, stats = statsWith(10, 3), width = 390, height = 844, realFonts = true, mobile = false } = {}) {
   id = id + RUN
   const ACC = { username: '09' + id, password: '1', phone: '09' + id, parentPass: '1', plan: 1, pin: '3', children: [{ id, name, pin: '', icon, grade }] }
-  const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2 })
-  await useRealFonts(ctx)
+  const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, ...(mobile ? { isMobile: true, hasTouch: true } : {}) })
+  if (realFonts) await useRealFonts(ctx)
+  else await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (route) => route.fulfill({ status: 200, contentType: 'text/css', body: '' }))   // không có phông web -> phông dự phòng
   await ctx.addInitScript(({ ACC, id, mem, stats }) => {
     if (window.top !== window) return
     if (sessionStorage.getItem('s')) return; sessionStorage.setItem('s', '1'); localStorage.clear()
@@ -257,6 +260,64 @@ if (only === 'all' || only === 'w') {
       check(`${w}px: tên môn ("Tiếng Việt", "Tiếng Anh"…) và tên mức ôn ("Cần ôn nhất"…) nằm một dòng như hình mẫu`, wrapHome.length === 0 && wrapCr.length === 0, 'xuống dòng: ' + [...wrapHome, ...wrapCr].join(', '))
     }
     await K.ctx.close()
+  }
+}
+
+// ======================= T — thanh trên cùng một hàng (04/11/2026) =======================
+// Anh báo: trên iPhone "Đổi người học" + "Đăng xuất" rớt xuống hàng dưới "Con | Phụ huynh" (iPhone bật Thu phóng màn hình
+// chỉ rộng 320px). Bản cũ: từ 340px trở xuống bị xuống hàng, và ô Con|Phụ huynh cao hơn hai nút bên phải.
+if (only === 'all' || only === 't') {
+  console.log('— T. Thanh trên cùng một hàng')
+  const barGeo = (k) => k.page.evaluate(() => {
+    const R = (e) => e.getBoundingClientRect()
+    const phone = R(document.querySelector('.phone'))
+    const boxes = [document.querySelector('.demoswitch .ds-seg'), ...document.querySelectorAll('.demoswitch .ds-actions .ds-logout')]
+    const rs = boxes.map(R)
+    const btns = [...document.querySelectorAll('.demoswitch button')]
+    const d = document.scrollingElement
+    return {
+      labels: btns.map((b) => b.textContent.trim()).join(' · '), n: boxes.length,
+      topSpread: Math.max(...rs.map((r) => r.top)) - Math.min(...rs.map((r) => r.top)),
+      botSpread: Math.max(...rs.map((r) => r.bottom)) - Math.min(...rs.map((r) => r.bottom)),
+      left: rs[0].left - phone.left, right: phone.right - rs[rs.length - 1].right,
+      overlap: rs.some((r, i) => i > 0 && r.left < rs[i - 1].right - 0.5),
+      clipped: btns.filter((b) => b.scrollWidth > b.clientWidth + 1).map((b) => b.textContent),
+      fs: [...new Set(btns.map((b) => parseFloat(getComputedStyle(b).fontSize)))],
+      h: rs.map((r) => Math.round(r.height * 10) / 10),
+      hScroll: d.scrollWidth > d.clientWidth + 1,
+    }
+  })
+  const cases = [280, 300, 320, 340, 360, 375, 390, 393, 402, 414, 430].map((w) => ({ w, h: 760, mobile: true, realFonts: true }))
+    .concat([320, 375].map((w) => ({ w, h: 760, mobile: true, realFonts: false, tag: ' (phông dự phòng)' })))
+    .concat([[1366, 650], [1920, 950]].map(([w, h]) => ({ w, h, mobile: false, realFonts: true, tag: ' (máy tính, app phóng to)' })))
+  for (const c of cases) {
+    const K = await kid({ id: 'kidT' + c.w + (c.realFonts ? '' : 'f'), width: c.w, height: c.h, mobile: c.mobile, realFonts: c.realFonts })
+    await K.page.evaluate(() => document.fonts.ready)
+    const g = await barGeo(K)
+    const name = `${c.w}px${c.tag || ''}`
+    check(`${name}: "Con | Phụ huynh", "Đổi người học", "Đăng xuất" cùng MỘT HÀNG, ba ô cao bằng nhau (${g.h.join('/')})`,
+      g.labels === 'Con · Phụ huynh · Đổi người học · Đăng xuất' && g.n === 3 && g.topSpread <= 1 && g.botSpread <= 1 && !g.overlap, JSON.stringify(g))
+    check(`${name}: thanh thẳng mép trái/phải với khung bên dưới, chữ không bị cắt, không tràn ngang`,
+      Math.abs(g.left) <= 2 && Math.abs(g.right) <= 2 && g.clipped.length === 0 && !g.hScroll, JSON.stringify(g))
+    // chữ không nhỏ quá: cùng một cỡ cho cả ba ô; từ 320px ≥ 11px, từ 376px (và máy tính) đủ cỡ .84rem (13,44px)
+    const minFs = c.w >= 376 ? 13.4 : c.w >= 320 ? 11 : 9
+    check(`${name}: cả ba ô cùng cỡ chữ ${g.fs.join('/')}px (≥ ${minFs}px)`, g.fs.length === 1 && g.fs[0] >= minFs, JSON.stringify(g.fs))
+    if (c.w === 320 && c.realFonts) await K.page.screenshot({ path: `${OUT}/t320_bar.png`, clip: { x: 0, y: 0, width: 320, height: 120 } })
+    check(`${name}: không lỗi trang`, K.errs.length === 0, K.errs.join(' | '))
+    await K.ctx.close()
+  }
+  // Nút "Đăng xuất" ở màn chọn con (không nằm trong thanh trên cùng) giữ kiểu cũ
+  {
+    const ctx = await browser.newContext({ viewport: { width: 320, height: 700 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true })
+    await useRealFonts(ctx)
+    const ACC = { username: '09pick' + RUN, password: '1', phone: '09pick' + RUN, parentPass: '1', plan: 1, pin: '3', children: [{ id: 'a' + RUN, name: 'An', pin: '', icon: '🦊', grade: 'Lớp 3' }, { id: 'b' + RUN, name: 'Bình', pin: '', icon: '🐼', grade: 'Lớp 5' }] }
+    await ctx.addInitScript((ACC) => { if (sessionStorage.getItem('s')) return; sessionStorage.setItem('s', '1'); localStorage.clear(); localStorage.setItem('ontap.account.v1', JSON.stringify(ACC)); localStorage.setItem('ontap.session.v1', '1') }, ACC)
+    const page = await ctx.newPage()
+    await page.goto(BASE + '/', { waitUntil: 'networkidle' })
+    await page.waitForSelector('.pick .ds-logout', { timeout: 10000 })
+    const fs = await page.$eval('.pick .ds-logout', (b) => getComputedStyle(b).fontSize)
+    check('màn chọn con: nút "Đăng xuất" trong khung vẫn kiểu cũ (chữ 12,16px ở 320px)', fs === '12.16px', fs)
+    await ctx.close()
   }
 }
 

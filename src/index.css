@@ -39,12 +39,18 @@ body{
 .stage{zoom:var(--fit,1);width:calc(100% / var(--fit,1));margin:0 auto}
 .stage{min-height:100vh;display:flex;flex-direction:column;align-items:center;gap:14px;padding:22px 14px 40px}
 /* Thanh trên cùng: RỘNG ĐÚNG BẰNG khung màn hình bên dưới (thẳng mép trái/phải) — chốt 13/10/2026.
-   Con/Phụ huynh bên trái · Đổi người học + Đăng xuất bên phải. Màn hẹp: chữ/đệm thu nhỏ để vẫn một hàng. */
-.demoswitch{width:100%;max-width:430px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;column-gap:clamp(4px,1.4vw,8px);row-gap:8px}
-.ds-actions{display:flex;align-items:center;gap:clamp(4px,1.4vw,8px);margin-left:auto} /* màn quá hẹp mới xuống hàng, vẫn sát mép phải */
-.ds-seg{display:flex;background:#fff;border:1px solid var(--border);border-radius:999px;padding:3px;box-shadow:0 2px 8px rgba(20,33,46,.05)}
-.ds-seg button{border:0;background:transparent;cursor:pointer;font-family:inherit;font-weight:600;font-size:clamp(.78rem,3.5vw,.86rem);color:var(--muted);padding:7px clamp(8px,2.4vw,15px);border-radius:999px;transition:.15s;white-space:nowrap}
+   Con/Phụ huynh bên trái · Đổi người học + Đăng xuất bên phải.
+   04/11/2026 (anh báo: trên iPhone 2 nút bên phải rớt xuống hàng dưới — iPhone bật "Thu phóng màn hình" chỉ rộng 320px):
+   BA Ô LUÔN MỘT HÀNG, CAO BẰNG NHAU. Cỡ chữ --ds-fs thu nhỏ theo bề rộng màn hình; đệm, khoảng cách, chiều cao đều tính
+   theo cỡ chữ nên cả thanh thu nhỏ đều nhau. Ba ô cần khoảng 24,3 lần cỡ chữ + 12px, khung màn hình rộng 100vw − 28px
+   -> cỡ chữ (100vw − 40px) / 25 là vừa, chừa dư ~3%. Từ 376px trở lên (và màn máy tính) dùng cỡ tối đa .84rem. */
+.demoswitch{--ds-fs:clamp(9px,calc((100vw - 40px) / 25),.84rem);width:100%;max-width:430px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;column-gap:calc(var(--ds-fs) * .4);row-gap:8px}
+.ds-actions{display:flex;align-items:center;gap:calc(var(--ds-fs) * .4);margin-left:auto} /* chỉ màn dưới ~260px mới xuống hàng, vẫn sát mép phải */
+.ds-seg{display:flex;align-items:stretch;height:calc(var(--ds-fs) * 2.75);background:#fff;border:1px solid var(--border);border-radius:999px;padding:3px;box-shadow:0 2px 8px rgba(20,33,46,.05)}
+.ds-seg button{border:0;background:transparent;cursor:pointer;font-family:inherit;font-weight:600;font-size:var(--ds-fs);line-height:1;color:var(--muted);padding:0 .55em;border-radius:999px;transition:.15s;white-space:nowrap}
 .ds-seg button.on{background:var(--teal);color:#fff}
+/* Hai nút bên phải: cùng cỡ chữ, cùng chiều cao, cùng bóng với ô Con/Phụ huynh. (Nút "Đăng xuất" ở màn chọn con giữ kiểu .ds-logout.) */
+.demoswitch .ds-logout{font-size:var(--ds-fs);line-height:1;height:calc(var(--ds-fs) * 2.75);padding:0 .55em;box-shadow:0 2px 8px rgba(20,33,46,.05)}
 
 /* Phone frame */
 .phone{
