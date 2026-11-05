@@ -7,16 +7,24 @@
 //    (thêm con, đổi email, đổi PIN, đổi mật khẩu). Đổi mật khẩu thì chìa khoá cũ ở các máy khác hết hiệu lực.
 //  - Chống dò mật khẩu: sai 10 lần trong 15 phút thì tạm khoá đăng nhập tài khoản đó 15 phút; mỗi địa chỉ mạng
 //    tối đa 60 lần đăng nhập / 10 phút, 20 lần đăng ký / giờ.
-//  - Bài học, báo cáo, bộ từ của từng con vẫn lưu trên máy con đã học (chưa đồng bộ giữa các máy).
-// Khoá trong kho: acct:u:<số điện thoại> (tài khoản), acct:e:<email> (-> số điện thoại), acct:rl:* (đếm chống dò / chống spam).
+//  - DỮ LIỆU HỌC của từng con (05/11/2026, hành động "data"): bản đồ kiến thức, thời gian học, nhật ký, câu đã gặp,
+//    bộ từ + lịch ôn Vở Spelling. Máy gửi bản của mình, máy chủ GỘP với bản đang lưu (api/_sync/merge.mjs: không mất bài,
+//    không cộng trùng giờ học) rồi trả bản gộp. Cài đặt phụ huynh (trắc nghiệm, khẩu hiệu) đi chung, tên tài liệu "_settings".
+// Khoá trong kho: acct:u:<số điện thoại> (tài khoản), acct:e:<email> (-> số điện thoại), acct:rl:* (đếm chống dò / chống spam),
+// acct:d:<số điện thoại>:<id con> (dữ liệu học, nén gzip), acct:dr:… (số phiên bản), acct:dl:… (khoá ngắn khi đang gộp).
 // Mọi kết quả nghiệp vụ (sai mật khẩu, số đã đăng ký…) trả HTTP 200 + { ok:false, error } để trình duyệt không báo lỗi đỏ.
 import crypto from "node:crypto";
+import zlib from "node:zlib";
 import { redis, redisEnv, send, readBody, clean, parse, clientIp } from "./_store.mjs";
+import { cleanDoc, mergeDocs, stable, okId } from "./_sync/merge.mjs";
 
 const K = {
   user: (phone) => "acct:u:" + phone,
   email: (em) => "acct:e:" + em,
   rl: (k) => "acct:rl:" + k,
+  data: (phone, child) => "acct:d:" + phone + ":" + child,
+  drev: (phone, child) => "acct:dr:" + phone + ":" + child,
+  dlock: (phone, child) => "acct:dl:" + phone + ":" + child,
 };
 const MAX_KIDS = 12;
 const FAIL_MAX = 10, FAIL_TTL = 900;          // sai mật khẩu 10 lần / 15 phút -> tạm khoá 15 phút
@@ -24,6 +32,19 @@ const LOGIN_IP_MAX = 60, LOGIN_IP_TTL = 600;  // mỗi địa chỉ mạng: 60 l
 const REG_IP_MAX = 20, REG_IP_TTL = 3600;     // mỗi địa chỉ mạng: 20 lần đăng ký (hoặc chuyển tài khoản cũ lên máy chủ) / giờ
 const CHECK_IP_MAX = 60;                      // kiểm tra số điện thoại / email đã đăng ký chưa: 60 lần / giờ
 const UPD_MAX = 300;                          // mỗi tài khoản: 300 lần cập nhật / giờ
+const DATA_MAX = 1500;                        // mỗi tài khoản: 1.500 lần gửi dữ liệu học / giờ (mọi con, mọi máy)
+const DOC_MAX = 6000000;                      // dữ liệu học một con tối đa ~6 MB (chữ JSON trước khi nén)
+const BODY_MAX = 8000000;                     // yêu cầu gửi dữ liệu học tối đa 8 MB
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Mở khoá gộp: chỉ xoá khoá nếu vẫn là khoá của chính lần này (khoá đã hết hạn và máy khác đang giữ thì để nguyên).
+export const UNLOCK = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+// Dữ liệu học lưu nén gzip (đỡ tốn chỗ + băng thông kho); "gz:" ở đầu để sau này đổi cách lưu vẫn đọc được bản cũ.
+const pack = (doc) => "gz:" + zlib.gzipSync(Buffer.from(JSON.stringify(doc), "utf8")).toString("base64");
+function unpack(raw) {
+  if (!raw) return null;
+  try { return String(raw).startsWith("gz:") ? JSON.parse(zlib.gunzipSync(Buffer.from(String(raw).slice(3), "base64")).toString("utf8")) : JSON.parse(raw); }
+  catch { return null; }
+}
 
 const normPhone = (v) => String(v == null ? "" : v).replace(/\D+/g, "");
 const okPhone = (p) => /^\d{8,12}$/.test(p);
@@ -127,7 +148,7 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return send(res, 405, { ok: false, error: "method" });
   if (!redisEnv()) return send(res, 200, { ok: false, error: "no_store", accounts: false });
   let b;
-  try { b = await readBody(req); } catch { return send(res, 400, { ok: false, error: "bad_json" }); }
+  try { b = await readBody(req, BODY_MAX); } catch { return send(res, 400, { ok: false, error: "bad_json" }); }
   b = b && typeof b === "object" ? b : {};
   const ip = clientIp(req);
   try {
@@ -234,6 +255,49 @@ export default async function handler(req, res) {
         const next = { ...acc, ...(await hashPass(b.next)), pwv: (acc.pwv || 1) + 1, rev: (acc.rev || 1) + 1, updated: Date.now() };
         await putAcc(next); await clearFails(acc.phone);
         return send(res, 200, { ok: true, token: tokenFor(next), account: pub(next) });
+      }
+      // DỮ LIỆU HỌC của một con (05/11/2026). Không kèm doc: hỏi bản mới nhất (gửi rev đang có, giống thì trả same).
+      // Kèm doc: gộp với bản đang lưu, lưu lại, trả bản gộp (giống hệt bản máy gửi thì chỉ trả same + rev).
+      case "data": {
+        const child = String(b.child == null ? "" : b.child);
+        if (!(child === "_settings" || (okId(child) && (acc.children || []).some((c) => c.id === child)))) return send(res, 200, { ok: false, error: "no_child" });
+        const dk = K.data(acc.phone, child), rk = K.drev(acc.phone, child);
+        if (b.doc == null) {
+          const [rv] = await redis([["GET", rk]]);
+          const rev = Number(rv) || 0;
+          if (rev && rev === Number(b.rev)) return send(res, 200, { ok: true, rev, same: true });
+          if (!rev) return send(res, 200, { ok: true, rev: 0, doc: null });
+          const [raw] = await redis([["GET", dk]]);
+          return send(res, 200, { ok: true, rev, doc: unpack(raw) });
+        }
+        if (await bump("data:" + acc.phone, DATA_MAX, 3600)) return send(res, 200, { ok: false, error: "slow_down" });
+        const incoming = mergeDocs(b.doc, b.doc);   // làm sạch + áp luật (dấu xoá, xoá hết dữ liệu)
+        const inStr = stable(incoming);
+        if (inStr.length > DOC_MAX) return send(res, 200, { ok: false, error: "too_big" });
+        // khoá ngắn: hai máy gửi cùng lúc thì lần lượt gộp, không máy nào ghi đè mất phần của máy kia
+        const lk = K.dlock(acc.phone, child), nonce = crypto.randomBytes(8).toString("hex");
+        let got = false;
+        for (let i = 0; i < 30 && !got; i++) {
+          const [r] = await redis([["SET", lk, nonce, "NX", "PX", "8000"]]);
+          got = r === "OK";
+          if (!got) await sleep(150);
+        }
+        if (!got) return send(res, 200, { ok: false, error: "busy" });
+        try {
+          const [raw, rv] = await redis([["GET", dk], ["GET", rk]]);
+          const cur = unpack(raw);
+          const merged = cur ? mergeDocs(cur, incoming) : incoming;
+          const mStr = stable(merged);
+          if (mStr.length > DOC_MAX) return send(res, 200, { ok: false, error: "too_big" });
+          let rev = Number(rv) || 0;
+          if (!cur || !rev || mStr !== stable(cleanDoc(cur))) {
+            rev += 1;
+            await redis([["SET", dk, pack(merged)], ["SET", rk, String(rev)]]);
+          }
+          return send(res, 200, mStr === inStr ? { ok: true, rev, same: true } : { ok: true, rev, doc: merged });
+        } finally {
+          await redis([["EVAL", UNLOCK, "1", lk, nonce]]).catch(() => {});
+        }
       }
       default:
         return send(res, 400, { ok: false, error: "bad_action" });

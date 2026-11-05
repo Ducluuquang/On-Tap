@@ -12,6 +12,7 @@ Cần: Node 22+, Playwright + Chromium (máy làm việc của Claude có sẵn;
 | t_acct_merge | gộp danh sách con khi hai máy đăng ký riêng cùng số (hàm thuần) |
 | t_api_account | máy chủ tài khoản: đăng ký, đăng nhập số điện thoại / email, chìa khoá, đổi / quên mật khẩu, chống dò |
 | t_ui_account | đăng nhập nhiều máy qua giao diện (mỗi "máy" một trình duyệt riêng) |
+| t_sync_merge, t_api_data, t_ui_data | đồng bộ dữ liệu học của từng con giữa các máy: hàm gộp + nhiều máy giả lập, máy chủ (hành động "data"), giao diện hai máy (A học -> B thấy, mục tiêu, Vở Spelling, xoá hết dữ liệu) |
 | t_engine, t_engine_many, t_engine_multi | luật Scrabble, máy tự chơi, luật nhà đặt nhiều từ ở nhiều chỗ (so với bộ luật viết riêng) |
 | t_api_arena, t_api_limit, t_api_scrabble, t_api_more, t_api_multi | máy chủ Thi đấu / Scrabble |
 | t_ui24, t_ui26, t_arena_regress, t_solo_games, t_leave_race, t_ui_more, t_ui_multi | giao diện Vở Spelling, Thi đấu, Scrabble |

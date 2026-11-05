@@ -364,12 +364,20 @@ if (only === 'all' || only === 'd') {
       const target = n - 1
       await K.page.$eval('.bl-arena', (e) => e.scrollIntoView({ block: 'center' })); await sleep(200)
       const a = await K.page.$eval('.bl-arena', (e) => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height } })
-      const bb = await K.page.locator('.bl-arena .balloon2').nth(target).boundingBox()
       const sx = a.x + a.w * 0.5, sy = a.y + a.h * 0.86
-      await K.page.mouse.move(sx, sy); await K.page.mouse.down()
-      await K.page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2, { steps: 6 }); await K.page.mouse.up()
-      await sleep(1500)
-      const shotCls = await K.page.$$eval('.bl-arena .balloon2', (els) => els.map((e) => e.className))
+      // bóng bay lơ lửng (đang chuyển động): đo lại vị trí NGAY trước khi thả; bắn trượt hẳn (không quả nào đổi) thì bắn lại,
+      // tối đa 3 lần (04/11/2026 — trước đây thỉnh thoảng hỏng vì bóng vừa bay đi lúc thả, cả bản cũ cũng vậy)
+      let shotCls = []
+      for (let k = 0; k < 3; k++) {
+        await K.page.mouse.move(sx, sy); await K.page.mouse.down()
+        let bb = await K.page.locator('.bl-arena .balloon2').nth(target).boundingBox()
+        await K.page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2, { steps: 4 })
+        bb = await K.page.locator('.bl-arena .balloon2').nth(target).boundingBox()
+        await K.page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2); await K.page.mouse.up()
+        await sleep(1500)
+        shotCls = await K.page.$$eval('.bl-arena .balloon2', (els) => els.map((e) => e.className))
+        if (shotCls.some((c) => / (hit|miss)/.test(c))) break
+      }
       check('1920: "Bắn bóng" khi phóng to — kéo cung ngắm quả bóng cuối thì trúng đúng quả đó', / (hit|miss)/.test(shotCls[target]), JSON.stringify(shotCls))
       await K.page.screenshot({ path: `${OUT}/d1920_balloon.png` })
     }

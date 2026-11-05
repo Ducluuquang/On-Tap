@@ -9,6 +9,10 @@
     "api/arena.mjs": {
       "maxDuration": 60,
       "includeFiles": "api/_scrabble/**"
+    },
+    "api/account.mjs": {
+      "maxDuration": 30,
+      "includeFiles": "api/_sync/**"
     }
   }
 }

@@ -12,7 +12,7 @@ export function send(res, status, obj) {
   res.setHeader("Cache-Control", "no-store");
   res.end(JSON.stringify(obj));
 }
-export async function readBody(req) {
+export async function readBody(req, max = MAX_BODY) {
   let b = req.body;
   if (Buffer.isBuffer(b)) b = b.toString("utf8");
   if (typeof b === "string") return JSON.parse(b || "{}");
@@ -21,7 +21,7 @@ export async function readBody(req) {
   let size = 0;
   for await (const ch of req) {
     size += ch.length;
-    if (size > MAX_BODY) { const e = new Error("too_large"); e.code = "too_large"; throw e; }
+    if (size > max) { const e = new Error("too_large"); e.code = "too_large"; throw e; }
     chunks.push(ch);
   }
   return JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");

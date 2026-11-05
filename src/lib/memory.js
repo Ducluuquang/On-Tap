@@ -267,16 +267,18 @@ function seed() {
   })
 }
 
+// Chuẩn hoá bản đồ kiến thức (mỗi lần mở app, và khi nhận dữ liệu gộp từ máy khác — src/lib/datasync.js):
+// nâng cấp cách tính % (dữ liệu cũ) + bỏ mục CHUNG CHUNG không phải kiến thức ("Ôn từ vựng", "Từ vựng cơ bản"…)
+// + GỘP mục nhỏ về CHỦ ĐỀ LỚN + bỏ kiến thức QUÁ HẠN + GỘP khái niệm TRÙNG + id không trùng.
+export function normalizeMem(list) {
+  const clean = (Array.isArray(list) ? list : []).filter((c) => c && !isVagueConcept(c.name)).map(upgradeConcept)
+  return uniqueIds(dedupeMem(pruneExpired(consolidateMem(clean))))
+}
+
 export function loadMemory() {
   try {
     const raw = localStorage.getItem(scopedKey(KEY))
-    // Mỗi lần mở app: nâng cấp cách tính % (dữ liệu cũ) + bỏ mục CHUNG CHUNG không phải kiến thức
-    // ("Ôn từ vựng", "Từ vựng cơ bản"…) + GỘP mục nhỏ về CHỦ ĐỀ LỚN + bỏ kiến thức QUÁ HẠN
-    // + GỘP khái niệm TRÙNG + id không trùng.
-    if (raw) {
-      const list = (JSON.parse(raw) || []).filter((c) => c && !isVagueConcept(c.name)).map(upgradeConcept)
-      return uniqueIds(dedupeMem(pruneExpired(consolidateMem(list))))
-    }
+    if (raw) return normalizeMem(JSON.parse(raw) || [])
   } catch (e) { /* bỏ qua */ }
   return [] // BẢN THẬT: bắt đầu trống, không còn khái niệm demo
 }

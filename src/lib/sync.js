@@ -1,7 +1,7 @@
 // ĐĂNG NHẬP NHIỀU MÁY (anh yêu cầu 01/11/2026): tài khoản phụ huynh (thông tin, gói, PIN phụ huynh, danh sách con)
 // lưu ở máy chủ (/api/account). Máy nào cũng đăng nhập được bằng số điện thoại hoặc email + mật khẩu.
 // Trên máy vẫn giữ một bản tài khoản (ontap.account.v1) để mở app không cần mạng, như trước.
-// Bài học, báo cáo, bộ từ của từng con vẫn lưu trên máy con học (khoá <tên kho>::<id con>), CHƯA đồng bộ giữa các máy.
+// Bài học, báo cáo, bộ từ của từng con (khoá <tên kho>::<id con>) đồng bộ riêng từ 05/11/2026: src/lib/datasync.js.
 //
 // Máy giữ: ontap.acctoken.v1 (chìa khoá máy chủ cấp khi đăng nhập/đăng ký — giữ cả khi đăng xuất, để "Quên mật khẩu"
 // trên máy này vẫn làm được), ontap.acctsync.v1 ({ dirty: có thay đổi chưa gửi, conflict: lý do chưa đồng bộ được }),

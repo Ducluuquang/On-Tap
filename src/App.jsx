@@ -9,8 +9,9 @@ import { loadAccount, saveAccount, loadSession, setSession as persistSession, no
 import {
   call as accountCall, syncNow, pushAccount, getToken, setToken, tokenPhone, getSyncState, setSyncState, fromRemote, toRemote,
   mergeChildren, remapChildData, backupAccount, backupAccounts, dropBackup, matchesLogin, phoneOf, validPhone, onlyDigits,
-  uploadIfNeeded, existsOnServer,
+  uploadIfNeeded, existsOnServer, childHasData,
 } from './lib/sync.js'
+import { syncChild, syncSettings, markReset, dataSyncStatus } from './lib/datasync.js'
 import { setActiveChild, getActiveChild, migrateGlobalToChild } from './lib/active.js'
 import { loadStats, saveStats, addSeconds, addSession, setGoalMin, resetStats } from './lib/stats.js'
 import { loadSettings, saveSettings } from './lib/settings.js'
@@ -304,6 +305,77 @@ export default function App() {
   useEffect(() => { saveMemory(mem) }, [mem])
   useEffect(() => { saveStats(stats) }, [stats])
   useEffect(() => { saveSettings(settings) }, [settings])
+
+  // ===== ĐỒNG BỘ DỮ LIỆU HỌC GIỮA CÁC MÁY (05/11/2026, src/lib/datasync.js) =====
+  // Mọi thay đổi bản đồ kiến thức / thời gian học / cài đặt GHI NGAY vào máy (commit…) chứ không đợi lượt vẽ màn hình,
+  // để lúc nhận bản gộp từ máy chủ biết chắc trên máy không còn phần nào chưa lưu (không ghi đè mất phần vừa học).
+  function commitMem(next) { saveMemory(next); setMem(next) }
+  function commitStats(fn) { const next = fn(loadStats()); saveStats(next); setStats(next) }
+  function commitSettings(fn) { const next = fn(loadSettings()); saveSettings(next); setSettings(next); scheduleSettingsSync() }
+  const viewRef = useRef(view); viewRef.current = view
+  const roleRef = useRef(role); roleRef.current = role
+  const authedRef = useRef(authed); authedRef.current = authed
+  const accountRef = useRef(account); accountRef.current = account
+  const syncTimer = useRef(null), setSyncTimer = useRef(null), lastSyncAt = useRef(0), appliedRef = useRef(false)
+  const [, setDataTick] = useState(0) // dữ liệu vừa đồng bộ -> vẽ lại (dòng tình trạng trong Cài đặt)
+  const tokenOk = () => { const t = getToken(), a = accountRef.current; return !!t && !!a && validPhone(phoneOf(a)) && tokenPhone(t) === phoneOf(a) }
+  const dataOpts = () => ({
+    spellingOpen: (id) => viewRef.current === 'spelling' && getActiveChild() === id, // Vở Spelling đang mở: chưa ghi bộ từ
+    onApplied: (id) => {
+      if (getActiveChild() === id) { appliedRef.current = true; setMem(loadMemory()); setStats(loadStats()) }
+      setDataTick((n) => n + 1)
+    },
+  })
+  function syncActiveData() {
+    const id = getActiveChild()
+    if (!authedRef.current || !id || !tokenOk()) return Promise.resolve()
+    lastSyncAt.current = Date.now()
+    return syncChild(id, dataOpts()).then(() => setDataTick((n) => n + 1)).catch(() => {})
+  }
+  function scheduleDataSync(ms = 3000) { clearTimeout(syncTimer.current); syncTimer.current = setTimeout(syncActiveData, ms) }
+  function runSettingsSync() {
+    if (!authedRef.current || !tokenOk()) return
+    syncSettings({ onApplied: () => setSettings(loadSettings()) }).catch(() => {})
+  }
+  function scheduleSettingsSync(ms = 2000) { clearTimeout(setSyncTimer.current); setSyncTimer.current = setTimeout(runSettingsSync, ms) }
+  // Mở app / vừa đăng nhập: cài đặt + con đang học trước, rồi các con khác có dữ liệu trên máy này.
+  async function syncAllData(kids) {
+    if (!authedRef.current || !tokenOk()) return
+    runSettingsSync()
+    await syncActiveData()
+    for (const c of kids || []) {
+      if (c && c.id && c.id !== getActiveChild() && childHasData(c.id)) await syncChild(c.id, dataOpts()).catch(() => {})
+    }
+  }
+  // Con đang học đổi (vào học, phụ huynh xem báo cáo con khác) -> lấy bản mới nhất của con đó.
+  useEffect(() => { if (authed && activeChild) syncActiveData() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [authed, activeChild?.id])
+  // Bản đồ kiến thức / thời gian học vừa đổi trên máy này -> gửi lên sau vài giây (gom các thay đổi liền nhau).
+  useEffect(() => {
+    if (appliedRef.current) { appliedRef.current = false; return } // vừa nhận từ máy chủ, không phải thay đổi mới
+    if (authed && activeChild) scheduleDataSync(4000)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mem, stats])
+  // Rời Vở Spelling -> gửi bộ từ + lịch ôn vừa chơi (lúc khung đang mở thì không ghi đè bộ từ).
+  const prevViewRef = useRef(view)
+  useEffect(() => {
+    if (prevViewRef.current === 'spelling' && view !== 'spelling') scheduleDataSync(300)
+    prevViewRef.current = view
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view])
+  // Quay lại app / có mạng trở lại -> đồng bộ. Phụ huynh đang xem báo cáo: mỗi phút hỏi bản mới (con học ở máy khác).
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === 'visible' && Date.now() - lastSyncAt.current > 10000) { syncActiveData(); scheduleSettingsSync(500) }
+    }
+    const onOnline = () => { syncActiveData(); scheduleSettingsSync(500) }
+    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('online', onOnline)
+    const iv = setInterval(() => {
+      if (roleRef.current === 'parent' && document.visibilityState === 'visible' && Date.now() - lastSyncAt.current > 55000) syncActiveData()
+    }, 15000)
+    return () => { document.removeEventListener('visibilitychange', onVis); window.removeEventListener('online', onOnline); clearInterval(iv) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   useEffect(() => {
     if (!toast) return undefined
     const t = setTimeout(() => setToast(''), 2600)
@@ -367,8 +439,9 @@ export default function App() {
     let alive = true
     syncNow(account).then((r) => {
       if (!alive || !r) return
-      if (r.logout) forceRelogin()
-      else if (r.account) applySyncedAccount(r.account, r.remaps || [])
+      if (r.logout) { forceRelogin(); return }
+      if (r.account) { accountRef.current = r.account; applySyncedAccount(r.account, r.remaps || []) }
+      syncAllData((r.account || account).children) // dữ liệu học của các con (05/11/2026)
     }).catch(() => { /* mất mạng: dùng tài khoản trên máy */ })
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -516,8 +589,10 @@ export default function App() {
   }
   // Xoá dữ liệu học tập CỦA CON ĐANG HỌC (bản đồ kiến thức, báo cáo, thời gian, lịch sử câu) — làm lại từ đầu.
   function resetLearningData() {
+    if (activeChild) markReset(activeChild.id) // mọi máy cùng bắt đầu lại (lần đồng bộ tới)
     resetMemory(); resetStats(); resetRecent(); resetSpelling()
     setMem([]); setStats(loadStats()); setSession(null)
+    scheduleDataSync(300)
     setToast(`Đã xoá dữ liệu học tập của ${activeChild?.name || 'con'} — bắt đầu lại từ đầu ✓`)
     setView(role === 'child' ? 'home' : 'dashboard')
   }
@@ -710,7 +785,7 @@ export default function App() {
     const loadSec = loadSecondsRef.current || 0
     const studySeconds = Math.round((summary.activeSeconds || 0) + loadSec)
     // Cộng thời gian học + ghi NHẬT KÝ theo ngày/môn (số câu, đúng, sai, thời gian) cho phụ huynh.
-    setStats((s) => addSession(addSeconds(s, studySeconds), {
+    commitStats((s) => addSession(addSeconds(s, studySeconds), {
       subject: reviewSubjectRef.current || 'Môn khác',
       total: summary.total || 0,
       correct: summary.correct || 0,
@@ -719,11 +794,12 @@ export default function App() {
     loadSecondsRef.current = 0 // đã cộng xong, tránh cộng trùng
     // MỘT phép tính duy nhất cho cả màn "Thay đổi hôm nay" và bản đồ kiến thức -> báo cáo của con
     // và của phụ huynh LUÔN KHỚP. Gộp chủ đề trùng (hoa/thường), tính từ điểm thật (không dùng mốc giả).
-    const { mem: nextMem, deltas } = applyReviewResults(mem, perConcept, {
+    // Tính trên bản đồ MỚI NHẤT trên máy (có thể vừa nhận thêm bài từ máy khác trong lúc con làm bài).
+    const { mem: nextMem, deltas } = applyReviewResults(loadMemory(), perConcept, {
       choice: reviewMode !== 'typed', // tự gõ đáp án: +20/câu; trắc nghiệm & game: +14/câu
       subject: reviewSubjectRef.current || '',
     })
-    setMem(nextMem)
+    commitMem(nextMem)
     setSession({ ...summary, deltas, studySeconds })
     setStreak((s) => s + 1)
     setView('result')
@@ -731,7 +807,13 @@ export default function App() {
 
   // ===== TRÒ CHƠI TỪ VỰNG = app "Vở Spelling" (chốt 22/10/2026, thay 6 trò cũ) =====
   // Mở từ "Bắt đầu ôn" -> Tiếng Anh. Quay về thì vẫn đang chọn môn Tiếng Anh.
-  function openSpelling() { setCrSubject('Tiếng Anh'); setView('spelling') }
+  // Trước khi mở: lấy bộ từ mới nhất (vd vừa tạo ở máy khác) — khung Vở Spelling đã mở thì không ghi đè bộ từ được nữa.
+  // Mạng chậm quá 2,5 giây thì mở luôn (lần sau sẽ có).
+  async function openSpelling() {
+    setCrSubject('Tiếng Anh')
+    if (authedRef.current && tokenOk()) await Promise.race([syncActiveData(), new Promise((ok) => setTimeout(ok, 2500))])
+    setView('spelling')
+  }
   // Xong một lượt chơi trong Vở Spelling: ghi thời gian học + số câu đúng/sai vào báo cáo của con (môn Tiếng Anh),
   // giống các trò ôn tập khác -> tính vào mục tiêu mỗi ngày và đường đến phần thưởng.
   // (Lịch ôn từng từ do Vở Spelling tự lo; bản đồ kiến thức không đổi.)
@@ -741,7 +823,7 @@ export default function App() {
     const correct = Math.min(total, Math.max(0, Math.round(num(d.correct))))
     const sec = Math.min(3600, Math.max(0, Math.round(num(d.seconds))))
     if (!total && !sec) return
-    setStats((s) => (total
+    commitStats((s) => (total
       ? addSession(addSeconds(s, sec), { subject: 'Tiếng Anh', total, correct, sec })
       : addSeconds(s, sec)))
   }
@@ -753,8 +835,8 @@ export default function App() {
     const chosen = (pending?.concepts || [])
       .filter((c) => checked[c.id])
       .map((c) => ({ ...c, subject: subj, topic: pending.topic }))
-    const nextMem = addConcepts(mem, chosen)
-    setMem(nextMem)
+    const nextMem = addConcepts(loadMemory(), chosen)
+    commitMem(nextMem)
     setToast(`Đã lưu ${chosen.length} chủ đề vào bộ nhớ của con ✓`)
     setPending(null)
     setView(role === 'child' ? 'home' : 'dashboard')
@@ -838,8 +920,9 @@ export default function App() {
     screen = <Settings account={account} settings={settings} stats={stats} unlocked={parentUnlocked} childName={activeChild?.name || ''}
       sync={syncInfo()}
       onChangePassword={changePassword} onSaveEmail={saveEmail} onSetPin={setParentPin} onResetData={resetLearningData}
-      onSetGoal={(min) => setStats((s) => setGoalMin(s, min))}
-      onToggleChoice={(v) => setSettings((s) => ({ ...s, allowChoice: v }))}
+      dataSync={dataSyncStatus(activeChild.id)}
+      onSetGoal={(min) => commitStats((s) => setGoalMin(s, min))}
+      onToggleChoice={(v) => commitSettings((s) => ({ ...s, allowChoice: v }))}
       onBack={() => { if (role === 'child') setParentUnlocked(false); setView(homeView) }} />
   } else if (role === 'child') {
     if (view === 'custom') {
@@ -877,7 +960,7 @@ export default function App() {
     } else {
       screen = <ChildHome mem={mem} stats={stats} child={activeChild}
         slogan={settings.slogan || ''}
-        onSetSlogan={(s) => setSettings((x) => ({ ...x, slogan: s }))}
+        onSetSlogan={(s) => commitSettings((x) => ({ ...x, slogan: s }))}
         onReview={() => { setCrSubject(null); setView('custom') }}
         onReviewSubject={(name) => { setCrSubject(name); setView('custom') }}
         onCapture={() => setView('capture')}

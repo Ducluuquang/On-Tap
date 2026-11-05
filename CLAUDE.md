@@ -11,7 +11,7 @@
 - PWA "Ôn Tập" (React 19 + Vite) cho học sinh ôn bài; chạy trên Vercel: https://on-tap-three.vercel.app — Vercel tự đưa lên khi nhánh `main` có commit mới.
 - Hàm máy chủ: `api/*.mjs` — `ai` (soạn câu hỏi), `spelling` (Vở Spelling), `arena` (Thi đấu + Scrabble, `api/_scrabble/`), `account` (tài khoản đăng nhập nhiều máy), `ics` (lịch nhắc). Kho dữ liệu: Upstash Redis; khoá AI `ANTHROPIC_API_KEY` và thông tin kho chỉ nằm trong cài đặt Vercel.
 - Trò chơi từ vựng = app "Vở Spelling" trong `public/spelling/` (`index.html`, `arena.js`, `scrabble.js`, css). Chỗ sửa so với bản gốc có ghi chú "Ôn Tập:".
-- Mỗi con có dữ liệu học riêng trên máy (khoá `<kho>::<id con>`); tài khoản phụ huynh + danh sách con đồng bộ qua `/api/account` (`src/lib/sync.js`).
+- Mỗi con có dữ liệu học riêng (trên máy: khoá `<kho>::<id con>`), đồng bộ giữa các máy qua `/api/account` hành động "data" (`src/lib/datasync.js`); tài khoản phụ huynh + danh sách con đồng bộ qua `/api/account` (`src/lib/sync.js`).
 
 ## Quy trình mỗi yêu cầu
 1. Làm thay đổi; viết / cập nhật phép thử trong `tests/` (Playwright + máy chủ thử, AI giả). Sửa lỗi thì có đối chứng: bản cũ phải hỏng đúng chỗ.
@@ -28,6 +28,7 @@
 - Thanh trên cùng (04/11/2026): "Con | Phụ huynh", "Đổi người học", "Đăng xuất" luôn MỘT HÀNG, ba ô cao bằng nhau, thẳng mép khung — kể cả iPhone bật "Thu phóng màn hình" (chỉ rộng 320px): màn hẹp thì chữ + đệm cùng thu nhỏ (`--ds-fs` trong `src/index.css`), không cho xuống hàng. Phép thử: `t_ui28` phần T.
 - Ô chọn (04/11/2026): KHÔNG dùng danh sách xổ xuống của trình duyệt (`<select>`): chữ trong danh sách rất nhỏ (nhất là máy tính), anh đã báo 2 lần. Ôn Tập dùng `SelectPicker` (`src/components.jsx`); Vở Spelling tự đổi mọi `<select class="inp">` thành danh sách vẽ trong trang (đoạn "DANH SÁCH CHỌN TỰ VẼ" trong `public/spelling/index.html`, thẻ select gốc vẫn giữ giá trị + sự kiện "change"). Phép thử: `t_ui_pick`.
 - Giao diện của con (28/10/2026): trang chủ chia vùng màu (việc chính hôm nay, chuỗi ngày + quà, việc khác, môn học); màn "Bắt đầu ôn" có Cách 1 (gợi ý) và Cách 2 (3 bước). Thẻ gợi ý chỉ ghi chủ đề CẦN ÔN.
-- Đăng nhập (01/11/2026): bằng số điện thoại hoặc email trên mọi máy; mật khẩu chỉ lưu mã băm; mất mạng vẫn đăng nhập trên máy như cũ. Bài học / báo cáo của con chưa đồng bộ giữa các máy.
+- Đăng nhập (01/11/2026): bằng số điện thoại hoặc email trên mọi máy; mật khẩu chỉ lưu mã băm; mất mạng vẫn đăng nhập trên máy như cũ.
+- Dữ liệu học đồng bộ giữa các máy (05/11/2026): bản đồ kiến thức, thời gian học + nhật ký, câu đã gặp, bộ từ + lịch ôn Vở Spelling của từng con, cài đặt phụ huynh (`src/lib/datasync.js` + `/api/account` hành động "data", gộp ở `api/_sync/merge.mjs`). Gộp không mất bài, không cộng trùng: giờ học theo bộ đếm riêng từng máy; khái niệm / bộ từ theo id + giờ sửa + dấu xoá; "Xoá hết dữ liệu" lan sang mọi máy. Thay đổi dữ liệu học trong App phải GHI NGAY (`commitMem`, `commitStats`, `commitSettings`), đừng chỉ `setMem`. Phép thử: `t_sync_merge`, `t_api_data`, `t_ui_data`.
 - Tài khoản đăng ký trước 01/11 chỉ nằm trên máy đã đăng ký: mở app trên máy đó (kể cả đang đăng xuất) là tự lên máy chủ (03/11/2026). Máy mới đăng nhập số chưa có trên máy chủ thì báo rõ phải mở máy cũ hoặc đăng ký.
 - Tài liệu chi tiết từng phần nằm trong Claude Project "On Tap" (các file `claude/*.md`) nếu phiên có gắn dự án đó.

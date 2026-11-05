@@ -1,7 +1,14 @@
 import { useState } from 'react'
 import { BackHeader } from '../components.jsx'
 
-export default function Settings({ account, settings, stats, unlocked = false, childName = '', sync = null, onChangePassword, onSaveEmail, onSetPin, onResetData, onSetGoal, onToggleChoice, onBack }) {
+// Giờ:phút (hôm nay) hoặc ngày/tháng giờ:phút.
+function fmtTime(ms) {
+  const d = new Date(ms), now = new Date(), p = (n) => String(n).padStart(2, '0')
+  const t = p(d.getHours()) + ':' + p(d.getMinutes())
+  return d.toDateString() === now.toDateString() ? t : `${p(d.getDate())}/${p(d.getMonth() + 1)} ${t}`
+}
+
+export default function Settings({ account, settings, stats, unlocked = false, childName = '', sync = null, dataSync = null, onChangePassword, onSaveEmail, onSetPin, onResetData, onSetGoal, onToggleChoice, onBack }) {
   // Mục tiêu & dữ liệu học tập là RIÊNG TỪNG CON -> ghi rõ tên con đang cài (tránh xoá nhầm con).
   const forKid = childName ? ` · ${childName}` : ''
   const [confirmReset, setConfirmReset] = useState(false)
@@ -140,11 +147,19 @@ export default function Settings({ account, settings, stats, unlocked = false, c
       {onResetData && (
         <section className="set-sec">
           <h3>Dữ liệu học tập{forKid}</h3>
+          {/* Đồng bộ dữ liệu học giữa các máy (05/11/2026) */}
+          {dataSync && sync && sync.state === 'synced' && (
+            <div className="set-sync">
+              {dataSync.ok && !dataSync.pending
+                ? <><b className="ok">✓ Bài học, báo cáo, bộ từ của {childName || 'con'} có trên mọi máy</b><span>Cập nhật lần cuối lúc {fmtTime(dataSync.ok)}. Học ở máy nào, máy khác mở app cũng thấy.</span></>
+                : <><b className="warn">Đang chờ mạng để gửi bài học mới nhất lên máy chủ</b><span>Có mạng app sẽ tự gửi; sau đó máy khác mở app là thấy.</span></>}
+            </div>
+          )}
           {!confirmReset ? (
             <button className="cta small ghost" onClick={() => setConfirmReset(true)}>🗑️ Xoá hết dữ liệu &amp; làm lại từ đầu</button>
           ) : (
             <>
-              <p className="cr-hint">Xoá toàn bộ bản đồ kiến thức, báo cáo, thời gian học, bộ từ và lịch ôn của trò chơi từ vựng của <b>{childName || 'con'}</b> và bắt đầu lại từ số 0. Các con khác không bị ảnh hưởng. Không hoàn tác được.</p>
+              <p className="cr-hint">Xoá toàn bộ bản đồ kiến thức, báo cáo, thời gian học, bộ từ và lịch ôn của trò chơi từ vựng của <b>{childName || 'con'}</b> và bắt đầu lại từ số 0, trên mọi máy. Các con khác không bị ảnh hưởng. Không hoàn tác được.</p>
               <div className="modal-btns">
                 <button className="cta small ghost" onClick={() => setConfirmReset(false)}>Huỷ</button>
                 <button className="cta small danger" onClick={() => { setConfirmReset(false); openPin(null, 'reset') }}>Xoá &amp; làm lại</button>
