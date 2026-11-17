@@ -1,5 +1,19 @@
-import { useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { BackHeader } from '../components.jsx'
+import { booksCall } from '../lib/books.js'
+
+// Thư viện sách dùng chung (09/11/2026): chỉ quản trị thấy; màn này (và pdf.js) chỉ nạp khi máy chủ xác nhận là quản trị.
+const Library = lazy(() => import('./Library.jsx'))
+function LibraryGate() {
+  const [state, setState] = useState(null) // null | { books }
+  useEffect(() => {
+    let on = true
+    booksCall('list').then((r) => { if (on && r.ok && r.admin) setState({ books: r.books || [] }) })
+    return () => { on = false }
+  }, [])
+  if (!state) return null
+  return <Suspense fallback={null}><Library initial={state.books} /></Suspense>
+}
 
 // Giờ:phút (hôm nay) hoặc ngày/tháng giờ:phút.
 function fmtTime(ms) {
@@ -168,6 +182,8 @@ export default function Settings({ account, settings, stats, unlocked = false, c
           )}
         </section>
       )}
+
+      <LibraryGate />
 
       {pinStep && (
         <div className="modal-back" onClick={closePin}>

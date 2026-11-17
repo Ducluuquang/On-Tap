@@ -55,6 +55,15 @@ async function askModel(key, model, content, max) {
   throw new Error('Không gọi được model ' + model)
 }
 
+// Cách tắt thinking chạy được với model này (dùng cho Message Batches — đọc chữ sách, api/books.mjs):
+// thử một câu rất ngắn theo đúng thứ tự như askModel, nhớ kết quả. Không thử được -> null (không gửi tham số thinking).
+export async function thinkingFor(key, model) {
+  if (!thinkingOk.has(model)) {
+    try { await askModel(key, model, [{ type: 'text', text: 'OK' }], 8) } catch { return null }
+  }
+  return THINKING_OPTIONS[thinkingOk.get(model) ?? 2] || null
+}
+
 async function ask(key, content, max = 2500, { fast = false } = {}) {
   const model = await pickModel(key, { fast })
   try {

@@ -23,6 +23,7 @@ import zlib from "node:zlib";
 import { redis, redisEnv, send, readBody, clean, parse, clientIp } from "./_store.mjs";
 import { cleanDoc, mergeDocs, stable, okId } from "./_sync/merge.mjs";
 import { mailReady, sendMail } from "./_mail.mjs";
+import { okPhone, signKey, tokenFor, readToken } from "./_acctkey.mjs";
 
 const K = {
   user: (phone) => "acct:u:" + phone,
@@ -58,7 +59,6 @@ function unpack(raw) {
 }
 
 const normPhone = (v) => String(v == null ? "" : v).replace(/\D+/g, "");
-const okPhone = (p) => /^\d{8,12}$/.test(p);
 const normEmail = (v) => String(v == null ? "" : v).trim().toLowerCase();
 const okEmail = (e) => e.length <= 120 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 const okPass = (p) => typeof p === "string" && p.length >= 4 && p.length <= 64;
@@ -76,19 +76,7 @@ async function checkPass(acc, pass) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-/* ---------- Chìa khoá của máy đã đăng nhập ---------- */
-const signKey = () => { const c = redisEnv(); return crypto.createHash("sha256").update("ontap-acct|" + (process.env.ACCOUNT_SECRET || (c ? c.token || c.url : ""))).digest(); };
-const sig = (phone, pwv) => crypto.createHmac("sha256", signKey()).update("acct|" + phone + "|" + pwv).digest("base64url");
-const tokenFor = (acc) => Buffer.from(acc.phone).toString("base64url") + "." + acc.pwv + "." + sig(acc.phone, acc.pwv);
-function readToken(req) {
-  const m = /^Bearer ([A-Za-z0-9_-]{8,24})\.(\d{1,6})\.([A-Za-z0-9_-]{30,60})$/.exec(String((req.headers && req.headers.authorization) || ""));
-  if (!m) return null;
-  const phone = Buffer.from(m[1], "base64url").toString("utf8"), pwv = Number(m[2]);
-  if (!okPhone(phone)) return null;
-  const a = Buffer.from(m[3]), b = Buffer.from(sig(phone, pwv));
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
-  return { phone, pwv };
-}
+/* ---------- Chìa khoá của máy đã đăng nhập: api/_acctkey.mjs ---------- */
 
 /* ---------- Mã quên mật khẩu (chỉ lưu HMAC của mã) ---------- */
 const codeMac = (phone, code) => crypto.createHmac("sha256", signKey()).update("forgot|" + phone + "|" + code).digest("base64url");

@@ -13,6 +13,10 @@
     "api/account.mjs": {
       "maxDuration": 30,
       "includeFiles": "api/_sync/**"
+    },
+    "api/books.mjs": {
+      "maxDuration": 60,
+      "includeFiles": "api/_books/**"
     }
   }
 }
