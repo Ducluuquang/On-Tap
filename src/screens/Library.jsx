@@ -1,6 +1,6 @@
-// THƯ VIỆN SÁCH (DÙNG CHUNG) — mục trong Cài đặt, CHỈ hiện với quản trị (số điện thoại trong ADMIN_PHONES ở Vercel).
+// THƯ VIỆN SÁCH (DÙNG CHUNG) — mục "📚 Thư viện sách" của trang quản trị /quan-tri (17/11/2026; trước đó nằm trong Cài đặt).
 // Nạp sách PDF (ảnh chụp trang) -> trình duyệt vẽ + cắt đôi từng trang -> gửi máy chủ theo nhóm nhỏ -> AI chép chữ (Message
-// Batches). Gửi ảnh xong đóng app được; mở lại Cài đặt là thấy tiến độ. Nửa trang lỗi / bị cắt: app tự gửi lại khi còn
+// Batches). Gửi ảnh xong đóng trang được; mở lại là thấy tiến độ. Nửa trang lỗi / bị cắt: app tự gửi lại khi còn
 // giữ file, không thì hiện nút "Chọn lại file" để gửi phần còn thiếu.
 import { useEffect, useRef, useState } from 'react'
 import { SelectPicker } from '../components.jsx'
@@ -107,7 +107,7 @@ export default function Library({ initial = [] }) {
         done++
       }
       if (!(await flush())) return
-      if (alive.current) setMsg({ id: book.id, ok: true, text: 'Đã gửi ảnh xong ✓ AI đang đọc chữ (thường dưới 1 giờ). Anh có thể đóng app; mở lại Cài đặt để xem tiến độ.' })
+      if (alive.current) setMsg({ id: book.id, ok: true, text: 'Đã gửi ảnh xong ✓ AI đang đọc chữ (thường dưới 1 giờ). Anh có thể đóng trang; mở lại trang quản trị để xem tiến độ.' })
       return last
     } catch {
       if (alive.current) setMsg({ id: book.id, ok: false, text: 'Không vẽ được trang sách từ file này. Thử chọn lại file.' })

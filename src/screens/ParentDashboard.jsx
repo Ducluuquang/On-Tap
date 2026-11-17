@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BackHeader, StatusPill, MasteryBar, RewardTrack } from '../components.jsx'
 import { conceptStatusList } from '../lib/mockAI.js'
 import { last7, totalMinutes, todayMinutes, streakDays, dayReport } from '../lib/stats.js'
 import { subjectDisplayName, subjectIcon } from '../lib/subjects.js'
 import { iconFor } from '../lib/icons.js'
 import { isVocabGroup } from '../lib/topics.js'
+import { fetchUnread, viewerOf } from '../lib/feedback.js'
 import logoMark from '../assets/logo-mark.png'
 
 const WD = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
@@ -58,7 +59,9 @@ function StudyChart({ stats, sel, onSel }) {
 
 // viewer = 'parent' (đầy đủ: sửa môn, vào cài đặt) | 'child' (học sinh CHỈ XEM báo cáo của mình).
 // kids + onViewChild: hàng icon các con ở tab Phụ huynh — bấm icon để xem báo cáo của con đó.
-export default function ParentDashboard({ mem, stats, child, kids = [], onViewChild, viewer = 'parent', onBack, onSettings, toast }) {
+export default function ParentDashboard({ mem, stats, child, kids = [], onViewChild, viewer = 'parent', onBack, onSettings, onFeedback, toast }) {
+  const [fbUnread, setFbUnread] = useState(0)   // góp ý có câu trả lời mới (chấm đỏ)
+  useEffect(() => { if (onFeedback) fetchUnread(viewerOf('parent')).then(setFbUnread).catch(() => {}) }, [!!onFeedback]) // eslint-disable-line react-hooks/exhaustive-deps
   const isKid = viewer === 'child'
   const childName = (child && child.name) || 'con'
   const allConcepts = conceptStatusList(mem)
@@ -202,6 +205,9 @@ export default function ParentDashboard({ mem, stats, child, kids = [], onViewCh
       {/* Cài đặt (mục tiêu, bật/tắt trắc nghiệm) chỉ dành cho PHỤ HUYNH — học sinh chỉ xem báo cáo. */}
       {!isKid && onSettings && (
         <button className="cta" onClick={onSettings}>⚙️ Mục tiêu &amp; bật/tắt trắc nghiệm</button>
+      )}
+      {!isKid && onFeedback && (
+        <button className="cta ghost pd-fb" onClick={onFeedback}>💬 Góp ý / báo lỗi cho Ôn Tập{fbUnread ? <i className="dot" aria-label="có trả lời mới" /> : null}</button>
       )}
 
       <footer className="foot">

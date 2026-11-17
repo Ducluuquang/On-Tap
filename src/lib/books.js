@@ -1,7 +1,8 @@
-// THƯ VIỆN SÁCH DÙNG CHUNG (09/11/2026) — phần trình duyệt: gọi /api/books (chỉ quản trị nạp / xoá sách),
+// THƯ VIỆN SÁCH DÙNG CHUNG (09/11/2026) — phần trình duyệt: gọi /api/books (chỉ quản trị nạp / xoá sách, ở trang /quan-tri
+// từ 17/11/2026, dùng chìa khoá đăng nhập của trang quản trị),
 // gợi ý thông tin sách từ tên file, ước tính chi phí đọc chữ. Phần vẽ PDF nằm riêng ở src/lib/bookIngest.js (chỉ nạp
 // khi quản trị mở màn Thư viện sách, không làm nặng app).
-import { getToken } from './sync.js'
+import { getAdminToken } from './adminApi.js'
 
 export const COST_USD_PER_PAGE = 0.0095   // ~0,0095 USD mỗi trang (2 nửa trang, Message Batches nửa giá)
 export const VND_PER_PAGE = 250           // ≈ 250đ mỗi trang
@@ -12,7 +13,7 @@ export const BOOK_SUBJECTS = ['Ngữ văn', 'Tiếng Việt', 'Toán', 'Tiếng 
   'Hoạt động trải nghiệm', 'Âm nhạc', 'Mĩ thuật']
 
 export async function booksCall(action, body = {}, timeoutMs = 60000) {
-  const token = getToken()
+  const token = getAdminToken()
   if (!token) return { ok: false, error: 'bad_token' }
   const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null
   const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null

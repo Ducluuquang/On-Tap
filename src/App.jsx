@@ -23,6 +23,7 @@ import { resetSpelling, cleanupOldVocabGames } from './lib/spelling.js'
 import Auth from './screens/Auth.jsx'
 import ChildPicker from './screens/ChildPicker.jsx'
 import Settings from './screens/Settings.jsx'
+import Feedback from './screens/Feedback.jsx'
 import ChildHome from './screens/ChildHome.jsx'
 import CustomReview from './screens/CustomReview.jsx'
 import Review from './screens/Review.jsx'
@@ -938,7 +939,10 @@ export default function App() {
   }
 
   let screen = null
-  if (view === 'settings') {
+  if (view === 'feedback') {
+    // Góp ý / báo lỗi (17/11/2026): học sinh (từ trang chủ) và phụ huynh (từ trang báo cáo) đều gửi được.
+    screen = <Feedback who={role === 'child' ? 'child' : 'parent'} child={activeChild} screen={role === 'child' ? 'trang chủ con' : 'trang phụ huynh'} onBack={() => setView(homeView)} />
+  } else if (view === 'settings') {
     screen = <Settings account={account} settings={settings} stats={stats} unlocked={parentUnlocked} childName={activeChild?.name || ''}
       sync={syncInfo()}
       onChangePassword={changePassword} onSaveEmail={saveEmail} onSetPin={setParentPin} onResetData={resetLearningData}
@@ -986,13 +990,14 @@ export default function App() {
         onReview={() => { setCrSubject(null); setView('custom') }}
         onReviewSubject={(name) => { setCrSubject(name); setView('custom') }}
         onCapture={() => setView('capture')}
-        onReport={() => setView('report')} />
+        onReport={() => setView('report')}
+        onFeedback={() => setView('feedback')} />
     }
   } else {
     // Phụ huynh chỉ xem báo cáo + vào Cài đặt (mục tiêu, bật/tắt trắc nghiệm).
     screen = <ParentDashboard key={activeChild?.id || 'none'} mem={mem} session={session} stats={stats} child={activeChild}
       kids={account?.children || []} onViewChild={viewChildInParent}
-      onSettings={() => setView('settings')} toast={toast} />
+      onSettings={() => setView('settings')} onFeedback={() => setView('feedback')} toast={toast} />
   }
 
   return (

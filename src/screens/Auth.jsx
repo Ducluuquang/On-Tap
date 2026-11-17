@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { CHILD_ICONS } from '../lib/icons.js'
 import { SelectPicker } from '../components.jsx'
 import logoFull from '../assets/logo-full.png'
+import { getPricesPublic, vnd } from '../lib/adminApi.js'
 
 // 4 khối trường (bấm tick để chọn).
 const SCHOOL_TYPES = ['Công lập', 'Tư thục', 'Song ngữ', 'Quốc tế (đơn ngữ)']
@@ -109,6 +110,11 @@ export default function Auth({ account, notice = '', onRegister, onLogin, onRese
   }, [mode, fStep])
   // Thanh toán (demo)
   const [cycle, setCycle] = useState('year')
+  // Bảng giá gói do quản trị đặt ở trang /quan-tri (17/11/2026). Chưa đặt (0) -> "liên hệ".
+  const [prices, setPrices] = useState(null)
+  useEffect(() => { getPricesPublic().then(setPrices) }, [])
+  const priceOf = (n, c) => { const x = prices && prices.plans && prices.plans[String(n)]; return x && x[c] ? vnd(x[c]) : '' }
+  const priceLine = (n) => { const m = priceOf(n, 'month'), y = priceOf(n, 'year'); return m || y ? [m && m + ' / tháng', y && y + ' / năm'].filter(Boolean).join(' · ') : 'Giá: liên hệ' }
   const [err, setErr] = useState('')
 
   const onlyDigits = (s) => (s || '').replace(/\D+/g, '')
@@ -343,6 +349,7 @@ export default function Auth({ account, notice = '', onRegister, onLogin, onRese
             <button className={'chip' + (cycle === 'year' ? ' on' : '')} onClick={() => setCycle('year')}>Hàng năm</button>
           </div>
 
+          <p className="auth-sub pay-price" data-testid="pay-price">{priceOf(plan, cycle) ? <>Số tiền: <b>{priceOf(plan, cycle)}</b> / {cycle === 'year' ? 'năm' : 'tháng'}</> : 'Giá: liên hệ'}</p>
           <div className="pay-box">
             <div className="pay-qr-wrap"><QR seed={seed} /></div>
             <div className="pay-bank">
@@ -401,6 +408,7 @@ export default function Auth({ account, notice = '', onRegister, onLogin, onRese
             <button type="button" key={n} className={'chip' + (plan === n ? ' on' : '')} onClick={() => setPlanN(n)}>{n} học sinh</button>
           ))}
         </div>
+        <p className="auth-hint reg-price" data-testid="reg-price">💰 Gói {plan} học sinh: <b>{priceLine(plan)}</b></p>
         <p className="auth-hint">Gói {plan} học sinh → điền {plan} khối thông tin con dưới đây. Mỗi con có bản đồ kiến thức riêng.</p>
 
         {kids.map((k, i) => (

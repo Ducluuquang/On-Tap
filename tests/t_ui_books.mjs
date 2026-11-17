@@ -1,10 +1,11 @@
-// THƯ VIỆN SÁCH qua giao diện thật (Cài đặt -> "Thư viện sách (dùng chung)"), sách PDF GIẢ tự tạo: mỗi trang là MỘT ảnh JPEG
+// THƯ VIỆN SÁCH qua giao diện thật (trang quản trị /quan-tri -> "📚 Thư viện sách"; từ 17/11/2026 không còn trong Cài đặt phụ huynh), sách PDF GIẢ tự tạo: mỗi trang là MỘT ảnh JPEG
 // (giống sách quét thật, không có lớp chữ). Đọc chữ = Message Batches giả của máy chủ thử (không gọi AI thật).
-//  1  Tài khoản thường: không thấy mục thư viện, không tải pdf.js. Quản trị: thấy mục thư viện; pdf.js chỉ tải khi chọn file.
+//  1  App của phụ huynh (kể cả tài khoản quản trị): Cài đặt KHÔNG có mục thư viện. Trang /quan-tri: tài khoản thường bị từ chối;
+//     quản trị đăng nhập -> "Thư viện sách"; pdf.js chỉ tải khi chọn file.
 //  2  Nạp "07-sgk-ngu-van-7-tap-mot.pdf": gợi ý Lớp 7 / Ngữ văn / SGK / "Ngữ văn 7 tập 1", số trang + chi phí ước tính;
 //     ảnh gửi đi: rộng ≤ 1100 px, mỗi nửa ≤ 1,15 MP, cắt đúng khe trắng (không cắt ngang dòng chữ), mỗi yêu cầu < 4 MB;
 //     một nửa trang lỗi -> app còn giữ file tự gửi lại -> "Đã đọc xong".
-//  3  "Bài tập Ngữ Văn 7 Tập 1.pdf" -> SBT; gửi ảnh xong ĐÓNG APP; batch xong (có nửa trang lỗi) -> mở lại Cài đặt thấy tiến độ,
+//  3  "Bài tập Ngữ Văn 7 Tập 1.pdf" -> SBT; gửi ảnh xong ĐÓNG APP; batch xong (có nửa trang lỗi) -> mở lại trang quản trị thấy tiến độ,
 //     nút "Chọn lại file PDF" -> chọn nhầm file khác số trang thì báo, chọn đúng file -> đọc xong.
 //  4  Xoá sách qua giao diện.
 import { pw, OUT_DIR } from './_env.mjs'
@@ -105,6 +106,17 @@ async function login(d, phone) {
   await d.page.fill('.pick-pinbox input', '7'); await d.page.click('.pick-pinbox button.cta')
   await d.page.waitForSelector('.kh-cta', { timeout: 10000 })
 }
+async function adminPage(d) {   // trang quản trị: đăng nhập nếu cần, mở mục Thư viện sách
+  await d.page.goto(BASE + '/quan-tri', { waitUntil: 'networkidle' })
+  if (await d.page.locator('.adm-login').count()) {
+    await d.page.fill('.adm-login input[placeholder="Số điện thoại hoặc email"]', ADMIN)
+    await d.page.fill('.adm-login input[type=password]', PASS)
+    await d.page.click('.adm-login button.cta')
+  }
+  await d.page.waitForSelector('.adm-tabs', { timeout: 10000 })
+  await d.page.click('.adm-tab:has-text("Thư viện sách")')
+  await d.page.waitForSelector('[data-testid=library]', { timeout: 10000 })
+}
 async function parentSettings(d) {
   await d.page.click('.ds-seg button:has-text("Phụ huynh")')
   await d.page.waitForSelector('.modal input', { timeout: 5000 })
@@ -120,16 +132,23 @@ const U = await device('U')
 await login(U, USER)
 await parentSettings(U)
 await U.page.waitForLoadState('networkidle'); await sleep(800)
-const askedU = U.reqs.some((r) => r.url.endsWith('/api/books'))
-check('tài khoản thường: Cài đặt KHÔNG có mục "Thư viện sách"; không tải màn thư viện / pdf.js', askedU && (await U.page.locator('[data-testid=library]').count()) === 0 && !/Thư viện sách/.test(await U.page.locator('.screen').innerText()) && !U.reqs.some((r) => /Library-|bookIngest|pdf\.worker/.test(r.url)))
+check('app phụ huynh (tài khoản thường): Cài đặt KHÔNG có mục "Thư viện sách", không hỏi /api/books, không tải pdf.js', (await U.page.locator('[data-testid=library]').count()) === 0 && !/Thư viện sách/.test(await U.page.locator('.screen').innerText()) && !U.reqs.some((r) => r.url.endsWith('/api/books') || /Library-|bookIngest|pdf\.worker/.test(r.url)))
+await U.page.goto(BASE + '/quan-tri', { waitUntil: 'networkidle' })
+await U.page.fill('.adm-login input[placeholder="Số điện thoại hoặc email"]', USER)
+await U.page.fill('.adm-login input[type=password]', PASS)
+await U.page.click('.adm-login button.cta')
+const denied = await until(async () => /không phải quản trị/.test(await U.page.locator('.adm-login').innerText().catch(() => '')), 10000)
+check('trang /quan-tri: tài khoản thường đăng nhập -> "Tài khoản này không phải quản trị hệ thống", không vào được', denied && (await U.page.locator('.adm-tabs').count()) === 0)
 await U.ctx.close()
 
 const A = await device('A')
 await login(A, ADMIN)
-check('quản trị: mở app chưa tải pdf.js', !A.reqs.some((r) => /bookIngest|pdf\.worker/.test(r.url)))
 await parentSettings(A)
-await A.page.waitForSelector('[data-testid=library]', { timeout: 10000 })
-check('quản trị: Cài đặt có mục "Thư viện sách (dùng chung)" + nút "Nạp sách"; chưa tải pdf.js', /Thư viện sách \(dùng chung\)/i.test(await A.page.locator('[data-testid=library] h3').innerText()) && (await A.page.locator('.lib-add').count()) === 1 && !A.reqs.some((r) => /bookIngest|pdf\.worker/.test(r.url)))
+await A.page.waitForLoadState('networkidle'); await sleep(500)
+check('app phụ huynh của chính tài khoản quản trị: Cài đặt cũng KHÔNG còn mục thư viện (đã chuyển sang /quan-tri)', (await A.page.locator('[data-testid=library]').count()) === 0 && !A.reqs.some((r) => /bookIngest|pdf\.worker/.test(r.url)))
+await adminPage(A)
+await A.page.screenshot({ path: `${OUT}/admin_books.png` })
+check('trang quản trị: mục "Thư viện sách (dùng chung)" + nút "Nạp sách"; chưa tải pdf.js', /Thư viện sách \(dùng chung\)/i.test(await A.page.locator('[data-testid=library] h3').innerText()) && (await A.page.locator('.lib-add').count()) === 1 && !A.reqs.some((r) => /bookIngest|pdf\.worker/.test(r.url)))
 
 /* ======== 2. Nạp SGK ======== */
 console.log('— 2. Nạp SGK, tự gửi lại nửa trang lỗi')
@@ -183,14 +202,11 @@ await ocr({ hold: false })
 const P2 = await A.ctx.newPage()
 P2.on('pageerror', (e) => allErrs.push('A2 pageerror: ' + e.message))
 const A2 = { ...A, page: P2 }
-await P2.goto(BASE + '/', { waitUntil: 'networkidle' })
-if (await P2.locator('.pick-grid').count()) { await P2.click('.pick-card:has-text("Minh")'); await P2.fill('.pick-pinbox input', '7'); await P2.click('.pick-pinbox button.cta') }
-await P2.waitForSelector('.kh-cta', { timeout: 10000 })
-await parentSettings(A2)
+await adminPage(A2)   // đã đăng nhập trang quản trị từ trước: vào thẳng
 await P2.waitForSelector(`[data-book="${sbtId}"]`, { timeout: 10000 })
 const li2 = P2.locator(`[data-book="${sbtId}"]`)
 const again = await until(async () => (await li2.locator('.lib-again').count()) > 0, 15000)
-check('mở lại Cài đặt: tiến độ "Còn 1 nửa trang cần gửi (đã xong 5/6)" + nút "Chọn lại file PDF"', again && /Còn 1 nửa trang cần gửi \(đã xong 5\/6\)/.test(await li2.innerText()), await li2.innerText())
+check('mở lại trang quản trị: tiến độ "Còn 1 nửa trang cần gửi (đã xong 5/6)" + nút "Chọn lại file PDF"', again && /Còn 1 nửa trang cần gửi \(đã xong 5\/6\)/.test(await li2.innerText()), await li2.innerText())
 await P2.locator('[data-testid=library]').screenshot({ path: `${OUT}/books_again.png` })
 await li2.locator('.lib-again input[type=file]').setInputFiles({ name: 'khac.pdf', mimeType: 'application/pdf', buffer: PDF_WRONG })
 const wrong = await until(async () => /File này có 2 trang/.test(await li2.innerText()), 15000)

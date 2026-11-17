@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Brand, RewardTrack, SubjectTile } from '../components.jsx'
 import { todayMinutes } from '../lib/stats.js'
 import { subjectsWithTone, subjectDisplayName } from '../lib/subjects.js'
 import { needReviewCount } from '../lib/review.js'
 import { iconFor } from '../lib/icons.js'
+import { fetchUnread, viewerOf } from '../lib/feedback.js'
 
 const SLOGAN_HINT = 'Mục tiêu hay khẩu hiệu học tập của con'
 
@@ -14,8 +15,10 @@ const SLOGAN_HINT = 'Mục tiêu hay khẩu hiệu học tập của con'
 //  📚 Môn học của con: mỗi môn một màu kèm "N cần ôn"; chạm vào môn là vào màn Bắt đầu ôn của môn đó.
 // Trò chơi từ vựng: KHÔNG đặt thẻ riêng ở trang chủ (chốt 12/10/2026) — vào qua "Bắt đầu ôn" → Tiếng Anh.
 // Nút "Đổi người học" chỉ còn ở thanh trên cùng (không lặp lại trong khung).
-export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSlogan, onReview, onReviewSubject, onCapture, onReport }) {
+export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSlogan, onReview, onReviewSubject, onCapture, onReport, onFeedback }) {
   const [editing, setEditing] = useState(false)
+  const [fbUnread, setFbUnread] = useState(0)   // góp ý có câu trả lời mới (chấm đỏ)
+  useEffect(() => { if (onFeedback) fetchUnread(viewerOf('child', child)).then(setFbUnread).catch(() => {}) }, [!!onFeedback]) // eslint-disable-line react-hooks/exhaustive-deps
   const [draft, setDraft] = useState(slogan)
 
   const goal = (stats && stats.goalMin) || 15
@@ -110,6 +113,9 @@ export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSl
           </button>
         )}
       </div>
+      {onFeedback && (
+        <button className="kh-fb" onClick={onFeedback}>💬 Góp ý / báo lỗi cho Ôn Tập{fbUnread ? <i className="dot" aria-label="có trả lời mới" /> : null}</button>
+      )}
 
       {/* 📚 VÙNG 4 — môn học của con */}
       <div className="kh-zone">📚 Môn học của con</div>

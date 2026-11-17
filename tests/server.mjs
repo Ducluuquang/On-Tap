@@ -4,6 +4,7 @@
 //  - /api/ics       -> api/ics.mjs thật
 //  - /api/arena     -> api/arena.mjs thật; kho = Redis thật qua lớp giả Upstash REST (upstash_shim.mjs). ARENA=0: chưa gắn kho.
 //  - /api/account   -> api/account.mjs thật (tài khoản đăng nhập nhiều máy, cùng kho với Thi đấu). ARENA=0: chưa gắn kho.
+//  - /api/admin, /api/feedback -> trang quản trị /quan-tri (người dùng, định giá, hộp thư góp ý) + góp ý của người dùng (thật).
 //  - /api/books     -> api/books.mjs thật (THƯ VIỆN SÁCH, chỉ quản trị). Quản trị thử: ADMIN_PHONES (cổng 4192: 0912000777, 0912000778;
 //    cổng 4194: KHÔNG có biến -> không ai nạp được). AI đọc chữ = Message Batches GIẢ (không gửi ảnh đi đâu):
 //    /__mock/ocr (GET: các batch đã nhận + kích thước từng ảnh; POST {reset, books:{tên:{trang:[nửa trên, nửa dưới]}},
@@ -159,6 +160,8 @@ const icsHandler = (await import('../api/ics.mjs')).default
 const arenaHandler = (await import('../api/arena.mjs')).default
 const accountHandler = (await import('../api/account.mjs')).default
 const booksHandler = (await import('../api/books.mjs')).default
+const adminHandler = (await import('../api/admin.mjs')).default
+const feedbackHandler = (await import('../api/feedback.mjs')).default
 
 // Vercel: res.status().json(), req.body = JSON đã đọc (khi Content-Type là JSON).
 function vercelify(req, res, raw) {
@@ -235,6 +238,8 @@ const server = http.createServer((req, res) => {
         else if (url === '/api/arena') { vercelify(req, res, raw); await arenaHandler(req, res) }
         else if (url === '/api/account') { vercelify(req, res, raw); await accountHandler(req, res) }
         else if (url === '/api/books') { vercelify(req, res, raw); await booksHandler(req, res) }
+        else if (url === '/api/admin') { vercelify(req, res, raw); await adminHandler(req, res) }
+        else if (url === '/api/feedback') { vercelify(req, res, raw); await feedbackHandler(req, res) }
         else { res.statusCode = 404; res.end('not found') }
       } catch (e) { console.error('api error', e); if (!res.headersSent) { res.statusCode = 500; res.end(String(e)) } }
     })

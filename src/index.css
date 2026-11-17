@@ -1036,3 +1036,69 @@ select.auth-in{appearance:auto;cursor:pointer}
 .lib-form{display:flex;flex-direction:column;gap:8px;border-top:1px dashed var(--border);padding-top:10px}
 .lib-file{font-weight:700;word-break:break-all}
 .lib-cost{margin:0;font-size:.9rem}
+
+/* Trang quản trị hệ thống /quan-tri (17/11/2026) — màn rộng, không phóng to như app của con */
+.adm{max-width:980px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:14px;min-height:100vh}
+.adm-login{max-width:380px;margin:8vh auto 0;display:flex;flex-direction:column;gap:10px;background:#fff;border:1px solid var(--border);border-radius:16px;padding:22px}
+.adm-login h1{margin:0;font-size:1.3rem}
+.adm-logo{height:34px;width:auto;align-self:flex-start}
+.adm-muted{color:var(--muted);font-size:.88rem;margin:0}
+.adm-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.adm-title{font-weight:800;font-size:1.1rem;flex:1}
+.adm-me{color:var(--muted);font-size:.88rem}
+.adm-tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:8px}
+.adm-tab{background:#fff;border:1.5px solid var(--border);border-radius:999px;padding:9px 15px;font:inherit;font-weight:700;font-size:.95rem;cursor:pointer;color:var(--ink-soft)}
+.adm-tab.on{background:var(--teal-dark);border-color:var(--teal-dark);color:#fff}
+.adm-main{display:flex;flex-direction:column;gap:12px}
+.adm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.adm-card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:4px;text-align:left;font:inherit}
+.adm-card b{font-size:1.7rem}
+.adm-card span{font-weight:700;color:var(--ink-soft)}
+.adm-card em{font-style:normal;color:var(--muted);font-size:.86rem}
+.adm-card.wide{grid-column:1/-1}
+.adm-card.link{cursor:pointer}
+.adm-search{display:flex;gap:8px}
+.adm-search .auth-in{flex:1}
+.adm-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.adm-user,.adm-fbi{background:#fff;border:1px solid var(--border);border-radius:12px;padding:11px 13px;display:flex;flex-direction:column;gap:4px;cursor:pointer}
+.adm-fbi.pending{border-color:#E7A1A1}
+.adm-row{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline}
+.adm-tag{font-size:.78rem;font-weight:800;background:#E8F0FB;color:#1F4E8C;border-radius:6px;padding:2px 7px}
+.adm-kids{margin:4px 0 0;padding-left:4px;list-style:none;font-size:.9rem}
+.adm-first{white-space:pre-wrap}
+.adm-thread{cursor:auto;display:flex;flex-direction:column;gap:8px;border-top:1px dashed var(--border);margin-top:6px;padding-top:10px}
+.adm-msgs{display:flex;flex-direction:column;gap:8px}
+.adm-msg{border-radius:12px;padding:9px 12px;max-width:85%}
+.adm-msg.them{background:#F3F5F8;align-self:flex-start}
+.adm-msg.me{background:#E3F4EE;align-self:flex-end}
+.adm-msg-h{font-size:.76rem;color:var(--muted);font-weight:700}
+.adm-msg-t{white-space:pre-wrap;font-size:.95rem}
+.adm-shot{max-width:100%;max-height:420px;border-radius:8px;border:1px solid var(--border);margin-top:6px}
+.adm-ta{resize:vertical;min-height:70px;font-family:inherit}
+.adm-chips{flex-wrap:wrap}
+.adm-table{border-collapse:collapse;width:100%;background:#fff;border-radius:12px;overflow:hidden}
+.adm-table th,.adm-table td{border-bottom:1px solid var(--border);padding:8px;text-align:left;vertical-align:top}
+.adm-table td small{display:block;color:var(--muted);font-size:.78rem;margin-top:2px}
+.adm-table .auth-in{width:100%;max-width:200px}
+
+/* Góp ý / báo lỗi (17/11/2026) */
+.kh-fb{align-self:stretch;background:#fff;border:1.5px dashed var(--border);border-radius:12px;padding:10px 12px;font:inherit;font-weight:700;color:var(--ink-soft);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+.pd-fb{display:flex;align-items:center;justify-content:center;gap:6px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#E5484D;margin:0 4px;vertical-align:middle;flex:0 0 10px}
+.fb-tabs{flex-wrap:wrap}
+.fb-ta{resize:vertical;min-height:60px;font-family:inherit}
+.fb-shot{align-self:flex-start;cursor:pointer}
+.fb-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.fb-item{border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.fb-item.unread{border-color:#E7A1A1}
+.fb-item-h{display:flex;flex-direction:column;gap:3px;width:100%;text-align:left;background:#fff;border:0;padding:10px 12px;font:inherit;cursor:pointer}
+.fb-item-h span{color:var(--muted);font-size:.86rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fb-thread{display:flex;flex-direction:column;gap:8px;padding:0 12px 12px}
+.fb-msg{border-radius:12px;padding:8px 11px;max-width:88%}
+.fb-msg.me{background:#E3F4EE;align-self:flex-end}
+.fb-msg.them{background:#F3F5F8;align-self:flex-start}
+.fb-msg-h{font-size:.74rem;color:var(--muted);font-weight:700}
+.fb-msg-t{white-space:pre-wrap;font-size:.93rem}
+.adm-kb{background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px 13px}
+.adm-kb summary{cursor:pointer;font-weight:700;color:var(--ink-soft)}
+.adm-kb-t{white-space:pre-wrap;font-family:inherit;font-size:.88rem;margin:8px 0 0;max-height:420px;overflow:auto}

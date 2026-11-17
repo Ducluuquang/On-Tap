@@ -16,6 +16,7 @@
 //    Cách cũ ("reset", cần chìa khoá của máy đã đăng nhập) vẫn giữ làm dự phòng.
 // Khoá trong kho: acct:u:<số điện thoại> (tài khoản), acct:e:<email> (-> số điện thoại), acct:rl:* (đếm chống dò / chống spam),
 // acct:fc:<số điện thoại> (HMAC mã quên mật khẩu), acct:ft:<số điện thoại> (số lần nhập sai mã),
+// acct:idx (danh mục tài khoản cho trang quản trị), acct:seen:<số> (lần dùng gần nhất),
 // acct:d:<số điện thoại>:<id con> (dữ liệu học, nén gzip), acct:dr:… (số phiên bản), acct:dl:… (khoá ngắn khi đang gộp).
 // Mọi kết quả nghiệp vụ (sai mật khẩu, số đã đăng ký…) trả HTTP 200 + { ok:false, error } để trình duyệt không báo lỗi đỏ.
 import crypto from "node:crypto";
@@ -34,6 +35,8 @@ const K = {
   dlock: (phone, child) => "acct:dl:" + phone + ":" + child,
   fcode: (phone) => "acct:fc:" + phone,
   ftries: (phone) => "acct:ft:" + phone,
+  idx: "acct:idx",                       // danh mục tài khoản (ZSET: điểm = ngày tạo) cho trang quản trị
+  seen: (phone) => "acct:seen:" + phone,   // lần dùng app gần nhất (trang quản trị)
 };
 const MAX_KIDS = 12;
 const FAIL_MAX = 10, FAIL_TTL = 900;          // sai mật khẩu 10 lần / 15 phút -> tạm khoá 15 phút
@@ -150,6 +153,7 @@ async function create(phone, email, pass, b, strictEmail) {
   const acc = { v: 1, phone, email, ...profileFrom(b), ...(await hashPass(pass)), pwv: 1, rev: 1, created: now, updated: now };
   const [ok] = await redis([["SET", K.user(phone), JSON.stringify(acc), "NX"]]);
   if (ok !== "OK") return { error: "phone_taken" };
+  await redis([["ZADD", K.idx, String(now), phone], ["SET", K.seen(phone), String(now)]]);
   let emailOk = true;
   if (email) {
     const [r] = await redis([["SET", K.email(email), phone, "NX"]]);
@@ -222,6 +226,7 @@ export default async function handler(req, res) {
         const acc = okPhone(phone) ? await getAcc(phone) : null;
         if (!acc || !(await checkPass(acc, pass))) { await addFail(who); return send(res, 200, { ok: false, error: "bad_login" }); }
         await clearFails(who);
+        await redis([["SET", K.seen(acc.phone), String(Date.now())]]);
         return send(res, 200, { ok: true, token: tokenFor(acc), account: pub(acc) });
       }
       // ---- Quên mật khẩu, bước 1: gửi mã 6 số tới email đã đăng ký (máy nào cũng làm được) ----
@@ -292,6 +297,7 @@ export default async function handler(req, res) {
     if (!acc || acc.pwv !== t.pwv) return send(res, 200, { ok: false, error: "bad_token" });
     switch (String(b.action || "")) {
       case "get":
+        await redis([["SET", K.seen(acc.phone), String(Date.now())]]);   // mở app: ghi lần dùng gần nhất (trang quản trị)
         return send(res, 200, { ok: true, account: pub(acc) });
       // Thêm con, đổi email, đổi PIN phụ huynh… (máy gửi cả tài khoản; máy chủ chỉ nhận các mục được phép)
       case "update": {

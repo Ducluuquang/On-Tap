@@ -1,5 +1,6 @@
 // Ôn Tập: NẠP SÁCH VÀO THƯ VIỆN CHUNG — chỉ QUẢN TRỊ (anh duyệt 08–09/11/2026).
-// Quản trị = tài khoản có số điện thoại trong biến Vercel ADMIN_PHONES (cách nhau dấu phẩy). Chưa có biến -> không ai nạp được.
+// Quản trị = tài khoản có số điện thoại trong biến Vercel ADMIN_PHONES (api/_admin.mjs). Chưa có biến -> không ai nạp được.
+// Từ 17/11/2026 màn nạp sách nằm ở trang quản trị riêng /quan-tri (không còn trong Cài đặt của phụ huynh).
 // Sách PDF là ẢNH chụp trang: trình duyệt (pdf.js) vẽ từng trang, cắt đôi tại hàng ít mực nhất, gửi JPEG lên theo nhóm nhỏ
 // (< 4 MB mỗi yêu cầu vì Vercel giới hạn 4,5 MB). Máy chủ gửi mỗi nhóm thành MỘT Message Batch (nửa giá) cho AI chép chữ
 // (sonnet mới nhất, tắt thinking như api/aiCore.mjs). Ảnh KHÔNG lưu ở kho. Đóng app được: mở lại Cài đặt thì "list" hỏi
@@ -8,7 +9,8 @@
 // Lệnh kho: "list" khi không có gì mới chỉ tốn 1 lệnh + 1 lệnh mỗi cuốn đang đọc; mỗi nhóm ảnh gửi lên ~6 lệnh.
 import crypto from "node:crypto";
 import { redis, redisEnv, send, readBody, clean, parse } from "./_store.mjs";
-import { readToken } from "./_acctkey.mjs";
+import { adminPhones, userOf } from "./_admin.mjs";
+export { adminPhones };
 import { BK, KINDS, KIND_ORDER, pack, assemblePages, readIndex, gradeNum } from "./_books/core.mjs";
 import { pickModel, thinkingFor } from "./aiCore.mjs";
 
@@ -26,7 +28,6 @@ const POLL_MAX = 12;               // mỗi lần hỏi tiến độ xem tối �
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const UNLOCK = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
 
-export const adminPhones = () => String(process.env.ADMIN_PHONES || "").split(/[,;\n]+/).map((p) => p.replace(/\D+/g, "")).filter((p) => /^\d{8,12}$/.test(p));
 
 // Lời nhắc chép chữ (anh duyệt).
 export function ocrPrompt(title, page, half) {
@@ -162,12 +163,9 @@ export default async function handler(req, res) {
   b = b && typeof b === "object" ? b : {};
   try {
     // chỉ máy đã đăng nhập; chỉ số điện thoại trong ADMIN_PHONES
-    const t = readToken(req);
-    if (!t) return send(res, 200, { ok: false, error: "bad_token" });
-    const [accRaw] = await redis([["GET", "acct:u:" + t.phone]]);
-    const acc = parse(accRaw);
-    if (!acc || acc.pwv !== t.pwv) return send(res, 200, { ok: false, error: "bad_token" });
-    const admin = adminPhones().includes(t.phone);
+    const u = await userOf(req);
+    if (!u) return send(res, 200, { ok: false, error: "bad_token" });
+    const admin = adminPhones().includes(u.phone);
     const action = String(b.action || "");
     if (action === "list" && !admin) return send(res, 200, { ok: true, admin: false });
     if (!admin) return send(res, 200, { ok: false, error: "not_admin" });
