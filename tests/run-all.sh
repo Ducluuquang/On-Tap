@@ -19,13 +19,14 @@ fi
 # 2) bản build
 [ -d node_modules ] || npm install --no-audit --no-fund --silent || exit 1
 npm run build --silent >/dev/null || { echo "Build lỗi"; exit 1; }
-# 3) Redis + lớp giả Upstash + 3 máy chủ thử (4192: đủ; 4193: chưa gắn kho; 4194: Scrabble rút ngắn giờ lượt)
+# 3) Redis + lớp giả Upstash + 3 máy chủ thử (4192: đủ, thư ghi vào tests/out/mail-4192.jsonl; 4193: chưa gắn kho;
+#    4194: Scrabble rút ngắn giờ lượt + chưa cài gửi email MAIL=0)
 command -v redis-server >/dev/null || { echo "Thiếu redis-server (Ubuntu: sudo apt-get install -y redis-server)"; exit 1; }
 redis-cli -p 6390 ping >/dev/null 2>&1 || redis-server --port 6390 --save '' --appendonly no --daemonize yes >/dev/null
 node "$T/upstash_shim.mjs" > "$OUT/shim.log" 2>&1 & PIDS+=($!)
 MOCK=1 PORT=4192 node "$T/server.mjs" > "$OUT/s4192.log" 2>&1 & PIDS+=($!)
 MOCK=1 ARENA=0 PORT=4193 node "$T/server.mjs" > "$OUT/s4193.log" 2>&1 & PIDS+=($!)
-MOCK=1 PORT=4194 ARENA_SB_TURN_MS=7000 ARENA_SB_AWAY_MS=5000 node "$T/server.mjs" > "$OUT/s4194.log" 2>&1 & PIDS+=($!)
+MOCK=1 MAIL=0 PORT=4194 ARENA_SB_TURN_MS=7000 ARENA_SB_AWAY_MS=5000 node "$T/server.mjs" > "$OUT/s4194.log" 2>&1 & PIDS+=($!)
 sleep 3
 
 SUITES=${*:-"t_acct_merge t_sync_merge t_api_account t_api_data t_ui_account t_ui_data t_engine t_engine_many t_engine_multi t_api_arena t_api_limit t_api_scrabble t_api_more t_api_multi t_ui26 t_ui24 t_arena_regress t_solo_games t_leave_race t_ui_more t_ui_multi t_ui28 t_ui_pick"}

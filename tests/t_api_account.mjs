@@ -2,8 +2,20 @@
 // Đăng ký, đăng nhập bằng số điện thoại / email, sai mật khẩu, chìa khoá giả, cập nhật (thêm con, đổi email, PIN),
 // đổi mật khẩu (chìa khoá cũ hết hiệu lực), quên mật khẩu trên máy đã đăng nhập, chuyển tài khoản cũ lên máy chủ,
 // chống dò mật khẩu, chống spam đăng ký, mật khẩu không lưu dạng chữ, máy chủ chưa gắn kho.
+// Phần 10 (10/11/2026): QUÊN MẬT KHẨU Ở MỌI MÁY bằng mã 6 số gửi tới email ("forgot_send" / "forgot_reset").
+// Thư KHÔNG gửi thật: máy chủ thử ghi thư vào tests/out/mail-4192.jsonl; máy chủ 4194 = chưa cài gửi email (MAIL=0).
 import { execFileSync } from 'node:child_process'
-const BASE = 'http://localhost:4192/api/account', NOSTORE = 'http://localhost:4193/api/account'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+const BASE = 'http://localhost:4192/api/account', NOSTORE = 'http://localhost:4193/api/account', NOMAIL = 'http://localhost:4194/api/account'
+const TDIR = path.dirname(fileURLToPath(import.meta.url))
+const MAILS = path.join(TDIR, 'out', 'mail-4192.jsonl'), SLOG = path.join(TDIR, 'out', 's4192.log')
+const mails = () => { try { return fs.readFileSync(MAILS, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) } catch { return [] } }
+const lastMail = (to) => mails().filter((m) => m.to === to).pop() || null
+const codeOf = (m) => ((m && m.subject) || '').match(/(\d{6})$/)?.[1] || ''
+const rttl = (k) => Number(execFileSync('redis-cli', ['-p', '6390', 'TTL', k]).toString().trim())
+const rcmd = (...a) => execFileSync('redis-cli', ['-p', '6390', ...a]).toString().trim()
 const res = {}; const check = (n, c, x = '') => { res[n] = !!c; console.log((c ? '  ✓ ' : '  ✗ ') + n + (c ? '' : '  → ' + x)) }
 const RUN = String(Date.now()).slice(-6)
 const IP = '10.9.' + (Number(RUN) % 250) + '.'
@@ -137,6 +149,96 @@ j = await call('register', { phone: '0905' + RUN, pass: '12' })
 check('mật khẩu quá ngắn -> 400 bad_pass', j.http === 400 && j.error === 'bad_pass', JSON.stringify(j))
 j = await call('get', {}, { token: tok3 })
 check('chìa khoá sau "quên mật khẩu" vẫn dùng được', j.ok, JSON.stringify(j).slice(0, 80))
+
+// ---- 10. QUÊN MẬT KHẨU Ở MỌI MÁY: mã 6 số gửi tới email đã đăng ký (10/11/2026) ----
+const P5 = '0905' + RUN, E5 = `quen${RUN}@gmail.com`, P6 = '0906' + RUN, P7 = '0907' + RUN, E7 = `loi${RUN}@fail.test`
+const reg5 = await call('register', { phone: P5, email: E5, pass: '11112222', parentName: 'Mẹ Quên', children: [kid('c-q1', 'Quỳnh')] })
+const oldTok5 = (await call('login', { id: P5, pass: '11112222' })).token     // "máy cũ" đang đăng nhập
+const before = mails().length
+j = await call('forgot_send', { id: P5 })
+let m = lastMail(E5), code = codeOf(m)
+check('gửi mã bằng SỐ ĐIỆN THOẠI -> ok, chỉ trả email đã che (q***@gmail.com), không trả mã', j.ok && j.to === 'q***@gmail.com' && j.ttl === 900 && !JSON.stringify(j).includes(code) && !JSON.stringify(j).includes(E5), JSON.stringify(j))
+check('thư tới đúng email đã đăng ký: người gửi "Ôn Tập", tiêu đề "Mã đặt lại mật khẩu Ôn Tập: <6 số>", nội dung có mã, 15 phút, "Nếu không phải anh/chị yêu cầu…"',
+  mails().length === before + 1 && m && /^"Ôn Tập" </.test(m.from) && /^\d{6}$/.test(code) && m.text.includes(code) && /15 phút/.test(m.text) && /Nếu không phải anh\/chị yêu cầu, hãy bỏ qua thư này\./.test(m.text), JSON.stringify(m))
+const fc = rget('acct:fc:' + P5)
+check('kho chỉ giữ HMAC của mã (không có mã dạng chữ), hết hạn 900 giây', fc.length >= 40 && !fc.includes(code) && rttl('acct:fc:' + P5) > 890 && rttl('acct:fc:' + P5) <= 900, fc + ' ttl ' + rttl('acct:fc:' + P5))
+j = await call('forgot_send', { id: ' ' + E5.toUpperCase() + ' ' })
+m = lastMail(E5); const code2 = codeOf(m)
+check('gửi mã bằng EMAIL (viết hoa, có khoảng trắng) -> ok, mã mới thay mã cũ', j.ok && j.to === 'q***@gmail.com' && /^\d{6}$/.test(code2), JSON.stringify(j))
+if (code !== code2) { j = await call('forgot_reset', { id: P5, code, next: '33334444' }); check('mã cũ (đã gửi mã mới) không dùng được nữa', j.ok === false && j.error === 'code_wrong', JSON.stringify(j)) }
+rdel('acct:ft:' + P5)
+const wrong = code2 === '000000' ? '111111' : '000000'
+j = await call('forgot_reset', { id: P5, code: wrong, next: '33334444' })
+check('sai mã -> code_wrong, còn 4 lần', j.ok === false && j.error === 'code_wrong' && j.left === 4, JSON.stringify(j))
+j = await call('forgot_reset', { id: P5, code: code2, next: '12ab' })
+check('mật khẩu mới sai dạng -> bad_pass, KHÔNG làm mất mã', j.ok === false && j.error === 'bad_pass' && rget('acct:fc:' + P5) !== '', JSON.stringify(j))
+j = await call('forgot_reset', { id: P5, code: code2, next: '1234567' })
+check('mật khẩu mới không đủ 8 số -> bad_pass, mã vẫn còn', j.ok === false && j.error === 'bad_pass' && rget('acct:fc:' + P5) !== '', JSON.stringify(j))
+j = await call('forgot_reset', { id: E5, code: code2, next: '33334444' })
+check('đúng mã (nhập bằng email) -> ok, chìa khoá mới, tài khoản đủ con', j.ok && j.token && j.token !== oldTok5 && j.account.phone === P5 && j.account.children[0].id === 'c-q1', JSON.stringify(j).slice(0, 160))
+const tok5 = j.token
+const acc5 = JSON.parse(rget('acct:u:' + P5))
+check('pwv + 1 và rev + 1; mã đã xoá khỏi kho', acc5.pwv === 2 && acc5.rev === reg5.account.rev + 1 && rget('acct:fc:' + P5) === '' && rget('acct:ft:' + P5) === '', JSON.stringify({ pwv: acc5.pwv, rev: acc5.rev }))
+j = await call('get', {}, { token: oldTok5 })
+check('máy cũ (chìa khoá cũ) -> bad_token (tự đăng xuất)', j.ok === false && j.error === 'bad_token', JSON.stringify(j))
+check('chìa khoá mới dùng được; mật khẩu mới đăng nhập được, mật khẩu cũ thì không', (await call('get', {}, { token: tok5 })).ok && (await call('login', { id: P5, pass: '33334444' })).ok && (await call('login', { id: P5, pass: '11112222' })).error === 'bad_login')
+j = await call('forgot_reset', { id: P5, code: code2, next: '55556666' })
+check('dùng lại mã đã dùng -> code_expired', j.ok === false && j.error === 'code_expired', JSON.stringify(j))
+// sai 5 lần -> huỷ mã
+await call('forgot_send', { id: P5 }); const code3 = codeOf(lastMail(E5)); const w3 = code3 === '999999' ? '888888' : '999999'
+const lefts = []
+for (let k = 0; k < 4; k++) lefts.push((await call('forgot_reset', { id: P5, code: w3, next: '55556666' })).left)
+j = await call('forgot_reset', { id: P5, code: w3, next: '55556666' })
+check('sai 4 lần: còn 4,3,2,1 lần; sai lần thứ 5 -> code_locked, mã bị huỷ', lefts.join(',') === '4,3,2,1' && j.ok === false && j.error === 'code_locked' && rget('acct:fc:' + P5) === '', lefts.join(',') + ' ' + JSON.stringify(j))
+j = await call('forgot_reset', { id: P5, code: code3, next: '55556666' })
+check('sau khi bị huỷ, mã đúng cũng không dùng được (code_expired), mật khẩu không đổi', j.ok === false && j.error === 'code_expired' && (await call('login', { id: P5, pass: '33334444' })).ok, JSON.stringify(j))
+// hết hạn
+rdel('acct:rl:fs:' + P5)
+await call('forgot_send', { id: P5 }); const code4 = codeOf(lastMail(E5))
+rcmd('PEXPIRE', 'acct:fc:' + P5, '1'); await new Promise((r) => setTimeout(r, 30))
+j = await call('forgot_reset', { id: P5, code: code4, next: '55556666' })
+check('mã quá 15 phút (hết hạn) -> code_expired', j.ok === false && j.error === 'code_expired', JSON.stringify(j))
+// mỗi tài khoản 3 lần gửi / giờ
+rdel('acct:rl:fs:' + P5)
+const sends = []
+for (let k = 0; k < 4; k++) sends.push(await call('forgot_send', { id: P5 }))
+check('mỗi tài khoản gửi tối đa 3 lần / giờ: lần thứ 4 -> send_limit (khác địa chỉ mạng cũng vậy)', sends.slice(0, 3).every((x) => x.ok) && sends[3].ok === false && sends[3].error === 'send_limit', JSON.stringify(sends[3]))
+// mỗi địa chỉ mạng 10 lần gửi / giờ
+const ipF = '10.251.' + (Number(RUN) % 250) + '.7'
+const ipSends = []
+for (let k = 0; k < 11; k++) ipSends.push(await call('forgot_send', { id: '0988' + RUN + String(k).padStart(2, '0') }, { ip: ipF }))
+rdel('acct:rl:fs:' + P5)
+const ipLast = await call('forgot_send', { id: P5 }, { ip: ipF })
+check('mỗi địa chỉ mạng gửi tối đa 10 lần / giờ: lần 11 -> send_limit (kể cả tài khoản có thật)', ipSends.slice(0, 10).every((x) => x.error === 'not_found') && ipSends[10].error === 'send_limit' && ipLast.error === 'send_limit', JSON.stringify(ipSends[10]) + JSON.stringify(ipLast))
+// chưa đăng ký / chưa có email / chưa cài gửi email / gửi lỗi
+j = await call('forgot_send', { id: '0999' + RUN })
+check('số chưa đăng ký -> not_found', j.ok === false && j.error === 'not_found', JSON.stringify(j))
+j = await call('forgot_send', { id: 'khongco' + RUN + '@vidu.com' })
+check('email chưa đăng ký -> not_found', j.ok === false && j.error === 'not_found', JSON.stringify(j))
+await call('register', { phone: P6, pass: '12121212', children: [kid('c-ne1', 'Nê')] })
+j = await call('forgot_send', { id: P6 })
+check('tài khoản chưa có email -> no_email (không tạo mã)', j.ok === false && j.error === 'no_email' && rget('acct:fc:' + P6) === '', JSON.stringify(j))
+rdel('acct:rl:fs:' + P5)
+j = await call('forgot_send', { id: P5 }, { base: NOMAIL })
+check('máy chủ chưa cài gửi email (thiếu MAIL_USER / MAIL_APP_PASSWORD) -> mail_off', j.ok === false && j.error === 'mail_off', JSON.stringify(j))
+j = await call('forgot_send', { id: P5 }, { base: NOSTORE })
+check('máy chủ chưa gắn kho -> no_store', j.ok === false && j.error === 'no_store', JSON.stringify(j))
+await call('register', { phone: P7, email: E7, pass: '12121212', children: [kid('c-lo1', 'Lô')] })
+j = await call('forgot_send', { id: P7 })
+check('gửi thư lỗi -> mail_error, mã vừa tạo bị xoá', j.ok === false && j.error === 'mail_error' && rget('acct:fc:' + P7) === '', JSON.stringify(j))
+j = await call('forgot_reset', { id: P6, code: '123456', next: '55556666' })
+check('đặt lại khi chưa gửi mã -> code_expired; sai dạng mã -> bad_code', j.error === 'code_expired' && (await call('forgot_reset', { id: P5, code: '12a', next: '55556666' })).error === 'bad_code', JSON.stringify(j))
+// forgot_reset dùng chung giới hạn đăng nhập theo địa chỉ mạng (60 lần / 10 phút)
+const ipR = '10.252.' + (Number(RUN) % 250) + '.3'
+let lastR = null
+for (let k = 0; k < 61; k++) lastR = await call(k % 2 ? 'login' : 'forgot_reset', k % 2 ? { id: P6, pass: '00000000' } : { id: P6, code: '123456', next: '55556666' }, { ip: ipR })
+check('forgot_reset tính chung giới hạn đăng nhập theo địa chỉ mạng -> slow_down', lastR.ok === false && lastR.error === 'slow_down', JSON.stringify(lastR))
+// nhật ký máy chủ không chứa mã
+const allCodes = mails().map(codeOf).filter(Boolean)
+const slog = fs.readFileSync(SLOG, 'utf8')
+check('nhật ký máy chủ không chứa mã nào đã gửi, không có MAIL_APP_PASSWORD', allCodes.length > 0 && !allCodes.some((c) => slog.includes(c)) && !/MAIL_APP_PASSWORD|app.?pass/i.test(slog), allCodes.filter((c) => slog.includes(c)).join(','))
+for (const p of [P5, P6, P7]) { rdel('acct:u:' + p); rdel('acct:fc:' + p); rdel('acct:ft:' + p) }
+rdel('acct:e:' + E5); rdel('acct:e:' + E7)
 
 for (const p of [P1, P2, P3, P4]) rdel('acct:u:' + p)
 console.log(Object.values(res).every(Boolean) ? `ALL PASS ✓ (${Object.keys(res).length} checks)` : 'FAILED: ' + Object.entries(res).filter(([, v]) => !v).map(([k]) => k).join(' | '))

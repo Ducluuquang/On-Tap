@@ -10,13 +10,19 @@
 //  - DỮ LIỆU HỌC của từng con (05/11/2026, hành động "data"): bản đồ kiến thức, thời gian học, nhật ký, câu đã gặp,
 //    bộ từ + lịch ôn Vở Spelling. Máy gửi bản của mình, máy chủ GỘP với bản đang lưu (api/_sync/merge.mjs: không mất bài,
 //    không cộng trùng giờ học) rồi trả bản gộp. Cài đặt phụ huynh (trắc nghiệm, khẩu hiệu) đi chung, tên tài liệu "_settings".
+//  - QUÊN MẬT KHẨU Ở MỌI MÁY (10/11/2026, "forgot_send" + "forgot_reset", không cần chìa khoá): gửi MÃ 6 SỐ tới email
+//    đã đăng ký (api/_mail.mjs). Kho chỉ giữ HMAC của mã (hết hạn 15 phút, dùng 1 lần, sai 5 lần huỷ mã); mỗi tài khoản
+//    3 lần gửi / giờ, mỗi địa chỉ mạng 10 lần gửi / giờ. Đúng mã -> mật khẩu mới, các máy khác tự đăng xuất.
+//    Cách cũ ("reset", cần chìa khoá của máy đã đăng nhập) vẫn giữ làm dự phòng.
 // Khoá trong kho: acct:u:<số điện thoại> (tài khoản), acct:e:<email> (-> số điện thoại), acct:rl:* (đếm chống dò / chống spam),
+// acct:fc:<số điện thoại> (HMAC mã quên mật khẩu), acct:ft:<số điện thoại> (số lần nhập sai mã),
 // acct:d:<số điện thoại>:<id con> (dữ liệu học, nén gzip), acct:dr:… (số phiên bản), acct:dl:… (khoá ngắn khi đang gộp).
 // Mọi kết quả nghiệp vụ (sai mật khẩu, số đã đăng ký…) trả HTTP 200 + { ok:false, error } để trình duyệt không báo lỗi đỏ.
 import crypto from "node:crypto";
 import zlib from "node:zlib";
 import { redis, redisEnv, send, readBody, clean, parse, clientIp } from "./_store.mjs";
 import { cleanDoc, mergeDocs, stable, okId } from "./_sync/merge.mjs";
+import { mailReady, sendMail } from "./_mail.mjs";
 
 const K = {
   user: (phone) => "acct:u:" + phone,
@@ -25,6 +31,8 @@ const K = {
   data: (phone, child) => "acct:d:" + phone + ":" + child,
   drev: (phone, child) => "acct:dr:" + phone + ":" + child,
   dlock: (phone, child) => "acct:dl:" + phone + ":" + child,
+  fcode: (phone) => "acct:fc:" + phone,
+  ftries: (phone) => "acct:ft:" + phone,
 };
 const MAX_KIDS = 12;
 const FAIL_MAX = 10, FAIL_TTL = 900;          // sai mật khẩu 10 lần / 15 phút -> tạm khoá 15 phút
@@ -32,6 +40,9 @@ const LOGIN_IP_MAX = 60, LOGIN_IP_TTL = 600;  // mỗi địa chỉ mạng: 60 l
 const REG_IP_MAX = 20, REG_IP_TTL = 3600;     // mỗi địa chỉ mạng: 20 lần đăng ký (hoặc chuyển tài khoản cũ lên máy chủ) / giờ
 const CHECK_IP_MAX = 60;                      // kiểm tra số điện thoại / email đã đăng ký chưa: 60 lần / giờ
 const UPD_MAX = 300;                          // mỗi tài khoản: 300 lần cập nhật / giờ
+const CODE_TTL = 900;                         // mã quên mật khẩu dùng được 15 phút
+const CODE_TRIES = 5;                         // nhập sai mã 5 lần -> huỷ mã
+const SEND_ACC_MAX = 3, SEND_IP_MAX = 10;     // gửi mã: mỗi tài khoản 3 lần / giờ, mỗi địa chỉ mạng 10 lần / giờ
 const DATA_MAX = 1500;                        // mỗi tài khoản: 1.500 lần gửi dữ liệu học / giờ (mọi con, mọi máy)
 const DOC_MAX = 6000000;                      // dữ liệu học một con tối đa ~6 MB (chữ JSON trước khi nén)
 const BODY_MAX = 8000000;                     // yêu cầu gửi dữ liệu học tối đa 8 MB
@@ -77,6 +88,25 @@ function readToken(req) {
   const a = Buffer.from(m[3]), b = Buffer.from(sig(phone, pwv));
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
   return { phone, pwv };
+}
+
+/* ---------- Mã quên mật khẩu (chỉ lưu HMAC của mã) ---------- */
+const codeMac = (phone, code) => crypto.createHmac("sha256", signKey()).update("forgot|" + phone + "|" + code).digest("base64url");
+function sameMac(a, b) {
+  const x = Buffer.from(String(a || "")), y = Buffer.from(String(b || ""));
+  return x.length === y.length && x.length > 0 && crypto.timingSafeEqual(x, y);
+}
+// Che email: "ongtap@gmail.com" -> "o***@gmail.com"
+const maskEmail = (em) => { const i = em.indexOf("@"); return i <= 0 ? "***" : em[0] + "***" + em.slice(i); };
+// "Số điện thoại hoặc email" -> số điện thoại của tài khoản ("" nếu không tìm được)
+async function phoneFromId(id) {
+  const s = String(id == null ? "" : id).trim();
+  if (s.includes("@")) {
+    const em = normEmail(s);
+    return okEmail(em) ? (await redis([["GET", K.email(em)]]))[0] || "" : "";
+  }
+  const p = normPhone(s);
+  return okPhone(p) ? p : "";
 }
 
 /* ---------- Dữ liệu tài khoản ---------- */
@@ -205,6 +235,66 @@ export default async function handler(req, res) {
         if (!acc || !(await checkPass(acc, pass))) { await addFail(who); return send(res, 200, { ok: false, error: "bad_login" }); }
         await clearFails(who);
         return send(res, 200, { ok: true, token: tokenFor(acc), account: pub(acc) });
+      }
+      // ---- Quên mật khẩu, bước 1: gửi mã 6 số tới email đã đăng ký (máy nào cũng làm được) ----
+      case "forgot_send": {
+        const id = String(b.id == null ? "" : b.id).trim();
+        if (!id) return send(res, 200, { ok: false, error: "bad_id" });
+        if (await bump("fsip:" + ip, SEND_IP_MAX, 3600)) return send(res, 200, { ok: false, error: "send_limit" });
+        const phone = await phoneFromId(id);
+        const acc = phone ? await getAcc(phone) : null;
+        if (!acc) return send(res, 200, { ok: false, error: "not_found" });
+        const email = normEmail(acc.email);
+        if (!email || !okEmail(email)) return send(res, 200, { ok: false, error: "no_email" });
+        if (!mailReady()) return send(res, 200, { ok: false, error: "mail_off" });
+        if (await bump("fs:" + phone, SEND_ACC_MAX, 3600)) return send(res, 200, { ok: false, error: "send_limit" });
+        const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+        const mac = codeMac(phone, code);
+        await redis([["SET", K.fcode(phone), mac, "EX", String(CODE_TTL)], ["DEL", K.ftries(phone)]]);
+        try {
+          await sendMail({
+            to: email,
+            subject: "Mã đặt lại mật khẩu Ôn Tập: " + code,
+            text: "Mã đặt lại mật khẩu Ôn Tập của anh/chị là: " + code + "\n\n"
+              + "Mã hết hạn sau 15 phút và chỉ dùng được một lần.\n\n"
+              + "Nếu không phải anh/chị yêu cầu, hãy bỏ qua thư này.\n\nÔn Tập",
+          });
+        } catch (e) {
+          // gửi lỗi -> xoá mã vừa tạo (chỉ xoá nếu vẫn là mã của lần này)
+          await redis([["EVAL", UNLOCK, "1", K.fcode(phone), mac]]).catch(() => {});
+          console.error("forgot mail error", (e && e.reason) || (e && e.code) || "send");
+          return send(res, 200, { ok: false, error: e && e.code === "mail_off" ? "mail_off" : "mail_error" });
+        }
+        return send(res, 200, { ok: true, to: maskEmail(email), ttl: CODE_TTL, wait: 60 });
+      }
+      // ---- Quên mật khẩu, bước 2: kiểm mã -> đặt mật khẩu mới, trả chìa khoá (máy này vào app luôn) ----
+      case "forgot_reset": {
+        const id = String(b.id == null ? "" : b.id).trim(), next = typeof b.next === "string" ? b.next : "";
+        const code = String(b.code == null ? "" : b.code).replace(/\s+/g, "");
+        if (await bump("login:" + ip, LOGIN_IP_MAX, LOGIN_IP_TTL)) return send(res, 200, { ok: false, error: "slow_down" });
+        if (!/^\d{8}$/.test(next)) return send(res, 200, { ok: false, error: "bad_pass" });   // sai dạng: không đụng tới mã
+        if (!/^\d{6}$/.test(code)) return send(res, 200, { ok: false, error: "bad_code" });
+        const phone = await phoneFromId(id);
+        const acc0 = phone ? await getAcc(phone) : null;
+        if (!acc0) return send(res, 200, { ok: false, error: "not_found" });
+        const [stored] = await redis([["GET", K.fcode(phone)]]);
+        if (!stored) return send(res, 200, { ok: false, error: "code_expired" });
+        if (!sameMac(stored, codeMac(phone, code))) {
+          const [n] = await redis([["INCR", K.ftries(phone)], ["EXPIRE", K.ftries(phone), String(CODE_TTL)]]);
+          if (Number(n) >= CODE_TRIES) {
+            await redis([["EVAL", UNLOCK, "1", K.fcode(phone), stored], ["DEL", K.ftries(phone)]]);
+            return send(res, 200, { ok: false, error: "code_locked" });
+          }
+          return send(res, 200, { ok: false, error: "code_wrong", left: CODE_TRIES - Number(n) });
+        }
+        // dùng 1 lần: chỉ lần xoá được mã (đúng mã này) mới được đặt mật khẩu
+        const [del] = await redis([["EVAL", UNLOCK, "1", K.fcode(phone), stored]]);
+        if (Number(del) !== 1) return send(res, 200, { ok: false, error: "code_expired" });
+        const acc = (await getAcc(phone)) || acc0;
+        const nx = { ...acc, ...(await hashPass(next)), pwv: (acc.pwv || 1) + 1, rev: (acc.rev || 1) + 1, updated: Date.now() };
+        await putAcc(nx);
+        await redis([["DEL", K.ftries(phone)], ["DEL", K.rl("fail:" + phone)], ...(acc.email ? [["DEL", K.rl("fail:e:" + normEmail(acc.email))]] : [])]);
+        return send(res, 200, { ok: true, token: tokenFor(nx), account: pub(nx) });
       }
     }
 

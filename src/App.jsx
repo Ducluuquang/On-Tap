@@ -493,24 +493,24 @@ export default function App() {
     finishAuth()
     return { ok: true }
   }
+  // Máy chủ cho vào (đăng nhập, hoặc đặt lại mật khẩu bằng mã email): lưu chìa khoá, gộp con với tài khoản trên máy
+  // (hoặc bản sao cũ trên máy) — không mất dữ liệu học tập trên máy — rồi vào app.
+  async function enterAccount(remote, token, p, local) {
+    const base = local && phoneOf(local) === remote.phone ? local : backupAccounts().find((a) => phoneOf(a) === remote.phone) || null
+    const m = base ? mergeChildren(base.children || [], remote.children || []) : { children: remote.children || [], remaps: [], appended: [] }
+    m.remaps.forEach(([a, b]) => remapChildData(a, b))
+    let acc = fromRemote({ ...remote, children: m.children }, base, p)
+    setToken(token); setSyncState({ dirty: false, conflict: '' })
+    if (m.appended.length) { const pr = await pushAccount(acc); if (pr.ok) acc = { ...pr.account, password: p, parentPass: p } }
+    if (local && phoneOf(local) && phoneOf(local) !== remote.phone) backupAccount(local)
+    dropBackup(remote.phone)
+    saveAccount(acc); setAccount(acc)
+    finishAuth()
+  }
   async function handleLogin(u, p) {
     const local = account || normalizeAccount(loadAccount())
     const r = await accountCall('login', { id: u, pass: p })
-    if (r.ok) {
-      const remote = r.account
-      // cùng tài khoản đang có trên máy (hoặc bản sao cũ trên máy) -> gộp con (không mất dữ liệu học tập trên máy)
-      const base = local && phoneOf(local) === remote.phone ? local : backupAccounts().find((a) => phoneOf(a) === remote.phone) || null
-      const m = base ? mergeChildren(base.children || [], remote.children || []) : { children: remote.children || [], remaps: [], appended: [] }
-      m.remaps.forEach(([a, b]) => remapChildData(a, b))
-      let acc = fromRemote({ ...remote, children: m.children }, base, p)
-      setToken(r.token); setSyncState({ dirty: false, conflict: '' })
-      if (m.appended.length) { const pr = await pushAccount(acc); if (pr.ok) acc = { ...pr.account, password: p, parentPass: p } }
-      if (local && phoneOf(local) && phoneOf(local) !== remote.phone) backupAccount(local)
-      dropBackup(remote.phone)
-      saveAccount(acc); setAccount(acc)
-      finishAuth()
-      return { ok: true }
-    }
+    if (r.ok) { await enterAccount(r.account, r.token, p, local); return { ok: true } }
     if (r.offline) {
       // mất mạng / máy chủ chưa có kho: dùng tài khoản trên máy (hoặc bản sao cũ) như trước
       const cand = [local, ...backupAccounts()].find((a) => matchesLogin(a, u, p))
@@ -527,7 +527,27 @@ export default function App() {
     if ((await existsOnServer(u)) === false) return { error: 'not_on_server' }
     return { error: 'bad_login' }
   }
-  // Quên mật khẩu: làm được trên máy ĐÃ đăng nhập tài khoản này. Trả true | 'other_device' | 'offline' | 'stale' | 'error'.
+  // QUÊN MẬT KHẨU Ở MỌI MÁY (10/11/2026): bước 1 gửi mã 6 số tới email đã đăng ký; bước 2 nhập mã + mật khẩu mới.
+  // Trả { ok, to } | { error } và { ok } | { error, left }.
+  async function forgotSend(id) {
+    const r = await accountCall('forgot_send', { id })
+    if (r.ok) return { ok: true, to: r.to || '' }
+    return { error: r.offline ? 'offline' : r.error || 'error' }
+  }
+  async function forgotReset(id, code, newPass) {
+    const local = account || normalizeAccount(loadAccount())
+    const r = await accountCall('forgot_reset', { id, code, next: newPass })
+    if (r.ok) { await enterAccount(r.account, r.token, newPass, local); return { ok: true } }
+    return { error: r.offline ? 'offline' : r.error || 'error', left: r.left }
+  }
+  // Cách cũ (dự phòng khi không gửi được email): máy này có tài khoản đó (đang dùng hoặc bản sao cũ) -> số điện thoại; không thì ''.
+  function localResetPhone(id) {
+    const s = String(id || '').trim(), em = s.toLowerCase(), ph = onlyDigits(s)
+    const local = account || normalizeAccount(loadAccount())
+    const hit = [local, ...backupAccounts()].find((a) => a && phoneOf(a) && (em.includes('@') ? em === String(a.email || '').trim().toLowerCase() : validPhone(ph) && phoneOf(a) === ph))
+    return hit ? phoneOf(hit) : ''
+  }
+  // Quên mật khẩu, cách cũ: làm được trên máy ĐÃ đăng nhập tài khoản này. Trả true | 'other_device' | 'offline' | 'stale' | 'error'.
   async function handleReset(phone, newPass) {
     const ph = onlyDigits(phone)
     const local = account || normalizeAccount(loadAccount())
@@ -897,7 +917,8 @@ export default function App() {
     return (
       <div className="stage">
         <div className="phone">
-          <Auth account={account} notice={authNotice} onRegister={handleRegister} onLogin={handleLogin} onReset={handleReset} onCheck={checkAvailable} />
+          <Auth account={account} notice={authNotice} onRegister={handleRegister} onLogin={handleLogin} onReset={handleReset} onCheck={checkAvailable}
+            onForgotSend={forgotSend} onForgotReset={forgotReset} localResetPhone={localResetPhone} />
         </div>
       </div>
     )

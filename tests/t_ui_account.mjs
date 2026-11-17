@@ -1,13 +1,21 @@
 // Đăng nhập nhiều máy (anh yêu cầu 01/11/2026) — thử qua giao diện thật, mỗi "máy" là một trình duyệt riêng (kho riêng):
 //  A đăng ký -> B, C đăng nhập bằng số điện thoại / email; sai mật khẩu; đăng ký trùng số; thêm con + PIN phụ huynh ở A
-//  -> B thấy; đổi mật khẩu ở A -> B phải đăng nhập lại; quên mật khẩu ở B -> A phải đăng nhập lại; máy chưa từng đăng nhập
-//  bấm quên mật khẩu; tài khoản cũ (chỉ có trên máy) tự lên máy chủ; hai máy từng đăng ký riêng cùng số -> gộp con,
+//  -> B thấy; đổi mật khẩu ở A -> B phải đăng nhập lại; QUÊN MẬT KHẨU Ở MỌI MÁY (10/11/2026): trình duyệt MỚI nhận mã 6 số
+//  qua email (thư giả: tests/out/mail-4192.jsonl) -> đặt lại -> vào app, A + B phải đăng nhập lại; sai mã; hai ô không khớp;
+//  gửi lại mã sau 60 giây; tài khoản chưa có email (máy đã đăng nhập dùng cách cũ, máy mới không có); máy chủ chưa cài gửi
+//  email (4194); tài khoản cũ (chỉ có trên máy) tự lên máy chủ; hai máy từng đăng ký riêng cùng số -> gộp con,
 //  không mất dữ liệu; máy chủ chưa có kho -> đăng nhập bằng tài khoản trên máy như trước.
 import { pw, OUT_DIR } from './_env.mjs'
 import { execFileSync } from 'node:child_process'
 import { useRealFonts } from './fonts.mjs'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 const OUT = OUT_DIR
-const BASE = 'http://localhost:4192', NOSTORE = 'http://localhost:4193'
+const BASE = 'http://localhost:4192', NOSTORE = 'http://localhost:4193', NOMAIL = 'http://localhost:4194'
+const MAILS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'out', 'mail-4192.jsonl')
+const lastMail = (to) => { try { return fs.readFileSync(MAILS, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)).filter((m) => m.to === to).pop() || null } catch { return null } }
+const codeOf = (m) => ((m && m.subject) || '').match(/(\d{6})$/)?.[1] || ''
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const browser = await pw.chromium.launch({ headless: true })
 const results = {}
@@ -161,29 +169,113 @@ await login(B, P, '87654321')
 await waitPicker(B)
 check('máy B: mật khẩu mới -> vào được', (await kidNames(B)).length === 3)
 
-// ======== 6. Quên mật khẩu ========
-console.log('— 6. Quên mật khẩu')
-await logoutFromPicker(B)
-if (await B.page.locator('.auth-landing').count()) await B.page.click('.auth-landing button:has-text("Đăng nhập")')
-await B.page.click('button:has-text("Quên mật khẩu?")')
-await B.page.fill('input[placeholder="Số điện thoại đã đăng ký"]', P)
-await B.page.fill('input[placeholder="8 chữ số"]', '24682468'); await B.page.fill('input[placeholder="Nhập lại 8 chữ số"]', '24682468')
-await B.page.click('button.cta:has-text("Đặt lại mật khẩu")')
-await waitPicker(B)
-check('máy B (đã từng đăng nhập): quên mật khẩu -> đặt mật khẩu mới, vào luôn', (await kidNames(B)).length === 3)
-check('mật khẩu mới dùng được ở mọi máy (máy chủ nhận)', (await api('login', { id: E, pass: '24682468' })).ok)
+// ======== 6. Quên mật khẩu ở mọi máy: mã 6 số qua email (10/11/2026) ========
+console.log('— 6. Quên mật khẩu (trình duyệt mới, mã qua email)')
+async function openForgot(d) {
+  if (await d.page.locator('.auth-landing').count()) await d.page.click('.auth-landing button:has-text("Đăng nhập")')
+  await d.page.click('button:has-text("Quên mật khẩu?")')
+  await d.page.waitForSelector('input[placeholder="Số điện thoại hoặc email đã đăng ký"]', { timeout: 5000 })
+}
+async function sendCodeUI(d, id) {
+  await d.page.fill('input[placeholder="Số điện thoại hoặc email đã đăng ký"]', id)
+  await d.page.click('.auth-card button.cta:has-text("Gửi mã")')
+}
+async function fillCode(d, code, p1, p2) {
+  await d.page.fill('input[placeholder="6 chữ số trong email"]', code)
+  await d.page.fill('input[placeholder="8 chữ số"]', p1); await d.page.fill('input[placeholder="Nhập lại 8 chữ số"]', p2)
+  await d.page.click('.auth-card button.cta:has-text("Đặt lại mật khẩu")')
+}
+const errText = (d) => d.page.textContent('.auth-card .err').catch(() => '')
+const F = await device('F')
+F.page.on('request', (r) => { if (r.url().endsWith('/api/account')) F.calls = (F.calls || 0) + 1 })
+await openForgot(F)
+await sendCodeUI(F, P)
+await F.page.waitForSelector('.auth-sent', { timeout: 8000 })
+const sentTxt = await F.page.textContent('.auth-sent')
+const maskE = 'b***@vidu.com'
+check('máy MỚI (chưa từng đăng nhập): gửi mã -> "Đã gửi mã 6 số tới b***@vidu.com. Mở hộp thư (xem cả mục Thư rác/Spam). Mã dùng được 15 phút."',
+  sentTxt === `Đã gửi mã 6 số tới ${maskE}. Mở hộp thư (xem cả mục Thư rác/Spam). Mã dùng được 15 phút.`, sentTxt)
+check('màn hình chỉ hiện email đã che (không hiện email đầy đủ)', !(await F.page.textContent('.auth-card')).includes(E))
+const resendTxt = await F.page.textContent('.f-resend')
+check('"Gửi lại mã" chưa bấm được ngay (đợi 60 giây)', (await F.page.locator('.f-resend').isDisabled()) && /Gửi lại mã \(sau (59|60) giây\)/.test(resendTxt), resendTxt)
+await F.page.screenshot({ path: `${OUT}/acc_f_code.png` })
+const codeF = codeOf(lastMail(E))
+check('thư mã đã tới email đã đăng ký', /^\d{6}$/.test(codeF))
+const wrongF = codeF === '000000' ? '111111' : '000000'
+await fillCode(F, wrongF, '24682468', '24682468')
+await F.page.waitForSelector('.auth-card .err', { timeout: 8000 })
+check('sai mã -> "Mã chưa đúng. Còn 4 lần thử."', (await errText(F)) === 'Mã chưa đúng. Còn 4 lần thử.', await errText(F))
+const callsBefore = F.calls
+await fillCode(F, codeF, '24682468', '24682467')
+await F.page.waitForFunction(() => /chưa khớp/.test(document.querySelector('.auth-card .err')?.textContent || ''), null, { timeout: 5000 }).catch(() => {})
+check('hai ô mật khẩu mới không khớp -> báo "chưa khớp", không gửi lên máy chủ', /Hai ô mật khẩu mới chưa khớp/.test(await errText(F)) && F.calls === callsBefore, await errText(F))
+await fillCode(F, codeF, '2468', '2468')
+check('mật khẩu mới không đủ 8 số -> báo "ĐÚNG 8 chữ số"', /ĐÚNG 8 chữ số/.test(await errText(F)))
+await fillCode(F, codeF, '24682468', '24682468')
+await waitPicker(F)
+check('đúng mã -> đặt mật khẩu mới và VÀO APP LUÔN, thấy đủ An, Bình, Chi', JSON.stringify(await kidNames(F)) === '["An","Bình","Chi"]', JSON.stringify(await kidNames(F)))
+check('máy mới nhận chìa khoá + tài khoản đúng (cùng id các con)', !!(await ls(F, 'ontap.acctoken.v1')) && JSON.stringify((await accOf(F)).children.slice(0, 2).map((c) => c.id)) === JSON.stringify(idsA))
+check('mật khẩu mới dùng được ở mọi máy, mật khẩu cũ thì không', (await api('login', { id: E, pass: '24682468' })).ok && !(await api('login', { id: P, pass: '87654321' })).ok)
 await A.page.reload({ waitUntil: 'networkidle' })
 await A.page.waitForSelector('.auth-notice', { timeout: 10000 }).catch(() => {})
-check('máy A mở lại -> phải đăng nhập lại (mật khẩu đã đặt lại ở máy B)', /đã được đổi trên máy khác/.test((await A.page.textContent('.auth-notice').catch(() => '')) || ''))
+check('máy A (cũ) mở lại -> tự đăng xuất, "đã được đổi trên máy khác"', /đã được đổi trên máy khác/.test((await A.page.textContent('.auth-notice').catch(() => '')) || ''))
+await B.page.reload({ waitUntil: 'networkidle' })
+await B.page.waitForSelector('.auth-notice', { timeout: 10000 }).catch(() => {})
+check('máy B (cũ) mở lại -> cũng phải đăng nhập lại', /đã được đổi trên máy khác/.test((await B.page.textContent('.auth-notice').catch(() => '')) || ''))
 await login(A, E, '24682468'); await waitPicker(A)
 check('máy A đăng nhập lại bằng email + mật khẩu mới -> vào được', (await kidNames(A)).length === 3)
-const F = await device('F')
-await F.page.click('.auth-landing button:has-text("Đăng nhập")'); await F.page.click('button:has-text("Quên mật khẩu?")')
-await F.page.fill('input[placeholder="Số điện thoại đã đăng ký"]', P)
-await F.page.fill('input[placeholder="8 chữ số"]', '11223344'); await F.page.fill('input[placeholder="Nhập lại 8 chữ số"]', '11223344')
-await F.page.click('button.cta:has-text("Đặt lại mật khẩu")')
-await F.page.waitForSelector('.auth-card .err', { timeout: 8000 })
-check('máy chưa từng đăng nhập: quên mật khẩu -> báo làm trên máy đã đăng nhập, KHÔNG đổi được mật khẩu', /chưa đăng nhập tài khoản này lần nào/.test(await F.page.textContent('.auth-card .err')) && (await api('login', { id: P, pass: '11223344' })).ok === false)
+// gửi lại mã sau 60 giây (đồng hồ giả của trình duyệt)
+const R = await device('R')
+await R.page.clock.install()
+await openForgot(R)
+await sendCodeUI(R, E.toUpperCase())
+await R.page.waitForSelector('.auth-sent', { timeout: 8000 })
+const code1R = codeOf(lastMail(E))
+check('gửi mã bằng email (viết hoa) cũng được', /^\d{6}$/.test(code1R) && /b\*\*\*@vidu\.com/.test(await R.page.textContent('.auth-sent')))
+await R.page.clock.fastForward(61000)
+await R.page.waitForFunction(() => document.querySelector('.f-resend')?.textContent === 'Gửi lại mã', null, { timeout: 5000 }).catch(() => {})
+check('sau 60 giây nút "Gửi lại mã" bấm được', !(await R.page.locator('.f-resend').isDisabled()), await R.page.textContent('.f-resend'))
+const nMail = (fs.readFileSync(MAILS, 'utf8').match(/\n/g) || []).length
+await R.page.click('.f-resend')
+await R.page.waitForFunction(() => /sau \d+ giây/.test(document.querySelector('.f-resend')?.textContent || ''), null, { timeout: 8000 }).catch(() => {})
+const code2R = codeOf(lastMail(E))
+check('bấm "Gửi lại mã" -> thư mới, nút lại phải đợi', (fs.readFileSync(MAILS, 'utf8').match(/\n/g) || []).length === nMail + 1 && /sau \d+ giây/.test(await R.page.textContent('.f-resend')))
+await fillCode(R, code2R, '13571357', '13571357')
+await waitPicker(R)
+check('mã mới (gửi lại) dùng được -> vào app', (await kidNames(R)).length === 3)
+await R.ctx.close()
+// tài khoản CHƯA có email: máy đã đăng nhập dùng cách cũ; máy mới không có cách cũ
+const PN = '0955' + RUN
+await api('register', { phone: PN, pass: '12121212', parentName: 'Ba Nê', children: [{ id: 'c-ne-ui', name: 'Nê', pin: '4', icon: '🐸', grade: 'Lớp 2', school: 'TH', schoolType: 'Công lập' }] })
+const S = await device('S')
+await login(S, PN, '12121212'); await waitPicker(S)
+await logoutFromPicker(S)
+await openForgot(S)
+await sendCodeUI(S, PN)
+await S.page.waitForSelector('.auth-card .err', { timeout: 8000 })
+check('tài khoản chưa có email -> báo "chưa có email nên chưa gửi được mã"', /chưa có email nên chưa gửi được mã/.test(await errText(S)), await errText(S))
+check('máy đã từng đăng nhập tài khoản đó -> có nút "Đặt mật khẩu mới ngay trên máy này" (cách cũ)', (await S.page.locator('.f-old').count()) === 1)
+await S.page.screenshot({ path: `${OUT}/acc_s_noemail.png` })
+await S.page.click('.f-old')
+await S.page.fill('input[placeholder="8 chữ số"]', '34343434'); await S.page.fill('input[placeholder="Nhập lại 8 chữ số"]', '34343434')
+await S.page.click('.auth-card button.cta:has-text("Đặt lại mật khẩu")')
+await waitPicker(S)
+check('cách cũ: đặt mật khẩu mới trên máy này -> vào app, mật khẩu mới dùng được ở mọi máy', JSON.stringify(await kidNames(S)) === '["Nê"]' && (await api('login', { id: PN, pass: '34343434' })).ok)
+const T = await device('T')
+await openForgot(T)
+await sendCodeUI(T, PN)
+await T.page.waitForSelector('.auth-card .err', { timeout: 8000 })
+check('máy MỚI, tài khoản chưa có email -> báo rõ, KHÔNG có nút cách cũ, không đổi được mật khẩu', /chưa có email/.test(await errText(T)) && (await T.page.locator('.f-old').count()) === 0 && (await api('login', { id: PN, pass: '34343434' })).ok)
+await T.ctx.close()
+// máy chủ chưa cài gửi email
+const U = await device('U', { base: NOMAIL })
+await openForgot(U)
+await sendCodeUI(U, P)
+await U.page.waitForSelector('.auth-card .err', { timeout: 8000 })
+check('máy chủ chưa cài gửi email -> báo "Máy chủ chưa cài gửi email…", không có nút cách cũ (máy mới)', /Máy chủ chưa cài gửi email/.test(await errText(U)) && (await U.page.locator('.f-old').count()) === 0, await errText(U))
+await U.page.screenshot({ path: `${OUT}/acc_u_mailoff.png` })
+await U.ctx.close()
+rdel('acct:u:' + PN)
 
 // ======== 7. Tài khoản cũ (chỉ có trên một máy) tự lên máy chủ ========
 console.log('— 7. Tài khoản cũ tự lên máy chủ')
@@ -250,11 +342,9 @@ await login(N, P, '00000000')
 await N.page.waitForFunction(() => /Sai số điện thoại/.test(document.querySelector('.auth-card .err')?.textContent || ''), null, { timeout: 8000 }).catch(() => {})
 check('số đã có tài khoản mà sai mật khẩu -> vẫn báo "Sai số điện thoại / email hoặc mật khẩu."', /Sai số điện thoại \/ email hoặc mật khẩu/.test(await N.page.textContent('.auth-card .err')))
 await N.page.click('button:has-text("Quên mật khẩu?")')
-await N.page.fill('input[placeholder="Số điện thoại đã đăng ký"]', '0977' + RUN)
-await N.page.fill('input[placeholder="8 chữ số"]', '11223344'); await N.page.fill('input[placeholder="Nhập lại 8 chữ số"]', '11223344')
-await N.page.click('button.cta:has-text("Đặt lại mật khẩu")')
+await sendCodeUI(N, '0977' + RUN)
 await N.page.waitForSelector('.auth-card .err', { timeout: 8000 })
-check('quên mật khẩu với số chưa có trên máy chủ -> báo mở Ôn Tập trên máy đã đăng ký rồi đăng nhập bằng mật khẩu cũ', /chưa có tài khoản trên máy chủ/.test(await N.page.textContent('.auth-card .err')) && /mật khẩu cũ/.test(await N.page.textContent('.auth-card .err')))
+check('quên mật khẩu với số chưa có trên máy chủ -> báo chưa có tài khoản, mở Ôn Tập trên máy đã đăng ký một lần', /chưa có tài khoản/.test(await N.page.textContent('.auth-card .err')) && /mở Ôn Tập trên máy đó một lần/.test(await N.page.textContent('.auth-card .err')) && (await N.page.locator('.f-old').count()) === 0)
 await N.page.screenshot({ path: `${OUT}/acc_n_notserver.png` })
 check('không lỗi trang ở mọi máy', allErrs.length === 0, allErrs.slice(0, 4).join(' | '))
 for (const ph of [P, PL, PM, PO]) rdel('acct:u:' + ph)

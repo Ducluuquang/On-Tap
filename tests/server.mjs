@@ -4,6 +4,8 @@
 //  - /api/ics       -> api/ics.mjs thật
 //  - /api/arena     -> api/arena.mjs thật; kho = Redis thật qua lớp giả Upstash REST (upstash_shim.mjs). ARENA=0: chưa gắn kho.
 //  - /api/account   -> api/account.mjs thật (tài khoản đăng nhập nhiều máy, cùng kho với Thi đấu). ARENA=0: chưa gắn kho.
+//  - Gửi email (mã "Quên mật khẩu", api/_mail.mjs): KHÔNG gửi thật — MAIL_MOCK_FILE=tests/out/mail-<cổng>.jsonl (mỗi thư một dòng JSON).
+//    MAIL=0: như máy chủ chưa cài gửi email (không có MAIL_USER / MAIL_APP_PASSWORD) -> "mail_off".
 // Khoá AI chỉ lấy từ biến môi trường, không ghi vào file.
 import http from 'node:http'
 import fs from 'node:fs'
@@ -13,6 +15,13 @@ const DIST = process.env.DIST || path.resolve(path.dirname(new URL(import.meta.u
 const PORT = Number(process.env.PORT || 4192)
 const MOCK = process.env.MOCK === '1'
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json', '.webmanifest': 'application/manifest+json' }
+if (process.env.MAIL === '0') { delete process.env.MAIL_MOCK_FILE; delete process.env.MAIL_USER; delete process.env.MAIL_APP_PASSWORD }
+else {
+  process.env.MAIL_MOCK_FILE = process.env.MAIL_MOCK_FILE || path.resolve(path.dirname(new URL(import.meta.url).pathname), 'out', `mail-${PORT}.jsonl`)
+  process.env.MAIL_USER = process.env.MAIL_USER || 'ontap.app@example.com'
+  delete process.env.MAIL_APP_PASSWORD
+  fs.mkdirSync(path.dirname(process.env.MAIL_MOCK_FILE), { recursive: true })
+}
 if (process.env.ARENA !== '0') { process.env.KV_REST_API_URL = process.env.KV_REST_API_URL || 'http://127.0.0.1:4199'; process.env.KV_REST_API_TOKEN = process.env.KV_REST_API_TOKEN || 'test-token' }
 const FRUITS = [['apple', 'quả táo', '🍎'], ['banana', 'quả chuối', '🍌'], ['orange', 'quả cam', '🍊'], ['grape', 'quả nho', '🍇'], ['lemon', 'quả chanh', '🍋'],
   ['mango', 'quả xoài', '🥭'], ['peach', 'quả đào', '🍑'], ['pear', 'quả lê', '🍐'], ['cherry', 'quả anh đào', '🍒'], ['strawberry', 'quả dâu tây', '🍓'],

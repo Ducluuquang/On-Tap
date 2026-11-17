@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { CHILD_ICONS } from '../lib/icons.js'
 import { SelectPicker } from '../components.jsx'
 import logoFull from '../assets/logo-full.png'
@@ -24,6 +24,23 @@ const MSG = {
   reset_offline: 'Chưa kết nối được máy chủ. Kiểm tra mạng rồi thử lại.',
   reset_stale: 'Mật khẩu tài khoản đã được đổi ở máy khác. Hãy đăng nhập bằng mật khẩu mới, hoặc đặt lại trên máy đang đăng nhập.',
 }
+// Quên mật khẩu bằng mã gửi tới email (10/11/2026) — lời báo theo lỗi máy chủ.
+const FMSG = {
+  bad_id: 'Nhập số điện thoại hoặc email đã đăng ký.',
+  not_found: 'Số điện thoại / email này chưa có tài khoản. Nếu đã đăng ký từ trước trên máy khác: mở Ôn Tập trên máy đó một lần (tài khoản sẽ tự lên máy chủ) rồi thử lại. Chưa đăng ký thì quay lại và chọn “Đăng ký”.',
+  no_email: 'Tài khoản này chưa có email nên chưa gửi được mã. Hãy làm “Quên mật khẩu” trên máy đã đăng nhập tài khoản này, hoặc đăng nhập rồi thêm email trong Cài đặt.',
+  mail_off: 'Máy chủ chưa cài gửi email nên chưa gửi được mã. Anh/chị thử lại sau, hoặc làm “Quên mật khẩu” trên máy đã đăng nhập tài khoản này.',
+  mail_error: 'Chưa gửi được email lúc này. Anh/chị thử lại sau ít phút.',
+  send_limit: 'Đã gửi mã quá nhiều lần. Đợi 1 giờ rồi thử lại.',
+  code_expired: 'Mã đã hết hạn hoặc đã được dùng. Bấm “Gửi lại mã” để nhận mã mới.',
+  code_locked: 'Nhập sai mã 5 lần nên mã đã bị huỷ. Bấm “Gửi lại mã” để nhận mã mới.',
+  bad_code: 'Nhập đủ mã 6 số trong email.',
+  bad_pass: 'Mật khẩu mới phải gồm ĐÚNG 8 chữ số.',
+  slow_down: MSG.slow_down,
+  offline: MSG.offline,
+  error: MSG.error,
+}
+const RESEND_WAIT = 60 // giây chờ trước khi "Gửi lại mã"
 
 // QR giả (chỉ để minh hoạ trang thanh toán) — 3 ô định vị góc + rải ô theo seed.
 function qrCells(seed) {
@@ -58,7 +75,10 @@ function QR({ seed }) {
 
 // ĐĂNG NHẬP NHIỀU MÁY (01/11/2026): tài khoản lưu ở máy chủ — đăng ký ở máy nào cũng đăng nhập được ở máy khác,
 // bằng SỐ ĐIỆN THOẠI hoặc EMAIL + mật khẩu (onLogin/onRegister/onReset gọi máy chủ nên chờ kết quả).
-export default function Auth({ account, notice = '', onRegister, onLogin, onReset, onCheck }) {
+// QUÊN MẬT KHẨU (10/11/2026): máy nào cũng làm được — onForgotSend gửi mã 6 số tới email đã đăng ký, onForgotReset
+// kiểm mã + đặt mật khẩu mới rồi vào app. Máy đã từng đăng nhập tài khoản đó (localResetPhone) vẫn có cách cũ
+// (onReset, không cần mã) làm dự phòng khi không gửi được email.
+export default function Auth({ account, notice = '', onRegister, onLogin, onReset, onCheck, onForgotSend, onForgotReset, localResetPhone }) {
   const [mode, setMode] = useState(notice ? 'login' : 'landing') // landing | login | register | pay | forgot
   const [busy, setBusy] = useState(false) // đang chờ máy chủ
   const [touched, setTouched] = useState(false)
@@ -76,6 +96,17 @@ export default function Auth({ account, notice = '', onRegister, onLogin, onRese
   const [p, setP] = useState('')
   const [np, setNp] = useState('')
   const [np2, setNp2] = useState('')
+  const [fStep, setFStep] = useState('send') // quên mật khẩu: send (nhập số / email) | code (nhập mã + mật khẩu mới) | old (cách cũ trên máy này)
+  const [code, setCode] = useState('')
+  const [sentTo, setSentTo] = useState('')
+  const [sentAt, setSentAt] = useState(0)
+  const [now, setNow] = useState(() => Date.now())
+  const [fbPhone, setFbPhone] = useState('') // máy này có tài khoản đó -> được dùng cách cũ
+  useEffect(() => {
+    if (mode !== 'forgot' || fStep !== 'code') return undefined
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [mode, fStep])
   // Thanh toán (demo)
   const [cycle, setCycle] = useState('year')
   const [err, setErr] = useState('')
@@ -142,10 +173,43 @@ export default function Auth({ account, notice = '', onRegister, onLogin, onRese
     setBusy(false)
     if (!r || !r.ok) setErr(MSG[(r && r.error) || 'bad_login'] || MSG.bad_login)
   }
+  // ---- Quên mật khẩu bằng mã email ----
+  async function sendCode() {
+    if (busy) return
+    setErr(''); setFbPhone('')
+    const id = u.trim()
+    if (!id) { setErr(FMSG.bad_id); return }
+    setBusy(true)
+    const r = await onForgotSend(id).catch(() => ({ error: 'offline' }))
+    setBusy(false)
+    if (r && r.ok) {
+      setSentTo(r.to || ''); setSentAt(Date.now()); setNow(Date.now()); setCode(''); setNp(''); setNp2(''); setFStep('code')
+      return
+    }
+    const e = (r && r.error) || 'error'
+    setErr(FMSG[e] || FMSG.error)
+    if (localResetPhone) setFbPhone(localResetPhone(id) || '')
+  }
+  async function submitCode() {
+    if (busy) return
+    setErr('')
+    if (!/^\d{6}$/.test(code)) { setErr(FMSG.bad_code); return }
+    if (!/^\d{8}$/.test(np)) { setErr(FMSG.bad_pass); return }
+    if (np !== np2) { setErr('Hai ô mật khẩu mới chưa khớp.'); return }
+    setBusy(true)
+    const r = await onForgotReset(u.trim(), code, np).catch(() => ({ error: 'offline' }))
+    setBusy(false)
+    if (r && r.ok) return
+    const e = (r && r.error) || 'error'
+    if (e === 'code_wrong') { setErr(`Mã chưa đúng. Còn ${r.left} lần thử.`); return }
+    if (e === 'code_expired' || e === 'code_locked') setCode('')
+    setErr(FMSG[e] || FMSG.error)
+  }
+  // Cách cũ (máy đã từng đăng nhập tài khoản này)
   async function submitReset() {
     if (busy) return
     setErr('')
-    const ph = onlyDigits(u)
+    const ph = fbPhone || onlyDigits(u)
     if (!/^\d{8,12}$/.test(ph)) { setErr('Nhập số điện thoại đã đăng ký.'); return }
     if (!/^\d{8}$/.test(np)) { setErr('Mật khẩu mới phải gồm ĐÚNG 8 chữ số.'); return }
     if (np !== np2) { setErr('Hai ô mật khẩu chưa khớp.'); return }
@@ -189,7 +253,7 @@ export default function Auth({ account, notice = '', onRegister, onLogin, onRese
             onChange={(e) => setP(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submitLogin()} />
           {err && <div className="err">{err}</div>}
           <button className="cta" disabled={busy} onClick={submitLogin}>{busy ? 'Đang đăng nhập…' : 'Đăng nhập'}</button>
-          <button className="linkbtn" onClick={() => { setMode('forgot'); setErr(''); setNp(''); setNp2('') }}>Quên mật khẩu?</button>
+          <button className="linkbtn" onClick={() => { setMode('forgot'); setFStep('send'); setFbPhone(''); setErr(''); setNp(''); setNp2(''); setCode('') }}>Quên mật khẩu?</button>
           <button className="ghost small" onClick={() => { setMode('landing'); setErr('') }}>← Quay lại</button>
         </div>
       </div>
@@ -198,22 +262,67 @@ export default function Auth({ account, notice = '', onRegister, onLogin, onRese
 
   // ================= QUÊN MẬT KHẨU =================
   if (mode === 'forgot') {
+    const back = <button className="ghost small" onClick={() => { setMode('login'); setErr('') }}>← Quay lại đăng nhập</button>
+    // Cách cũ: đặt mật khẩu mới ngay trên máy đã từng đăng nhập tài khoản này (không cần mã email)
+    if (fStep === 'old') {
+      return (
+        <div className="auth">
+          <div className="auth-card">
+            <Brandline />
+            <h1>Đặt mật khẩu mới trên máy này</h1>
+            <p className="auth-sub">Máy này đã từng đăng nhập tài khoản này nên đặt được mật khẩu mới ngay, không cần mã email. Xong thì mọi máy dùng mật khẩu mới.</p>
+            <label className="auth-lbl">Mật khẩu mới (8 số)</label>
+            <input className="auth-in" type="password" inputMode="numeric" maxLength={8} placeholder="8 chữ số" value={np} onChange={(e) => setNp(onlyDigits(e.target.value))} />
+            <label className="auth-lbl">Nhập lại mật khẩu mới</label>
+            <input className="auth-in" type="password" inputMode="numeric" maxLength={8} placeholder="Nhập lại 8 chữ số" value={np2}
+              onChange={(e) => setNp2(onlyDigits(e.target.value))} onKeyDown={(e) => e.key === 'Enter' && submitReset()} />
+            {err && <div className="err">{err}</div>}
+            <button className="cta" disabled={busy} onClick={submitReset}>{busy ? 'Đang đặt lại…' : 'Đặt lại mật khẩu'}</button>
+            <button className="ghost small" onClick={() => { setFStep('send'); setErr('') }}>← Quay lại</button>
+          </div>
+        </div>
+      )
+    }
+    // Bước 2: nhập mã 6 số trong email + mật khẩu mới
+    if (fStep === 'code') {
+      const left = Math.max(0, RESEND_WAIT - Math.floor((now - sentAt) / 1000))
+      return (
+        <div className="auth">
+          <div className="auth-card">
+            <Brandline />
+            <h1>Quên mật khẩu</h1>
+            <div className="auth-notice auth-sent">Đã gửi mã 6 số tới <b>{sentTo}</b>. Mở hộp thư (xem cả mục Thư rác/Spam). Mã dùng được 15 phút.</div>
+            <label className="auth-lbl">Mã 6 số</label>
+            <input className="auth-in" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="6 chữ số trong email" value={code} onChange={(e) => setCode(onlyDigits(e.target.value).slice(0, 6))} />
+            <label className="auth-lbl">Mật khẩu mới (8 số)</label>
+            <input className="auth-in" type="password" inputMode="numeric" maxLength={8} placeholder="8 chữ số" value={np} onChange={(e) => setNp(onlyDigits(e.target.value))} />
+            <label className="auth-lbl">Nhập lại mật khẩu mới</label>
+            <input className="auth-in" type="password" inputMode="numeric" maxLength={8} placeholder="Nhập lại 8 chữ số" value={np2}
+              onChange={(e) => setNp2(onlyDigits(e.target.value))} onKeyDown={(e) => e.key === 'Enter' && submitCode()} />
+            {err && <div className="err">{err}</div>}
+            <button className="cta" disabled={busy} onClick={submitCode}>{busy ? 'Đang đặt lại…' : 'Đặt lại mật khẩu'}</button>
+            <button className="ghost small f-resend" disabled={busy || left > 0} onClick={sendCode}>{left > 0 ? `Gửi lại mã (sau ${left} giây)` : 'Gửi lại mã'}</button>
+            {back}
+          </div>
+        </div>
+      )
+    }
+    // Bước 1: nhập số điện thoại hoặc email -> gửi mã
     return (
       <div className="auth">
         <div className="auth-card">
           <Brandline />
           <h1>Quên mật khẩu</h1>
-          <p className="auth-sub">Nhập số điện thoại đã đăng ký và đặt mật khẩu mới (8 chữ số). Làm trên máy đã từng đăng nhập tài khoản này; xong thì mọi máy dùng mật khẩu mới.</p>
-          <label className="auth-lbl">Số điện thoại</label>
-          <input className="auth-in" inputMode="numeric" placeholder="Số điện thoại đã đăng ký" value={u} onChange={(e) => setU(e.target.value)} />
-          <label className="auth-lbl">Mật khẩu mới (8 số)</label>
-          <input className="auth-in" type="password" inputMode="numeric" maxLength={8} placeholder="8 chữ số" value={np} onChange={(e) => setNp(onlyDigits(e.target.value))} />
-          <label className="auth-lbl">Nhập lại mật khẩu mới</label>
-          <input className="auth-in" type="password" inputMode="numeric" maxLength={8} placeholder="Nhập lại 8 chữ số" value={np2}
-            onChange={(e) => setNp2(onlyDigits(e.target.value))} onKeyDown={(e) => e.key === 'Enter' && submitReset()} />
+          <p className="auth-sub">Nhập số điện thoại hoặc email đã đăng ký. Ôn Tập gửi <b>mã 6 số</b> tới email của tài khoản để đặt mật khẩu mới — làm được trên mọi máy.</p>
+          <label className="auth-lbl">Số điện thoại hoặc email</label>
+          <input className="auth-in" type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="Số điện thoại hoặc email đã đăng ký" value={u}
+            onChange={(e) => setU(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && sendCode()} />
           {err && <div className="err">{err}</div>}
-          <button className="cta" disabled={busy} onClick={submitReset}>{busy ? 'Đang đặt lại…' : 'Đặt lại mật khẩu'}</button>
-          <button className="ghost small" onClick={() => { setMode('login'); setErr('') }}>← Quay lại đăng nhập</button>
+          <button className="cta" disabled={busy} onClick={sendCode}>{busy ? 'Đang gửi mã…' : 'Gửi mã'}</button>
+          {err && fbPhone && (
+            <button className="cta ghost f-old" onClick={() => { setFStep('old'); setErr(''); setNp(''); setNp2('') }}>Đặt mật khẩu mới ngay trên máy này</button>
+          )}
+          {back}
         </div>
       </div>
     )
