@@ -163,14 +163,38 @@ export function subjKey(subject) {
   const n = String(subject || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').trim()
   if (n === 'toan' || /(^|\s)(toan|math|mathematics|so hoc)(\s|$)/.test(n)) return 'toan'
   if (/tieng anh|english|anh van|anh ngu/.test(n)) return 'tieng-anh'
-  if (/tieng viet|vietnamese|ngu van|chinh ta|tap doc|luyen tu va cau|tap lam van/.test(n)) return 'tieng-viet'
+  if (/ngu van|van hoc/.test(n)) return 'ngu-van'
+  if (/tieng viet|vietnamese|chinh ta|tap doc|luyen tu va cau|tap lam van/.test(n)) return 'tieng-viet'
   return 'default'
 }
+
+// LỚP THẬT của con (09/11/2026): "Lớp 7" -> 7; không rõ ("4-5", "") -> 0.
+export function gradeNo(grade) {
+  const m = /^\s*(?:l[oớ]p|grade|class)?\s*(\d{1,2})\s*$/i.exec(String(grade || ''))
+  const n = m ? Number(m[1]) : 0
+  return n >= 1 && n <= 12 ? n : 0
+}
+// Cấp học theo lớp: tiểu học 1–5, THCS 6–9, THPT 10–12 (không rõ lớp -> tiểu học như trước).
+export function levelOf(grade) {
+  const g = gradeNo(grade)
+  return g >= 10 ? 'THPT' : g >= 6 ? 'THCS' : 'tiểu học'
+}
+const learner = (grade) => 'học sinh ' + levelOf(grade)
+// Môn ngôn ngữ (chống lặp từ, gom đợt lớn)
+const isLangKey = (k) => k === 'tieng-anh' || k === 'tieng-viet' || k === 'ngu-van'
+// Ngữ văn: môn "Ngữ văn", hoặc "Tiếng Việt" của con lớp 6–12 (THCS/THPT học Ngữ văn).
+const isNguVan = (subject, grade) => { const k = subjKey(subject); return k === 'ngu-van' || (k === 'tieng-viet' && gradeNo(grade) >= 6) }
 
 // Quy tắc RA ĐỀ RIÊNG theo môn (giữ độ chính xác đặc thù từng môn).
 // Toán, Tiếng Việt, Tiếng Anh có quy tắc kỹ; mọi môn khác dùng khung CHUNG.
 export function subjectRules(subject, grade, enLang = 'vi') {
   const k = subjKey(subject)
+  if (isNguVan(subject, grade)) {
+    return `- Ngữ văn ${levelOf(grade)} (lớp ${grade}): hỏi về ĐỌC HIỂU VĂN BẢN (thể loại, nhân vật, chi tiết, ngôi kể, chủ đề, biện pháp tu từ và tác dụng), THỰC HÀNH TIẾNG VIỆT (trạng ngữ, số từ, phó từ, từ láy, từ ghép, nghĩa của từ, dấu câu, biện pháp tu từ…) và TRI THỨC NGỮ VĂN (khái niệm thể loại, đặc điểm văn bản).
+- Câu hỏi về một văn bản phải TỰ CHỨA ngữ liệu cần thiết (trích ngắn câu văn / dòng thơ, ≤ 3 dòng) vì con không có sách bên cạnh; không hỏi chi tiết không có trong ngữ liệu đã đưa.
+- Mỗi câu chỉ 1 đáp án đúng, có CĂN CỨ rõ trong văn bản / ngữ liệu; các lựa chọn sai phải sai rõ ràng, không mơ hồ, không nhiều đáp án cùng đúng.
+- Chính tả, ngữ pháp CHUẨN tiếng Việt; thuật ngữ đúng như sách giáo khoa; ngữ liệu trong sáng, hợp lứa tuổi ${learner(grade)}.`
+  }
   if (k === 'toan') {
     return NUM_RULE + `
 - Toán: tự giải lại TỪNG BƯỚC để đáp án CHẮC CHẮN đúng; chỉ 1 đáp án đúng; số liệu hợp lớp ${grade}.`
@@ -178,19 +202,19 @@ export function subjectRules(subject, grade, enLang = 'vi') {
   if (k === 'tieng-viet') {
     return `- Tiếng Việt: hỏi về chính tả, nghĩa của từ, từ loại (danh/động/tính từ), dấu câu, hoặc đọc-hiểu ngắn.
 - Chính tả và ngữ pháp phải CHUẨN tiếng Việt; mỗi câu chỉ 1 đáp án đúng rõ ràng, tránh nhiều đáp án cùng đúng.
-- Ngữ liệu trong sáng, phù hợp học sinh tiểu học lớp ${grade}.`
+- Ngữ liệu trong sáng, phù hợp ${learner(grade)} lớp ${grade}.`
   }
   if (k === 'tieng-anh') {
     const askLine = enLang === 'en'
       ? 'Phần YÊU CẦU/câu hỏi VÀ các đáp án đều viết bằng TIẾNG ANH.'
       : 'Phần YÊU CẦU/câu hỏi viết bằng TIẾNG VIỆT cho con dễ hiểu; NHƯNG từ vựng/cụm cần học và 4 ĐÁP ÁN giữ nguyên TIẾNG ANH (vd: «Chọn dạng quá khứ đúng của "go":» rồi 4 đáp án tiếng Anh). Con chỉ cần chọn đáp án đúng.'
-    return `- Tiếng Anh (học sinh tiểu học Việt Nam): từ vựng, ngữ pháp cơ bản, mẫu câu, chính tả.
+    return `- Tiếng Anh (${learner(grade)} Việt Nam): từ vựng, ngữ pháp cơ bản, mẫu câu, chính tả.
 - ${askLine} Phần "explain" viết bằng TIẾNG VIỆT (được trích từ/cụm tiếng Anh), nêu rõ quy tắc/nghĩa và lỗi sai của các lựa chọn khác.
 - Từ vựng/ngữ pháp đúng CHUẨN; chỉ 1 đáp án đúng; độ khó hợp lớp ${grade}.`
   }
   // Khung CHUNG cho mọi môn khác (Khoa học, Lịch sử, Địa lý…).
   return `- Bám SÁT nội dung/khái niệm đang ôn; mỗi câu chỉ có 1 đáp án đúng, rõ ràng, không mơ hồ.
-- Nếu là kiến thức dữ kiện/sự kiện, chỉ hỏi điều CHẮC CHẮN đúng và phổ biến trong chương trình tiểu học lớp ${grade}; tránh chi tiết dễ nhầm.`
+- Nếu là kiến thức dữ kiện/sự kiện, chỉ hỏi điều CHẮC CHẮN đúng và phổ biến trong chương trình ${levelOf(grade)} lớp ${grade}; tránh chi tiết dễ nhầm.`
 }
 
 // Quy tắc ĐỘ KHÓ cho chế độ MASTER: bài nâng cao + kết hợp nhiều khái niệm/nhiều bước.
@@ -198,11 +222,26 @@ const masterRule = (grade) =>
 `YÊU CẦU ĐỘ KHÓ (MASTER — luyện cho THÀNH THẠO):
 - Ra bài KHÓ HƠN mức cơ bản: mỗi câu cần NHIỀU BƯỚC tính hoặc KẾT HỢP từ 2 khái niệm/kỹ năng trở lên.
 - Đa dạng dạng bài: tính nhiều bước, so sánh, tìm thành phần chưa biết (tìm x, tìm số bị che), toán có lời văn/tình huống thực tế, suy luận. Tránh lặp lại một dạng.
-- VẪN nằm trong chương trình tiểu học lớp ${grade} — KHÔNG dùng kiến thức vượt cấp (đại số, lũy thừa/căn nâng cao…). Câu chữ dễ hiểu với học sinh tiểu học.
+- VẪN nằm trong chương trình ${levelOf(grade)} lớp ${grade} — KHÔNG dùng kiến thức vượt cấp${gradeNo(grade) >= 6 ? '' : ' (đại số, lũy thừa/căn nâng cao…)'}. Câu chữ dễ hiểu với ${learner(grade)}.
 - Tự giải lại TỪNG BƯỚC để đáp án CHẮC CHẮN đúng trước khi ghi ra.`
 
 // Soạn MỘT đợt câu hỏi (dùng cho chạy song song).
-async function genChunk(key, { subject, grade, topic, concepts, format, fast = false, master = false, enLang = 'vi' }, n, salt = '') {
+// THƯ VIỆN SÁCH (09/11/2026): đoạn sách giáo khoa đúng lớp + môn (api/_books/core.mjs) để AI tham khảo khi soạn câu.
+// Không có đoạn sách -> lời nhắc y như cũ.
+export function bookRule(bookRef) {
+  const ref = String(bookRef || '').trim()
+  if (!ref) return ''
+  return `
+ĐOẠN SÁCH THAM KHẢO (chữ quét từ sách giáo khoa / sách bài tập / sách giáo viên của đúng lớp và môn này; chữ quét CÓ THỂ SAI chính tả hoặc dấu):
+<<<
+${ref}
+>>>
+- Ra câu BÁM SÁT nội dung đoạn sách trên (ngữ liệu, khái niệm, cách gọi tên, gợi ý trả lời của sách) và đúng các khái niệm đang ôn; không hỏi điều trái với sách.
+- Viết đúng chính tả CHUẨN tiếng Việt (tự sửa lỗi quét), KHÔNG chép nguyên văn dài: chỉ trích ngắn khi câu hỏi cần ngữ liệu (≤ 3 dòng).
+- Có thể ghi nguồn ngắn trong "explain" (vd "SGK Ngữ văn 7 tập 1, tr. 12").`
+}
+
+async function genChunk(key, { subject, grade, topic, concepts, format, fast = false, master = false, enLang = 'vi', bookRef = '' }, n, salt = '') {
   const names = concepts.map((c) => (typeof c === 'string' ? c : c.name)).join(', ')
   // Chủ đề LỚN kèm các Ý NHỎ con đã học (details: câu mẫu, từ vựng, ví dụ) -> câu hỏi bám đúng nội dung bài.
   const cleanDetails = (c) => (c && typeof c === 'object' && Array.isArray(c.details) ? c.details : [])
@@ -225,7 +264,7 @@ async function genChunk(key, { subject, grade, topic, concepts, format, fast = f
     ? `\n- KẾT HỢP NHIỀU CHỦ ĐỀ: ưu tiên mỗi bài lồng ghép TỪ 2 CHỦ ĐỀ TRỞ LÊN trong danh sách (${names}) vào cùng một bài toán nhiều bước, để con luyện phối hợp các kỹ năng. Vẫn đúng chương trình lớp ${grade}, câu chữ dễ hiểu.`
     : ''
   // Chống LẶP: mỗi câu một nội dung khác nhau. Với môn ngôn ngữ, cấm hỏi lại cùng một từ.
-  const isLang = subjKey(subject) === 'tieng-anh' || subjKey(subject) === 'tieng-viet'
+  const isLang = isLangKey(subjKey(subject))
   const distinctRule = isLang
     ? `\n- ĐA DẠNG BẮT BUỘC: mỗi câu về một TỪ VỰNG / MẪU CÂU / Ý KHÁC nhau (một chủ đề ngữ pháp thì đổi mẫu câu, đổi ngữ cảnh); TUYỆT ĐỐI KHÔNG hỏi lại cùng một từ (vd cùng chữ "trim") ở hai câu trong ${n} câu này.`
     : `\n- ĐA DẠNG: mỗi câu một nội dung/đối tượng/số liệu KHÁC nhau; không hỏi lại cùng một thứ.`
@@ -237,7 +276,7 @@ KHÔNG ra câu cần "nhìn tranh/xem hình" hay nghe âm thanh — app chỉ hi
   const kindChoice = master ? 'câu hỏi trắc nghiệm NÂNG CAO, KẾT HỢP nhiều khái niệm, mỗi câu 4 lựa chọn' : 'câu hỏi trắc nghiệm KHÁC NHAU cho học sinh ôn tập, mỗi câu 4 lựa chọn'
   const prompt = salt + (open
     ? `Môn ${subject}, lớp ${grade}, chủ đề "${topic}". Các khái niệm: ${listing}.
-Tạo ${n} ${kindOpen}.${mrule}${combineRule}
+Tạo ${n} ${kindOpen}.${mrule}${combineRule}${bookRule(bookRef)}
 ${topicRule}${distinctRule}${detailRule}
 QUY TẮC BẮT BUỘC:
 - Mỗi câu phải TỰ CHỨA đầy đủ dữ kiện và chỉ có MỘT đáp án đúng để con tự tính/viết ra.
@@ -248,9 +287,9 @@ ${subjRule}
 Với mỗi câu, tự kiểm tra kỹ để đáp án chắc chắn đúng.
 Trả DUY NHẤT JSON:
 {"questions":[{"concept":"","q":"","answer":"","explain":""}]}
-"answer" là đáp án đúng viết ngắn gọn (số, phân số, hoặc cụm từ). "explain" BẮT BUỘC, ≤30 từ, lời dễ hiểu cho học sinh tiểu học: cách làm / lý do ra đáp án đúng và lỗi hay mắc — để con làm SAI hiểu VÌ SAO sai. Tiếng Việt, chính xác. Chỉ JSON.`
+"answer" là đáp án đúng viết ngắn gọn (số, phân số, hoặc cụm từ). "explain" BẮT BUỘC, ≤30 từ, lời dễ hiểu cho ${learner(grade)}: cách làm / lý do ra đáp án đúng và lỗi hay mắc — để con làm SAI hiểu VÌ SAO sai. Tiếng Việt, chính xác. Chỉ JSON.`
     : `Môn ${subject}, lớp ${grade}, chủ đề "${topic}". Các khái niệm: ${listing}.
-Tạo ${n} ${kindChoice}.${mrule}${combineRule}
+Tạo ${n} ${kindChoice}.${mrule}${combineRule}${bookRule(bookRef)}
 ${topicRule}${distinctRule}${detailRule}
 Trả DUY NHẤT JSON:
 {"questions":[{"concept":"","q":"","options":["","","",""],"answer":"","explain":""}]}
@@ -260,7 +299,7 @@ QUY TẮC BẮT BUỘC:
 - Câu điền chỗ trống: chỉ MỘT chỗ trống "___" và ghép đáp án vào phải thành câu đúng, trọn nghĩa; nếu cần 2 chỗ trống thì mỗi lựa chọn ghi đủ 2 phần, cách nhau bằng " / ".
 - (Toán) Bài ĐỌC SỐ: các lựa chọn sai phải đọc SAI (sai chữ số/giá trị). TUYỆT ĐỐI không tạo lựa chọn chỉ khác CÁCH ĐỌC của đáp án đúng (thêm/bớt "không trăm", "tư"="bốn", "linh"="lẻ", "nghìn"="ngàn") — vì sẽ thành 2 đáp án cùng đúng.
 ${subjRule}
-- "explain" BẮT BUỘC (tiếng Việt, ≤30 từ, lời dễ hiểu cho học sinh tiểu học): nêu VÌ SAO đáp án đúng, VÀ chỉ ra LỖI SAI của các lựa chọn còn lại (vd thiếu mạo từ "a", sai thì, chia động từ sai, tính nhầm…) — để con chọn sai hiểu mình SAI Ở ĐÂU. Phải khớp với "answer". Tự tính lại để chắc chắn "answer" đúng.
+- "explain" BẮT BUỘC (tiếng Việt, ≤${bookRef ? 40 : 30} từ, lời dễ hiểu cho ${learner(grade)}): nêu VÌ SAO đáp án đúng, VÀ chỉ ra LỖI SAI của các lựa chọn còn lại (vd thiếu mạo từ "a", sai thì, chia động từ sai, tính nhầm…) — để con chọn sai hiểu mình SAI Ở ĐÂU. Phải khớp với "answer". Tự tính lại để chắc chắn "answer" đúng.
 Tiếng Việt, chính xác. Chỉ JSON.`)
   // Lời giải thích dài hơn (nêu cả lỗi sai) -> nới trần token để JSON KHÔNG bị cụt.
   const max = Math.min(5200, (master ? 900 : 700) + n * (master ? 380 : 310))
@@ -284,15 +323,15 @@ function dedupeByQ(list) {
 export async function generateQuestions(key, opts) {
   // fast=false (mặc định): dùng model CHÍNH XÁC để soạn bài (độ tin cậy là ưu tiên số 1).
   // Tăng tốc bằng cách chia NHỎ và chạy SONG SONG nhiều đợt — nhanh mà KHÔNG giảm chính xác.
-  const { subject = 'Toán', grade = '', topic = '', concepts = [], count = 6, format = 'choice', fast = false, master = false, enLang = 'vi' } = opts
-  const base = { subject, grade, topic, concepts, format, fast, master, enLang }
+  const { subject = 'Toán', grade = '', topic = '', concepts = [], count = 6, format = 'choice', fast = false, master = false, enLang = 'vi', bookRef = '' } = opts
+  const base = { subject, grade, topic, concepts, format, fast, master, enLang, bookRef }
   // Mã đề NGẪU NHIÊN mỗi lần gọi -> mỗi buổi ôn ra bộ câu KHÁC nhau dù cùng nội dung.
   const vary = Math.random().toString(36).slice(2, 7)
   const freshRule = `(Mã đề ${vary}: hãy ra bộ câu hỏi MỚI và KHÁC các lần ôn trước — đổi số liệu, đổi ngữ cảnh, đổi cách hỏi; tránh trùng lặp) `
   // Đợt nhỏ (3-4 câu) chạy song song -> mỗi đợt xong nhanh, tổng thời gian ngắn hơn nhiều so với 1 đợt lớn.
   // Môn NGÔN NGỮ (Anh/Việt) hay bị LẶP TỪ giữa các đợt song song (vd "trim" lặp 4/10 câu) vì mỗi đợt
   // không "thấy" đợt kia. -> gom thành ĐỢT LỚN để quy tắc "không lặp từ" áp cho cả loạt câu.
-  const isLangGen = subjKey(subject) === 'tieng-anh' || subjKey(subject) === 'tieng-viet'
+  const isLangGen = isLangKey(subjKey(subject))
   const CHUNK = isLangGen ? Math.min(Math.max(count, 1), 12) : (count <= 12 ? 3 : 4)
   // Mỗi đợt TỰ THỬ LẠI 1 lần nếu lỗi/rỗng — mạng mobile chập chờn hay làm HỤT câu (1,2,5,7 câu).
   const genOne = async (n, salt) => {

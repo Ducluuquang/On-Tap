@@ -72,8 +72,8 @@ function TopicPicker({ label, items, onPick }) {
   )
 }
 
-export default function CustomReview({ mem, onStart, onBack, allowChoice = true, onVocab, initialSubject = null }) {
-  const subjectList = subjectsWithTone(mem)
+export default function CustomReview({ mem, onStart, onBack, allowChoice = true, onVocab, initialSubject = null, grade = '' }) {
+  const subjectList = subjectsWithTone(mem, grade)
   const ofSubject = (name) => (mem || []).filter((c) => subjectDisplayName(c.subject) === name)
   // Môn mặc định: môn được chọn sẵn (vd chạm vào môn ở trang chủ); không có thì GỢI Ý môn đang cần ôn nhiều nhất.
   const [subject, setSubject] = useState(() => {

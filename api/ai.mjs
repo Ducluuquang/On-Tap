@@ -2,6 +2,7 @@
 // Trình duyệt gọi POST /api/ai với { action, ... } và KHÔNG bao giờ thấy khóa.
 
 import { extractConcepts, extractFromText, generateQuestions, gradeHomework, judgeAnswer } from './aiCore.mjs'
+import { bookContext } from './_books/core.mjs'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -30,7 +31,11 @@ export default async function handler(req, res) {
       return
     }
     if (action === 'generate') {
-      const questions = await generateQuestions(key, body.payload || {})
+      // Thư viện sách chung (09/11/2026): đoạn sách đúng lớp + môn của con để AI tham khảo (mọi tài khoản).
+      // Không có sách khớp / kho lỗi -> bookRef rỗng, soạn như cũ. Không gửi nguyên văn sách về trình duyệt.
+      const p = body.payload && typeof body.payload === 'object' ? body.payload : {}
+      const bookRef = await bookContext({ subject: p.subject, grade: p.grade, topic: p.topic, concepts: Array.isArray(p.concepts) ? p.concepts.slice(0, 12) : [] })
+      const questions = await generateQuestions(key, { ...p, bookRef })
       res.status(200).json({ questions })
       return
     }

@@ -25,6 +25,7 @@ Cần: Node 22+, Playwright + Chromium (máy làm việc của Claude có sẵn;
 | t_books_core | thư viện sách, hàm thuần: gợi ý lớp / môn / loại / tên từ tên file, chi phí ước tính, cắt đôi trang tại khe trắng (cả ảnh quét có nhiễu), lời nhắc chép chữ, kích thước JPEG, `ADMIN_PHONES`, ghép chữ trang, chia đoạn, tìm đúng đoạn sách (SGK > SBT > SGV, ≤ 3.500 ký tự) |
 | t_api_books | máy chủ thư viện sách với Message Batches GIẢ: quyền (chưa đăng nhập, tài khoản thường, máy chủ chưa có `ADMIN_PHONES`), nạp sách, sonnet mới nhất + tắt thinking, nửa trang lỗi / bị cắt đọc lại, lỗi 3 lần thì bỏ qua, giới hạn kích thước, số lệnh kho, xoá sách (huỷ batch) |
 | t_ui_books | thư viện sách qua giao diện với PDF ảnh GIẢ tự tạo: chỉ quản trị thấy, pdf.js chỉ tải khi chọn file, gợi ý từ tên file, chi phí, ảnh gửi đi (≤ 1100 px, ≤ 1,15 MP, cắt đúng khe trắng, < 4 MB mỗi lần), tự gửi lại nửa trang lỗi, đóng app → mở lại → chọn lại file, xoá sách |
+| t_books_gen | dùng sách khi soạn câu hỏi: lời nhắc có / không có đoạn sách, cấp học theo lớp, Ngữ văn THCS, môn "Ngữ văn" riêng; tài khoản khác (không phải quản trị) con lớp 7 ôn Ngữ văn: app gửi lớp thật, máy chủ dùng đoạn sách đúng lớp + môn |
 | t_ui_pick | ô chọn tự vẽ chữ to thay danh sách xổ xuống của trình duyệt: Vở Spelling (Thách đấu, phòng thi, Thêm bộ từ), Ôn Tập (Đăng ký, Nội dung đã đọc được) |
 
 Đối chứng bản cũ (khi sửa lỗi): build bản cũ vào thư mục khác, chạy `DIST=<thư mục dist cũ> MOCK=1 PORT=4195 node tests/server.mjs`,

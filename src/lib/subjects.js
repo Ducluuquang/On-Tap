@@ -21,7 +21,13 @@ const PROFILES = {
   },
   'tieng-viet': {
     key: 'tieng-viet', name: 'Tiếng Việt', icon: '📖',
-    aliases: ['tieng viet', 'vietnamese', 'ngu van', 'chinh ta', 'tap doc', 'luyen tu va cau', 'tap lam van'],
+    aliases: ['tieng viet', 'vietnamese', 'chinh ta', 'tap doc', 'luyen tu va cau', 'tap lam van'],
+    modes: ['quiz', 'typed', 'finderror', ...GAMES],
+  },
+  // Ngữ văn (THCS/THPT, lớp 6–12) là môn RIÊNG (09/11/2026) — trước đây bị gộp vào Tiếng Việt.
+  'ngu-van': {
+    key: 'ngu-van', name: 'Ngữ văn', icon: '📜',
+    aliases: ['ngu van', 'van hoc'],
     modes: ['quiz', 'typed', 'finderror', ...GAMES],
   },
   'tieng-anh': {
@@ -41,6 +47,17 @@ const DEFAULT_PROFILE = {
 
 // 3 môn hiển thị sẵn trong giao diện.
 export const FEATURED_SUBJECTS = [PROFILES.toan, PROFILES['tieng-viet'], PROFILES['tieng-anh']]
+// Lớp của con ("Lớp 7" -> 7; không rõ -> 0).
+export function gradeNo(grade) {
+  const m = /^\s*(?:l[oớ]p|grade|class)?\s*(\d{1,2})\s*$/i.exec(String(grade || ''))
+  const n = m ? Number(m[1]) : 0
+  return n >= 1 && n <= 12 ? n : 0
+}
+// Môn nổi bật theo lớp: con lớp 6–12 học "Ngữ văn" thay "Tiếng Việt" (trừ khi con đã có bài ghi môn Tiếng Việt).
+export function featuredFor(grade, mem = []) {
+  if (gradeNo(grade) >= 6 && !(mem || []).some((c) => subjectKey(c && c.subject) === 'tieng-viet')) return [PROFILES.toan, PROFILES['ngu-van'], PROFILES['tieng-anh']]
+  return FEATURED_SUBJECTS
+}
 
 // Tên môn (hoặc khoá) -> khoá hồ sơ ('toan' | 'tieng-viet' | 'tieng-anh' | 'default').
 export function subjectKey(nameOrKey) {
@@ -150,9 +167,9 @@ export function subjectModes(name) {
 
 // Danh sách môn để CHỌN khi ôn: LUÔN có 3 môn nổi bật (Toán, Tiếng Việt, Tiếng Anh)
 // + các môn khác con ĐÃ có bài (vd Khoa học, Lịch sử). Kèm số khái niệm mỗi môn.
-export function subjectsFromMem(mem) {
+export function subjectsFromMem(mem, grade = '') {
   const seen = new Map() // displayName -> { name, icon, count }
-  for (const p of FEATURED_SUBJECTS) seen.set(p.name, { name: p.name, icon: p.icon, count: 0 })
+  for (const p of featuredFor(grade, mem)) seen.set(p.name, { name: p.name, icon: p.icon, count: 0 })
   for (const c of mem || []) {
     const dn = subjectDisplayName(c.subject)
     const cur = seen.get(dn) || { name: dn, icon: subjectIcon(c.subject), count: 0 }
@@ -168,12 +185,12 @@ const OTHER_TONES = ['gold', 'purple', 'teal', 'orange']
 export function subjectTone(name, otherIndex = 0) {
   const k = subjectKey(name)
   if (k === 'toan') return 'blue'
-  if (k === 'tieng-viet') return 'rose'
+  if (k === 'tieng-viet' || k === 'ngu-van') return 'rose'
   if (k === 'tieng-anh') return 'green'
   return OTHER_TONES[Math.abs(otherIndex) % OTHER_TONES.length]
 }
 // Danh sách môn kèm màu (cùng thứ tự ở trang chủ và màn Bắt đầu ôn).
-export function subjectsWithTone(mem) {
+export function subjectsWithTone(mem, grade = '') {
   let other = 0
-  return subjectsFromMem(mem).map((s) => ({ ...s, tone: subjectKey(s.name) === 'default' ? subjectTone(s.name, other++) : subjectTone(s.name) }))
+  return subjectsFromMem(mem, grade).map((s) => ({ ...s, tone: subjectKey(s.name) === 'default' ? subjectTone(s.name, other++) : subjectTone(s.name) }))
 }

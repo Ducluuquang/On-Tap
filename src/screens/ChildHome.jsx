@@ -23,7 +23,7 @@ export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSl
   const met = done >= goal
   const pct = Math.max(0, Math.min(100, (done / goal) * 100))
   const waiting = needReviewCount(mem)
-  const subjects = subjectsWithTone(mem)
+  const subjects = subjectsWithTone(mem, child?.grade || '')
 
   function saveSlogan() {
     setEditing(false)

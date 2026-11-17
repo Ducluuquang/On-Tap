@@ -767,7 +767,8 @@ export default function App() {
       for (let round = 0; round < 4 && list.length < count; round++) {
         const ask = round === 0 ? count + 3 : (count - list.length) + 3
         // generateQuestions đã tự bắt lỗi nên không ném ra ngoài.
-        const batch = await generateQuestions({ subject, grade: '4-5', topic, concepts: conceptsForAI, count: ask, format: fmt, master, enLang })
+        // LỚP THẬT của con (09/11/2026): trước đây gửi cứng '4-5' -> đề luôn ở mức tiểu học. Không rõ lớp thì '4-5' như cũ.
+        const batch = await generateQuestions({ subject, grade: activeChild?.grade || '4-5', topic, concepts: conceptsForAI, count: ask, format: fmt, master, enLang })
         // KHÔNG dừng khi một lượt rỗng (mạng chập chờn) — thử tiếp lượt sau để đủ số câu đã chọn.
         if (batch && batch.length) {
           raw = raw.concat(batch)
@@ -947,7 +948,7 @@ export default function App() {
       onBack={() => { if (role === 'child') setParentUnlocked(false); setView(homeView) }} />
   } else if (role === 'child') {
     if (view === 'custom') {
-      screen = <CustomReview mem={mem} allowChoice={settings.allowChoice} initialSubject={crSubject} onStart={startReview} onBack={() => setView('home')}
+      screen = <CustomReview mem={mem} grade={activeChild?.grade || ''} allowChoice={settings.allowChoice} initialSubject={crSubject} onStart={startReview} onBack={() => setView('home')}
         onVocab={openSpelling} />
     } else if (view === 'spelling') {
       screen = <SpellingApp key={activeChild.id} child={activeChild} onExit={() => setView('custom')} onSession={recordSpelling} />

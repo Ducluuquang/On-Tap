@@ -3,7 +3,7 @@ import { BackHeader, SelectPicker } from '../components.jsx'
 import { isVocabGroup } from '../lib/topics.js'
 
 // Các môn tiểu học thường gặp (tên CHUẨN) — dùng khi nội dung nhập vào KHÔNG ghi rõ môn.
-const COMMON_SUBJECTS = ['Toán', 'Tiếng Việt', 'Tiếng Anh', 'Khoa học', 'Lịch sử', 'Địa lý', 'Lịch sử và Địa lí', 'Tự nhiên và Xã hội', 'Đạo đức', 'Tin học']
+const COMMON_SUBJECTS = ['Toán', 'Tiếng Việt', 'Ngữ văn', 'Tiếng Anh', 'Khoa học', 'Lịch sử', 'Địa lý', 'Lịch sử và Địa lí', 'Tự nhiên và Xã hội', 'Đạo đức', 'Tin học']
 
 export default function ParentApprove({ pending, onSave, onBack }) {
   const [checked, setChecked] = useState(() =>
