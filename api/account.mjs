@@ -69,7 +69,7 @@ const int = (v, lo, hi) => { const n = Math.round(Number(v)); return Number.isFi
 
 /* ---------- Mật khẩu: scrypt + muối ---------- */
 const scrypt = (pass, salt) => new Promise((ok, no) => crypto.scrypt(String(pass), salt, 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }, (e, k) => (e ? no(e) : ok(k))));
-async function hashPass(pass) {
+export async function hashPass(pass) {
   const salt = crypto.randomBytes(16);
   return { salt: salt.toString("base64"), hash: (await scrypt(pass, salt)).toString("base64") };
 }

@@ -1102,3 +1102,4 @@ select.auth-in{appearance:auto;cursor:pointer}
 .adm-kb{background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px 13px}
 .adm-kb summary{cursor:pointer;font-weight:700;color:var(--ink-soft)}
 .adm-kb-t{white-space:pre-wrap;font-family:inherit;font-size:.88rem;margin:8px 0 0;max-height:420px;overflow:auto}
+.adm-setup-link{align-self:center}

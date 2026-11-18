@@ -21,7 +21,7 @@
     },
     "api/admin.mjs": {
       "maxDuration": 30,
-      "includeFiles": "api/_support/**"
+      "includeFiles": "api/{_support,_sync}/**"
     },
     "api/feedback.mjs": {
       "maxDuration": 30

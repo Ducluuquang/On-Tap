@@ -1,6 +1,10 @@
 // TRANG QUẢN TRỊ HỆ THỐNG /quan-tri (anh duyệt 17/11/2026) — chỉ tài khoản có số trong ADMIN_PHONES (api/_admin.mjs).
 // Không có lối vào trong app của phụ huynh / học sinh; quản trị mở địa chỉ riêng và đăng nhập bằng tài khoản của mình.
 //  GET  /api/admin            -> bảng giá gói (công khai, trang đăng ký dùng)
+//  POST setup {phone, pass, code} (KHÔNG cần đăng nhập) -> LẦN ĐẦU tạo tài khoản quản trị (18/11/2026): số phải nằm trong
+//       ADMIN_PHONES + đúng MÃ CÀI ĐẶT anh tự đặt ở biến Vercel ADMIN_SETUP_CODE (≥ 8 ký tự; chưa có biến -> tắt).
+//       Số đã có tài khoản -> đặt lại mật khẩu (cũng cần mã này). Tài khoản chỉ để quản trị: không có con, không vào danh sách
+//       người dùng. Sai mã: mỗi địa chỉ mạng tối đa 10 lần / giờ.
 //  POST whoami                -> có phải quản trị không
 //       overview              -> tổng quan: số tài khoản, mới 7 / 30 ngày, dùng app 7 ngày, số con, theo gói, góp ý chờ xử lý, sách
 //       users {q, offset}     -> danh sách tài khoản (tìm theo số điện thoại hoặc email), 30 tài khoản mỗi trang
@@ -13,7 +17,10 @@
 // Doanh thu: chưa có cổng thanh toán thật nên chưa có số liệu (trang quản trị ghi rõ).
 import fs from "node:fs";
 import { redis, redisEnv, send, readBody, parse } from "./_store.mjs";
-import { userOf, isAdmin } from "./_admin.mjs";
+import crypto from "node:crypto";
+import { userOf, isAdmin, vnPhone } from "./_admin.mjs";
+import { hashPass } from "./account.mjs";
+import { tokenFor } from "./_acctkey.mjs";
 import { FK, KINDS, STATUS, okId, cleanText, getThread, putThread, pubThread } from "./_fb.mjs";
 
 const PLAN_IDS = ["1", "2", "3", "4", "5"];
@@ -44,7 +51,7 @@ async function ensureIndex() {
     if (keys.length) {
       const [vals] = await redis([["MGET", ...keys]]);
       const add = [];
-      keys.forEach((k, j) => { const a = parse(vals[j]); if (a) add.push(String(a.created || a.updated || Date.now()), k.slice(7)); });
+      keys.forEach((k, j) => { const a = parse(vals[j]); if (a && a.sys !== "admin") add.push(String(a.created || a.updated || Date.now()), k.slice(7)); });
       if (add.length) await redis([["ZADD", "acct:idx", ...add]]);
     }
     if (cursor === "0") break;
@@ -59,6 +66,29 @@ const pubUser = (a, seen) => ({
 const summary = (t) => ({ id: t.id, kind: t.kind, status: t.status, created: t.created, updated: t.updated, who: t.who, child: t.child || null, phone: t.phone,
   first: (t.msgs[0] && t.msgs[0].text || "").slice(0, 160), n: t.msgs.length, last: (t.msgs[t.msgs.length - 1] || {}).by || "user" });
 
+const sameStr = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
+async function setup(req, res, b) {
+  const want = String(process.env.ADMIN_SETUP_CODE || "");
+  if (want.length < 8) return send(res, 200, { ok: false, error: "setup_off" });
+  const ip = String((req.headers && req.headers["x-forwarded-for"]) || "").split(",")[0].trim() || "local";
+  const rk = "acct:rl:asetup:" + ip;
+  const [n] = await redis([["GET", rk]]);
+  if (Number(n) >= 10) return send(res, 200, { ok: false, error: "slow_down" });
+  const fail = async (error) => { await redis([["INCR", rk], ["EXPIRE", rk, "3600"]]); return send(res, 200, { ok: false, error }); };
+  if (!sameStr(String(b.code || ""), want)) return fail("bad_code");
+  const phone = vnPhone(b.phone), pass = typeof b.pass === "string" ? b.pass : "";
+  if (!isAdmin(phone)) return fail("not_admin_phone");
+  if (pass.length < 8 || pass.length > 64) return send(res, 200, { ok: false, error: "bad_pass" });
+  const [raw] = await redis([["GET", "acct:u:" + phone]]);
+  const cur = parse(raw);
+  const now = Date.now();
+  const acc = cur
+    ? { ...cur, ...(await hashPass(pass)), pwv: (cur.pwv || 1) + 1, rev: (cur.rev || 1) + 1, updated: now }
+    : { v: 1, phone, email: "", parentName: "Quản trị", province: "", plan: 1, pin: "", children: [], sys: "admin", ...(await hashPass(pass)), pwv: 1, rev: 1, created: now, updated: now };
+  await redis([["SET", "acct:u:" + phone, JSON.stringify(acc)], ["DEL", "acct:rl:fail:" + phone]]);
+  return send(res, 200, { ok: true, created: !cur, token: tokenFor(acc), name: acc.parentName || "", phone });
+}
+
 export default async function handler(req, res) {
   if (!redisEnv()) return send(res, 200, { ok: false, error: "no_store" });
   try {
@@ -67,6 +97,7 @@ export default async function handler(req, res) {
     let b;
     try { b = await readBody(req, 200000); } catch { return send(res, 400, { ok: false, error: "bad_json" }); }
     b = b && typeof b === "object" ? b : {};
+    if (String(b.action || "") === "setup") return setup(req, res, b);
     const u = await userOf(req);
     if (!u) return send(res, 200, { ok: false, error: "bad_token" });
     if (!isAdmin(u.phone)) return send(res, 200, { ok: false, error: "not_admin" });
@@ -85,7 +116,7 @@ export default async function handler(req, res) {
           const [accs, seens] = await redis([["MGET", ...chunk.map((p) => "acct:u:" + p)], ["MGET", ...chunk.map((p) => "acct:seen:" + p)]]);
           chunk.forEach((_, j) => {
             const a = parse(accs[j]);
-            if (!a) return;
+            if (!a || a.sys === "admin") return;
             kids += (a.children || []).length;
             byPlan[a.plan || 1] = (byPlan[a.plan || 1] || 0) + 1;
             if (Number(seens[j]) >= now - 7 * DAY) active7++;
@@ -109,7 +140,7 @@ export default async function handler(req, res) {
         const page = phones.slice(offset, offset + PAGE);
         if (!page.length) return send(res, 200, { ok: true, total: phones.length, offset, users: [] });
         const [accs, seens] = await redis([["MGET", ...page.map((p) => "acct:u:" + p)], ["MGET", ...page.map((p) => "acct:seen:" + p)]]);
-        const users = page.map((p, j) => { const a = parse(accs[j]); return a ? pubUser(a, seens[j]) : null; }).filter(Boolean);
+        const users = page.map((p, j) => { const a = parse(accs[j]); return a && a.sys !== "admin" ? pubUser(a, seens[j]) : null; }).filter(Boolean);
         // tài khoản đã bị xoá khỏi kho nhưng còn trong danh mục -> bỏ khỏi danh mục
         const gone = page.filter((p, j) => !accs[j]);
         if (gone.length) await redis([["ZREM", "acct:idx", ...gone]]);

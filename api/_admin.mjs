@@ -3,7 +3,9 @@
 import { redis, parse } from "./_store.mjs";
 import { readToken } from "./_acctkey.mjs";
 
-export const adminPhones = () => String(process.env.ADMIN_PHONES || "").split(/[,;\n]+/).map((p) => p.replace(/\D+/g, "")).filter((p) => /^\d{8,12}$/.test(p));
+// Số Việt Nam viết "+84 912…" / "84912…" -> "0912…" (giống cách tài khoản lưu số).
+export const vnPhone = (v) => { const d = String(v == null ? "" : v).replace(/\D+/g, ""); return /^84\d{9}$/.test(d) ? "0" + d.slice(2) : d; };
+export const adminPhones = () => String(process.env.ADMIN_PHONES || "").split(/[,;\n]+/).map(vnPhone).filter((p) => /^\d{8,12}$/.test(p));
 export const isAdmin = (phone) => !!phone && adminPhones().includes(phone);
 
 // Máy đã đăng nhập: chìa khoá hợp lệ + tài khoản còn trên máy chủ + chưa đổi mật khẩu. Trả { phone, acc } hoặc null.

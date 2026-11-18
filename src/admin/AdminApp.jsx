@@ -2,7 +2,7 @@
 // Đăng nhập bằng tài khoản Ôn Tập có số trong ADMIN_PHONES. Các mục: Tổng quan · Thư viện sách · Người dùng · Góp ý · Định giá.
 // Góp ý: nhật ký trò chuyện lưu vĩnh viễn; khi đóng phiếu ghi "Bài học / cách xử lý"; nút tải toàn bộ nhật ký để AI học sau này.
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { adminCall, adminLogin, getAdminToken, setAdminToken, getPricesPublic, vnd } from '../lib/adminApi.js'
+import { adminCall, adminLogin, adminSetup, getAdminToken, setAdminToken, getPricesPublic, vnd } from '../lib/adminApi.js'
 import { booksCall } from '../lib/books.js'
 import logoRow from '../assets/logo-row.png'
 
@@ -10,30 +10,56 @@ const Library = lazy(() => import('../screens/Library.jsx'))
 const TABS = [['home', '📊 Tổng quan'], ['books', '📚 Thư viện sách'], ['users', '👪 Người dùng'], ['fb', '💬 Góp ý'], ['price', '💰 Định giá']]
 const KIND = { bug: 'Báo lỗi', idea: 'Kiến nghị', other: 'Khác' }
 const STATUS = { new: 'Mới', answered: 'Đã trả lời', done: 'Đã xong' }
-const ERR = { bad_login: 'Sai số điện thoại / email hoặc mật khẩu.', not_admin: 'Tài khoản này không phải quản trị hệ thống.', network: 'Mất mạng, thử lại.', slow_down: 'Thử sai nhiều lần quá, đợi ít phút.', bad_token: 'Phiên đăng nhập hết hạn, đăng nhập lại.' }
+const ERR = { bad_login: 'Sai số điện thoại / email hoặc mật khẩu. Chưa có tài khoản quản trị thì bấm "Lần đầu: tạo tài khoản quản trị" bên dưới.',
+  setup_off: 'Chưa bật tạo tài khoản quản trị: vào Vercel → Settings → Environment Variables, thêm ADMIN_SETUP_CODE (mã anh tự đặt, ít nhất 8 ký tự), rồi Redeploy.',
+  bad_code: 'Mã cài đặt chưa đúng (là giá trị ADMIN_SETUP_CODE anh đặt ở Vercel).',
+  not_admin_phone: 'Số này chưa có trong ADMIN_PHONES ở Vercel (sửa biến xong phải Redeploy).',
+  bad_pass: 'Mật khẩu cần ít nhất 8 ký tự.', not_admin: 'Tài khoản này không phải quản trị hệ thống.', network: 'Mất mạng, thử lại.', slow_down: 'Thử sai nhiều lần quá, đợi ít phút.', bad_token: 'Phiên đăng nhập hết hạn, đăng nhập lại.' }
 const p2 = (n) => String(n).padStart(2, '0')
 const fmt = (ms) => { if (!ms) return '—'; const d = new Date(ms); return `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}` }
 
 function Login({ onDone }) {
+  const [mode, setMode] = useState('login')   // login | setup (lần đầu tạo tài khoản quản trị / quên mật khẩu)
   const [id, setId] = useState('')
   const [pass, setPass] = useState('')
+  const [pass2, setPass2] = useState('')
+  const [code, setCode] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   async function go(e) {
-    e.preventDefault(); setErr(''); setBusy(true)
-    const r = await adminLogin(id.trim(), pass)
+    e.preventDefault(); setErr('')
+    if (mode === 'setup' && pass !== pass2) { setErr('Hai ô mật khẩu chưa khớp.'); return }
+    setBusy(true)
+    const r = mode === 'setup' ? await adminSetup(id.trim(), pass, code.trim()) : await adminLogin(id.trim(), pass)
     setBusy(false)
     if (r.ok) onDone(); else setErr(ERR[r.error] || 'Không đăng nhập được (' + r.error + ').')
   }
+  const sw = (m) => { setMode(m); setErr(''); setPass(''); setPass2('') }
   return (
     <form className="adm-login" onSubmit={go}>
       <img src={logoRow} alt="Ôn Tập" className="adm-logo" />
       <h1>Quản trị hệ thống</h1>
-      <p className="adm-muted">Đăng nhập bằng tài khoản quản trị (số điện thoại có trong ADMIN_PHONES).</p>
-      <input className="auth-in" placeholder="Số điện thoại hoặc email" value={id} onChange={(e) => setId(e.target.value)} autoComplete="username" />
-      <input className="auth-in" type="password" placeholder="Mật khẩu" value={pass} onChange={(e) => setPass(e.target.value)} autoComplete="current-password" />
-      {err && <div className="err">{err}</div>}
-      <button className="cta" disabled={busy || !id || !pass}>{busy ? 'Đang đăng nhập…' : 'Đăng nhập'}</button>
+      {mode === 'login' ? (
+        <>
+          <p className="adm-muted">Đăng nhập bằng tài khoản quản trị (số điện thoại có trong ADMIN_PHONES ở Vercel).</p>
+          <input className="auth-in" placeholder="Số điện thoại hoặc email" value={id} onChange={(e) => setId(e.target.value)} autoComplete="username" />
+          <input className="auth-in" type="password" placeholder="Mật khẩu" value={pass} onChange={(e) => setPass(e.target.value)} autoComplete="current-password" />
+          {err && <div className="err">{err}</div>}
+          <button className="cta" disabled={busy || !id || !pass}>{busy ? 'Đang đăng nhập…' : 'Đăng nhập'}</button>
+          <button type="button" className="linkbtn adm-setup-link" onClick={() => sw('setup')}>Lần đầu: tạo tài khoản quản trị (hoặc quên mật khẩu)</button>
+        </>
+      ) : (
+        <>
+          <p className="adm-muted">Tạo tài khoản quản trị lần đầu, hoặc đặt lại mật khẩu khi quên. Cần: số điện thoại có trong <b>ADMIN_PHONES</b> và <b>mã cài đặt</b> = giá trị biến <b>ADMIN_SETUP_CODE</b> anh tự đặt ở Vercel.</p>
+          <input className="auth-in" placeholder="Số điện thoại quản trị (vd 0912…)" inputMode="tel" value={id} onChange={(e) => setId(e.target.value)} aria-label="Số điện thoại quản trị" />
+          <input className="auth-in" type="password" placeholder="Mật khẩu mới (ít nhất 8 ký tự)" value={pass} onChange={(e) => setPass(e.target.value)} autoComplete="new-password" aria-label="Mật khẩu mới" />
+          <input className="auth-in" type="password" placeholder="Nhập lại mật khẩu" value={pass2} onChange={(e) => setPass2(e.target.value)} autoComplete="new-password" aria-label="Nhập lại mật khẩu" />
+          <input className="auth-in" type="password" placeholder="Mã cài đặt (ADMIN_SETUP_CODE)" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" aria-label="Mã cài đặt" />
+          {err && <div className="err">{err}</div>}
+          <button className="cta" disabled={busy || !id || !pass || !pass2 || !code}>{busy ? 'Đang tạo…' : 'Tạo tài khoản & vào trang quản trị'}</button>
+          <button type="button" className="linkbtn" onClick={() => sw('login')}>← Quay lại đăng nhập</button>
+        </>
+      )}
     </form>
   )
 }

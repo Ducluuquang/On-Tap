@@ -130,6 +130,31 @@ let lim = null
 for (let i = 0; i < 25 && !lim; i++) { const r = await fb('send', { kind: 'other', text: 'Thử giới hạn ' + i }, t2); if (!r.ok) lim = { i, e: r.error } }
 check('mỗi tài khoản tối đa 20 tin nhắn góp ý / ngày', lim && lim.i === 20 && lim.e === 'slow_down', JSON.stringify(lim))
 
+console.log('— 5. Lần đầu tạo tài khoản quản trị (mã cài đặt ADMIN_SETUP_CODE)')
+const CODE = 'ma-cai-dat-thu-123', NEWADM = '0912000779'
+await store([['DEL', 'acct:u:' + NEWADM], ['DEL', 'acct:rl:fail:' + NEWADM]])
+const st0 = await adm('setup', { phone: NEWADM, pass: 'MatKhau#2026', code: CODE }, '', BASE_NOADMIN)
+const st1 = await adm('setup', { phone: NEWADM, pass: 'MatKhau#2026', code: 'sai-ma-123' }, '')
+const st2 = await adm('setup', { phone: U1, pass: 'MatKhau#2026', code: CODE }, '')
+const st3 = await adm('setup', { phone: NEWADM, pass: '1234567', code: CODE }, '')
+check('máy chủ chưa có ADMIN_SETUP_CODE -> tắt; sai mã -> bad_code; số không có trong ADMIN_PHONES -> từ chối; mật khẩu < 8 ký tự -> từ chối',
+  st0.error === 'setup_off' && st1.error === 'bad_code' && st2.error === 'not_admin_phone' && st3.error === 'bad_pass' && !(await store([['EXISTS', 'acct:u:' + NEWADM]]))[0], JSON.stringify([st0, st1, st2, st3].map((x) => x.error)))
+const st4 = await adm('setup', { phone: '+84 912 000 779', pass: 'MatKhau#2026', code: CODE }, '')
+const w4 = await adm('whoami', {}, st4.token)
+const lg4 = await acct('login', { id: NEWADM, pass: 'MatKhau#2026' })
+check('đúng mã + số "+84 912 000 779" (ADMIN_PHONES cũng ghi dạng +84) -> tạo tài khoản quản trị 0912000779, vào trang quản trị luôn; đăng nhập lại bằng mật khẩu đó được', st4.ok && st4.created === true && st4.phone === NEWADM && w4.ok && lg4.ok, JSON.stringify([st4.error, w4.error, lg4.error]))
+const uAll = await adm('users', { q: NEWADM }, tA), ov2 = await adm('overview', {}, tA)
+check('tài khoản chỉ để quản trị: không có con, không nằm trong danh sách người dùng / tổng quan', uAll.users.length === 0 && ov2.users === ov.users && JSON.parse((await store([['GET', 'acct:u:' + NEWADM]]))[0]).children.length === 0, JSON.stringify([uAll.total, ov2.users, ov.users]))
+const st5 = await adm('setup', { phone: NEWADM, pass: 'MatKhauMoi#99', code: CODE }, '')
+const lgOld = await acct('login', { id: NEWADM, pass: 'MatKhau#2026' }), lgNew = await acct('login', { id: NEWADM, pass: 'MatKhauMoi#99' })
+const wOld = await adm('whoami', {}, st4.token)
+check('quên mật khẩu quản trị: dùng lại mã cài đặt -> đặt mật khẩu mới; mật khẩu cũ + phiên cũ hết hiệu lực', st5.ok && st5.created === false && !lgOld.ok && lgNew.ok && wOld.error === 'bad_token', JSON.stringify([st5.created, lgOld.ok, lgNew.ok, wOld.error]))
+const fixed = async (body) => (await fetch(BASE + '/api/admin', { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.99.' + (Number(RUN) % 250) + '.7' }, body: JSON.stringify({ action: 'setup', ...body }) })).json()
+let rl = null
+for (let i = 0; i < 12 && !rl; i++) { const r = await fixed({ phone: NEWADM, pass: 'MatKhau#2026', code: 'doan-ma-' + i }); if (r.error === 'slow_down') rl = i }
+const rlOk = await fixed({ phone: NEWADM, pass: 'MatKhau#2026', code: CODE })
+check('đoán mã: mỗi địa chỉ mạng sai tối đa 10 lần / giờ (lần 11 bị chặn, kể cả đúng mã)', rl === 10 && rlOk.error === 'slow_down', JSON.stringify([rl, rlOk.error]))
+
 const fails = Object.entries(results).filter(([, v]) => v !== 'PASS')
 console.log(fails.length ? `\n${fails.length} FAIL` : `\nALL PASS (${Object.keys(results).length} kiểm tra)`)
 process.exit(fails.length ? 1 : 0)

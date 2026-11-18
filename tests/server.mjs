@@ -5,7 +5,7 @@
 //  - /api/arena     -> api/arena.mjs thật; kho = Redis thật qua lớp giả Upstash REST (upstash_shim.mjs). ARENA=0: chưa gắn kho.
 //  - /api/account   -> api/account.mjs thật (tài khoản đăng nhập nhiều máy, cùng kho với Thi đấu). ARENA=0: chưa gắn kho.
 //  - /api/admin, /api/feedback -> trang quản trị /quan-tri (người dùng, định giá, hộp thư góp ý) + góp ý của người dùng (thật).
-//  - /api/books     -> api/books.mjs thật (THƯ VIỆN SÁCH, chỉ quản trị). Quản trị thử: ADMIN_PHONES (cổng 4192: 0912000777, 0912000778;
+//  - /api/books     -> api/books.mjs thật (THƯ VIỆN SÁCH, chỉ quản trị). Quản trị thử: ADMIN_PHONES (cổng 4192: 0912000777, 0912000778, +84 912 000 779 + ADMIN_SETUP_CODE giả;
 //    cổng 4194: KHÔNG có biến -> không ai nạp được). AI đọc chữ = Message Batches GIẢ (không gửi ảnh đi đâu):
 //    /__mock/ocr (GET: các batch đã nhận + kích thước từng ảnh; POST {reset, books:{tên:{trang:[nửa trên, nửa dưới]}},
 //    fail:[...], cut:[...], hold:true|false}). fail/cut: "<tên sách>|p3h1" -> lần đọc kế tiếp của nửa trang đó lỗi / bị cắt.
@@ -30,7 +30,8 @@ else {
   fs.mkdirSync(path.dirname(process.env.MAIL_MOCK_FILE), { recursive: true })
 }
 process.env.BOOK_IDX_TTL_MS = process.env.BOOK_IDX_TTL_MS || '500'   // thử: danh sách sách chỉ nhớ 0,5 giây
-if (process.env.ADMIN_PHONES == null && PORT === 4192) process.env.ADMIN_PHONES = '0912000777, 0912000778'
+if (process.env.ADMIN_PHONES == null && PORT === 4192) process.env.ADMIN_PHONES = '0912000777, 0912000778, +84 912 000 779'
+if (process.env.ADMIN_SETUP_CODE == null && PORT === 4192) process.env.ADMIN_SETUP_CODE = 'ma-cai-dat-thu-123'   // mã cài đặt GIẢ của máy chủ thử
 if (process.env.ARENA !== '0') { process.env.KV_REST_API_URL = process.env.KV_REST_API_URL || 'http://127.0.0.1:4199'; process.env.KV_REST_API_TOKEN = process.env.KV_REST_API_TOKEN || 'test-token' }
 const FRUITS = [['apple', 'quả táo', '🍎'], ['banana', 'quả chuối', '🍌'], ['orange', 'quả cam', '🍊'], ['grape', 'quả nho', '🍇'], ['lemon', 'quả chanh', '🍋'],
   ['mango', 'quả xoài', '🥭'], ['peach', 'quả đào', '🍑'], ['pear', 'quả lê', '🍐'], ['cherry', 'quả anh đào', '🍒'], ['strawberry', 'quả dâu tây', '🍓'],

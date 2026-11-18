@@ -41,6 +41,33 @@ async function adminLogin(d, pass = PASS) {
 const tab = async (d, label) => { await d.page.click(`.adm-tab:has-text("${label}")`); await sleep(400) }
 const noOverflow = (d) => d.page.evaluate(() => document.scrollingElement.scrollWidth <= document.scrollingElement.clientWidth + 1)
 
+/* ======== 0. Lần đầu tạo tài khoản quản trị ======== */
+console.log('— 0. Lần đầu: tạo tài khoản quản trị trên /quan-tri')
+await fetch('http://127.0.0.1:4199/pipeline', { method: 'POST', headers: { authorization: 'Bearer test-token' }, body: JSON.stringify([['DEL', 'acct:u:0912000779']]) })
+const S = await device('S')
+await S.page.goto(BASE + '/quan-tri', { waitUntil: 'networkidle' })
+await S.page.fill('.adm-login input[placeholder="Số điện thoại hoặc email"]', '0912000779')
+await S.page.fill('.adm-login input[type=password]', 'MatKhau#2026')
+await S.page.click('.adm-login button.cta')
+check('chưa có tài khoản -> báo sai + chỉ cách: bấm "Lần đầu: tạo tài khoản quản trị"', await until(async () => /Lần đầu: tạo tài khoản quản trị/.test(await S.page.locator('.adm-login .err').innerText().catch(() => ''))))
+await S.page.click('.adm-setup-link')
+await S.page.fill('input[aria-label="Số điện thoại quản trị"]', '+84 912 000 779')
+await S.page.fill('input[aria-label="Mật khẩu mới"]', 'MatKhau#2026')
+await S.page.fill('input[aria-label="Nhập lại mật khẩu"]', 'MatKhau#2026')
+await S.page.fill('input[aria-label="Mã cài đặt"]', 'sai-ma-cai-dat')
+await S.page.click('.adm-login button.cta')
+check('sai mã cài đặt -> "Mã cài đặt chưa đúng (là giá trị ADMIN_SETUP_CODE …)"', await until(async () => /Mã cài đặt chưa đúng/.test(await S.page.locator('.adm-login .err').innerText().catch(() => ''))))
+await S.page.screenshot({ path: `${OUT}/admin_setup.png` })
+await S.page.fill('input[aria-label="Mã cài đặt"]', 'ma-cai-dat-thu-123')
+await S.page.click('.adm-login button.cta')
+check('đúng mã -> tạo tài khoản, vào thẳng trang quản trị', await until(async () => (await S.page.locator('.adm-tabs').count()) === 1))
+await S.page.click('button:has-text("Đăng xuất")')
+await S.page.fill('.adm-login input[placeholder="Số điện thoại hoặc email"]', '+84912000779')
+await S.page.fill('.adm-login input[type=password]', 'MatKhau#2026')
+await S.page.click('.adm-login button.cta')
+check('đăng xuất rồi đăng nhập lại bằng số (gõ dạng +84) + mật khẩu vừa tạo -> vào được', await until(async () => (await S.page.locator('.adm-tabs').count()) === 1))
+await S.ctx.close()
+
 /* ======== 1. Trang quản trị ======== */
 console.log('— 1. Trang quản trị /quan-tri')
 const A = await device('A', { width: 1280, height: 860 })

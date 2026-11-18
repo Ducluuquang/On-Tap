@@ -15,13 +15,22 @@ async function post(url, body, token, timeoutMs = 30000) {
 }
 export const adminCall = (action, body = {}) => post('/api/admin', { action, ...body }, getAdminToken())
 // Đăng nhập bằng tài khoản Ôn Tập (số điện thoại / email + mật khẩu) rồi hỏi máy chủ có phải quản trị không.
+// "+84 912…" / "84912…" -> "0912…" (tài khoản lưu số dạng 0…)
+export const vnId = (id) => { const s = String(id || '').trim(); if (s.includes('@')) return s; const d = s.replace(/\D+/g, ''); return /^84\d{9}$/.test(d) ? '0' + d.slice(2) : s }
 export async function adminLogin(id, pass) {
-  const r = await post('/api/account', { action: 'login', id, pass }, '')
+  const r = await post('/api/account', { action: 'login', id: vnId(id), pass }, '')
   if (!r.ok) return { ok: false, error: r.error || 'bad_login' }
   const w = await post('/api/admin', { action: 'whoami' }, r.token)
   if (!w.ok) return { ok: false, error: w.error || 'not_admin' }
   setAdminToken(r.token)
   return { ok: true, name: w.name }
+}
+// LẦN ĐẦU: tạo tài khoản quản trị (hoặc đặt lại mật khẩu) bằng mã cài đặt ADMIN_SETUP_CODE ở Vercel.
+export async function adminSetup(phone, pass, code) {
+  const r = await post('/api/admin', { action: 'setup', phone: vnId(phone), pass, code }, '')
+  if (!r.ok) return { ok: false, error: r.error || 'network' }
+  setAdminToken(r.token)
+  return { ok: true, created: r.created }
 }
 export async function getPricesPublic() {
   try { const r = await fetch('/api/admin'); const j = await r.json(); return j && j.ok ? j.prices : null } catch { return null }
