@@ -7,7 +7,11 @@ import { booksCall } from '../lib/books.js'
 import logoRow from '../assets/logo-row.png'
 
 const Library = lazy(() => import('../screens/Library.jsx'))
-const TABS = [['home', '📊 Tổng quan'], ['books', '📚 Thư viện sách'], ['users', '👪 Người dùng'], ['fb', '💬 Góp ý'], ['price', '💰 Định giá']]
+// Hai cấp (18/11/2026): super admin (ADMIN_PHONES) thấy thêm "Quản trị viên" + "Cài đặt" và DUYỆT thay đổi; admin làm việc hằng ngày.
+const TABS = [['home', '📊 Tổng quan'], ['books', '📚 Thư viện sách'], ['users', '👪 Người dùng'], ['fb', '💬 Góp ý'], ['price', '💰 Định giá'],
+  ['chg', '✅ Duyệt & nhật ký'], ['staff', '👥 Quản trị viên', 'super'], ['cfg', '⚙️ Cài đặt', 'super']]
+const ROLE = { super: 'Super admin', admin: 'Admin' }
+const CHG_ST = { pending: '⏳ Chờ duyệt', applied: '✓ Áp dụng ngay (super admin)', approved: '✓ Đã duyệt', rejected: '✗ Không duyệt' }
 const KIND = { bug: 'Báo lỗi', idea: 'Kiến nghị', other: 'Khác' }
 const STATUS = { new: 'Mới', answered: 'Đã trả lời', done: 'Đã xong' }
 const ERR = { bad_login: 'Sai số điện thoại / email hoặc mật khẩu. Chưa có tài khoản quản trị thì bấm "Lần đầu: tạo tài khoản quản trị" bên dưới.',
@@ -160,8 +164,8 @@ function Thread({ id, onChanged }) {
       </div>
       <div className="adm-msgs">
         {th.msgs.map((m) => (
-          <div key={m.n} className={'adm-msg ' + (m.by === 'admin' ? 'me' : 'them')}>
-            <div className="adm-msg-h">{m.by === 'admin' ? 'Ôn Tập' : m.who} · {fmt(m.at)}</div>
+          <div key={m.n} className={'adm-msg ' + (m.by === 'admin' ? 'me' : m.by === 'ai' ? 'ai' : 'them')}>
+            <div className="adm-msg-h">{m.by === 'admin' ? '🧑‍💼 Ôn Tập (người)' : m.by === 'ai' ? '🤖 ONTAP (AI)' : m.who} · {fmt(m.at)}</div>
             <div className="adm-msg-t">{m.text}</div>
             {m.img && (imgs[m.n] ? <img className="adm-shot" alt="Ảnh chụp màn hình" src={'data:image/jpeg;base64,' + imgs[m.n]} /> : <button className="linkbtn" onClick={() => loadImg(m.n)}>🖼️ Xem ảnh chụp màn hình</button>)}
           </div>
@@ -215,10 +219,10 @@ function FeedbackTab() {
           {d.threads.map((t) => (
             <li key={t.id} className={'adm-fbi' + (t.pending ? ' pending' : '')} data-fb={t.id}>
               <div className="adm-row" onClick={() => setOpen(open === t.id ? null : t.id)}>
-                <b>{t.pending ? '🔴 ' : ''}{KIND[t.kind]} · {t.who === 'child' ? 'Học sinh' + (t.child ? ' ' + t.child.name : '') : 'Phụ huynh'}</b>
+                <b>{t.pending ? '🔴 ' : ''}{t.urgent ? '🔥 GẤP · ' : ''}{t.escalated ? '⚠️ ONTAP chuyển người · ' : t.last === 'ai' ? '🤖 ONTAP đã trả lời · ' : ''}{KIND[t.kind]} · {t.who === 'child' ? 'Học sinh' + (t.child ? ' ' + t.child.name : '') : 'Phụ huynh'}</b>
                 <span className="adm-muted">{STATUS[t.status]} · {fmt(t.updated)}</span>
               </div>
-              <div className="adm-muted adm-first" onClick={() => setOpen(open === t.id ? null : t.id)}>{t.first}{t.n > 1 ? ` (${t.n} tin nhắn)` : ''}</div>
+              <div className="adm-muted adm-first" onClick={() => setOpen(open === t.id ? null : t.id)}>{t.first}{t.n > 1 ? ` (${t.n} tin nhắn)` : ''}{t.aiSummary ? <><br />🤖 Tóm tắt: {t.aiSummary}</> : null}</div>
               {open === t.id && <Thread id={t.id} onChanged={(n) => { if (n) setNote(n); load() }} />}
             </li>
           ))}
@@ -228,21 +232,24 @@ function FeedbackTab() {
   )
 }
 
-function Pricing() {
+function Pricing({ role }) {
   const [d, setD] = useState(null)
   const [msg, setMsg] = useState('')
-  useEffect(() => { getPricesPublic().then((p) => setD(p || { error: 'Không tải được bảng giá' })) }, [])
+  const [pend, setPend] = useState(null)
+  useEffect(() => { getPricesPublic().then((p) => setD(p || { error: 'Không tải được bảng giá' })); adminCall('prices_pending').then((r) => setPend(r.ok ? r.change : null)) }, [])
   if (!d) return <p className="adm-muted">Đang tải…</p>
   if (d.error) return <div className="err">{d.error}</div>
   const set = (id, k, v) => setD({ ...d, plans: { ...d.plans, [id]: { ...d.plans[id], [k]: Number(String(v).replace(/\D+/g, '')) || 0 } } })
   async function save() {
     const r = await adminCall('prices_set', { plans: d.plans })
+    if (r.ok && r.pending) { setPend(r.change); setMsg('Đã gửi đề xuất giá ✓ Chờ super admin duyệt (trang đăng ký vẫn hiện giá cũ).'); return }
     setMsg(r.ok ? 'Đã lưu bảng giá ✓ Trang đăng ký hiện giá mới ngay.' : 'Lỗi: ' + r.error)
-    if (r.ok) setD(r.prices)
+    if (r.ok) { setD(r.prices); setPend(null) }
   }
   return (
     <div data-testid="adm-price">
-      <p className="adm-muted">Giá theo số học sinh trong gói (đồng). Để 0 = chưa đặt giá (trang đăng ký ghi "Giá: liên hệ").</p>
+      <p className="adm-muted">Giá theo số học sinh trong gói (đồng). Để 0 = chưa đặt giá (trang đăng ký ghi "Giá: liên hệ").{role !== 'super' ? ' Admin đổi giá thì phải chờ super admin duyệt.' : ''}</p>
+      {pend && <div className="adm-pend" data-testid="price-pend">⏳ Đang có đề xuất giá chờ duyệt (của {pend.byName || pend.by}, {fmt(pend.at)}): {Object.entries(pend.after).filter(([, x]) => x.month || x.year).map(([k, x]) => `gói ${k}: ${x.month ? vnd(x.month) + '/tháng' : ''}${x.month && x.year ? ', ' : ''}${x.year ? vnd(x.year) + '/năm' : ''}`).join(' · ') || 'bỏ hết giá'}{role === 'super' ? ' — xem ở mục "Duyệt & nhật ký".' : ''}</div>}
       <table className="adm-table">
         <thead><tr><th>Gói</th><th>Hàng tháng</th><th>Hàng năm</th></tr></thead>
         <tbody>
@@ -255,9 +262,144 @@ function Pricing() {
           ))}
         </tbody>
       </table>
-      <button className="cta small" onClick={save}>Lưu bảng giá</button>
+      <button className="cta small" onClick={save}>{role === 'super' ? 'Lưu bảng giá' : 'Gửi đề xuất giá (chờ duyệt)'}</button>
       {msg && <div className={/Lỗi/.test(msg) ? 'err' : 'ok-msg'}>{msg}</div>}
       {d.updated ? <p className="adm-muted">Sửa lần cuối {fmt(d.updated)}</p> : null}
+    </div>
+  )
+}
+
+function priceText(plans) {
+  return Object.entries(plans || {}).map(([k, x]) => `gói ${k}: ${x.month ? vnd(x.month) : '—'} / ${x.year ? vnd(x.year) : '—'}`).join(' · ')
+}
+function Changes({ role }) {
+  const [d, setD] = useState(null)
+  const [msg, setMsg] = useState('')
+  const [prev, setPrev] = useState({})
+  const [notes, setNotes] = useState({})
+  const load = () => adminCall('chg_list').then(setD)
+  useEffect(() => { load() }, [])
+  async function decide(c, ok) {
+    const r = await adminCall(ok ? 'chg_approve' : 'chg_reject', { id: c.id, note: notes[c.id] || '' })
+    setMsg(r.ok ? (ok ? 'Đã duyệt ✓ Thay đổi đã áp dụng.' : 'Đã từ chối.') : r.error === 'not_ready' ? 'Sách chưa đọc xong, chưa duyệt được.' : 'Lỗi: ' + r.error)
+    load()
+  }
+  async function preview(c) { const r = await adminCall('book_preview', { id: c.ref }); setPrev({ ...prev, [c.id]: r.ok ? r.pages : [] }) }
+  if (!d) return <p className="adm-muted">Đang tải…</p>
+  if (!d.ok) return <div className="err">{ERR[d.error] || d.error}</div>
+  const pend = d.changes.filter((c) => c.status === 'pending'), done = d.changes.filter((c) => c.status !== 'pending')
+  const detail = (c) => c.type === 'prices' ? <><div>Giá cũ: {priceText(c.before)}</div><div>Giá mới: <b>{priceText(c.after)}</b></div></> : null
+  return (
+    <div data-testid="adm-chg">
+      <p className="adm-muted">{role === 'super' ? 'Thay đổi của admin (bảng giá, đưa sách mới vào dùng, xoá sách) chờ anh duyệt mới áp dụng cho người dùng.' : 'Thay đổi của bạn (bảng giá, sách mới, xoá sách) chờ super admin duyệt mới áp dụng.'}</p>
+      {msg && <div className={/Lỗi|chưa/.test(msg) ? 'err' : 'ok-msg'}>{msg}</div>}
+      <h3 className="adm-h">⏳ Chờ duyệt ({pend.length})</h3>
+      {!pend.length ? <p className="adm-muted">Không có thay đổi nào chờ duyệt.</p> : (
+        <ul className="adm-list">
+          {pend.map((c) => (
+            <li key={c.id} className="adm-user adm-chg" data-chg={c.id}>
+              <div className="adm-row"><b>{d.types[c.type] || c.type}: {c.title}</b><span className="adm-muted">{c.byName || c.by} · {fmt(c.at)}</span></div>
+              {detail(c)}
+              {c.type === 'book_publish' && (
+                <>
+                  <button className="linkbtn" onClick={() => preview(c)}>👁️ Xem thử chữ ONTAP đọc được (4 trang đầu)</button>
+                  {prev[c.id] && (prev[c.id].length ? prev[c.id].map((p) => <pre key={p.n} className="adm-kb-t adm-prev"><b>Trang {p.printed || p.n}</b>{'\n'}{p.text}</pre>) : <p className="adm-muted">Sách chưa đọc xong (chưa có chữ).</p>)}
+                </>
+              )}
+              {role === 'super' && (
+                <>
+                  <input className="auth-in" placeholder="Ghi chú (không bắt buộc)" value={notes[c.id] || ''} onChange={(e) => setNotes({ ...notes, [c.id]: e.target.value })} aria-label="Ghi chú duyệt" />
+                  <div className="modal-btns">
+                    <button className="cta small ghost" onClick={() => decide(c, false)}>✗ Từ chối</button>
+                    <button className="cta small" onClick={() => decide(c, true)}>✓ Duyệt</button>
+                  </div>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <h3 className="adm-h">📜 Nhật ký thay đổi</h3>
+      {!done.length ? <p className="adm-muted">Chưa có.</p> : (
+        <ul className="adm-list">
+          {done.map((c) => (
+            <li key={c.id} className="adm-user adm-log">
+              <div className="adm-row"><b>{d.types[c.type] || c.type}: {c.title}</b><span className="adm-muted">{CHG_ST[c.status]}</span></div>
+              {detail(c)}
+              <div className="adm-muted">Làm: {c.byName || c.by} · {fmt(c.at)}{c.reviewedBy && c.status !== 'applied' ? ` · Duyệt: ${c.reviewedBy} · ${fmt(c.reviewedAt)}` : ''}{c.note ? ' · Ghi chú: ' + c.note : ''}</div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function Staff() {
+  const [d, setD] = useState(null)
+  const [f, setF] = useState({ phone: '', name: '', pass: '' })
+  const [msg, setMsg] = useState('')
+  const load = () => adminCall('staff_list').then(setD)
+  useEffect(() => { load() }, [])
+  const SERR = { bad_phone: 'Số điện thoại chưa đúng.', is_super: 'Số này đã là super admin.', bad_pass: 'Số này chưa có tài khoản: cần mật khẩu ban đầu ít nhất 8 ký tự.' }
+  async function add(e) {
+    e.preventDefault()
+    const r = await adminCall('staff_add', f)
+    setMsg(r.ok ? (r.created ? 'Đã thêm admin ✓ (đã tạo tài khoản; báo người đó đăng nhập /quan-tri bằng số + mật khẩu ban đầu, rồi đổi mật khẩu trong app).' : 'Đã thêm admin ✓ (dùng tài khoản sẵn có của số này).') : SERR[r.error] || 'Lỗi: ' + r.error)
+    if (r.ok) { setF({ phone: '', name: '', pass: '' }); load() }
+  }
+  async function remove(p) { const r = await adminCall('staff_remove', { phone: p }); setMsg(r.ok ? 'Đã bỏ quyền admin ✓' : 'Lỗi: ' + r.error); load() }
+  return (
+    <div data-testid="adm-staff">
+      <p className="adm-muted">Super admin = các số trong ADMIN_PHONES ở Vercel (duyệt thay đổi). Admin = người làm việc hằng ngày, anh thêm / bỏ ở đây; thay đổi về giá và sách của admin phải chờ anh duyệt.</p>
+      {!d ? <p className="adm-muted">Đang tải…</p> : !d.ok ? <div className="err">{d.error}</div> : (
+        <ul className="adm-list">
+          {d.staff.map((x) => (
+            <li key={x.phone} className="adm-user">
+              <div className="adm-row"><b>{x.name || '(chưa ghi tên)'}</b><span className="adm-tag">{ROLE[x.role]}</span></div>
+              <div className="adm-muted">{x.phone}{x.hasAccount ? '' : ' · chưa tạo tài khoản'} · Dùng gần nhất {fmt(x.seen)}</div>
+              {x.role === 'admin' && <button className="linkbtn" onClick={() => remove(x.phone)}>Bỏ quyền admin</button>}
+            </li>
+          ))}
+        </ul>
+      )}
+      <form className="adm-form" onSubmit={add}>
+        <b>Thêm admin</b>
+        <input className="auth-in" placeholder="Số điện thoại" inputMode="tel" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} aria-label="Số điện thoại admin" />
+        <input className="auth-in" placeholder="Tên" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} aria-label="Tên admin" />
+        <input className="auth-in" type="password" placeholder="Mật khẩu ban đầu (nếu số chưa có tài khoản, ≥ 8 ký tự)" value={f.pass} onChange={(e) => setF({ ...f, pass: e.target.value })} aria-label="Mật khẩu ban đầu" autoComplete="new-password" />
+        <button className="cta small" disabled={!f.phone}>Thêm admin</button>
+      </form>
+      {msg && <div className={/Lỗi|chưa|đã là/.test(msg) && !/✓/.test(msg) ? 'err' : 'ok-msg'}>{msg}</div>}
+    </div>
+  )
+}
+
+function Settings() {
+  const [d, setD] = useState(null)
+  const [emails, setEmails] = useState('')
+  const [msg, setMsg] = useState('')
+  useEffect(() => { adminCall('settings_get').then((r) => { setD(r); if (r.ok) setEmails(r.settings.alertEmails.join(', ')) }) }, [])
+  if (!d) return <p className="adm-muted">Đang tải…</p>
+  if (!d.ok) return <div className="err">{d.error}</div>
+  async function save(patch) {
+    const r = await adminCall('settings_set', patch)
+    setMsg(r.ok ? 'Đã lưu ✓' : r.error === 'bad_email' ? 'Email chưa đúng (tối đa 5 email, cách nhau dấu phẩy).' : 'Lỗi: ' + r.error)
+    if (r.ok) { setD({ ...d, settings: r.settings }); setEmails(r.settings.alertEmails.join(', ')) }
+  }
+  const st = d.settings
+  return (
+    <div data-testid="adm-cfg" className="adm-form">
+      <b>🤖 ONTAP chăm sóc khách hàng</b>
+      <label className="switch-row">
+        <span className="switch-txt"><b>ONTAP tự trả lời góp ý</b><em>Bật: ONTAP trả lời ngay trong app (cách dùng, câu hỏi thường). Việc cần người (lỗi thật, cần thay đổi hệ thống, tiền, việc gấp, ONTAP không chắc) thì ONTAP chuyển phiếu cho quản trị + gửi email báo.</em></span>
+        <span className={'switch' + (st.aiOn ? ' on' : '')} onClick={() => save({ aiOn: !st.aiOn })} role="switch" aria-checked={!!st.aiOn} aria-label="ONTAP tự trả lời"><span className="knob" /></span>
+      </label>
+      <label className="auth-lbl">Email nhận báo khi ONTAP chuyển phiếu (gấp / cần thay đổi), tối đa 5, cách nhau dấu phẩy</label>
+      <input className="auth-in" type="email" multiple placeholder="email@vidu.com" value={emails} onChange={(e) => setEmails(e.target.value)} aria-label="Email nhận báo" />
+      <button className="cta small" onClick={() => save({ alertEmails: emails })}>Lưu email</button>
+      {!st.alertEmails.length && <p className="adm-muted">⚠️ Chưa có email: ONTAP vẫn chuyển phiếu sang mục Góp ý nhưng không gửi thư báo.</p>}
+      {msg && <div className={/Lỗi|chưa đúng/.test(msg) ? 'err' : 'ok-msg'}>{msg}</div>}
     </div>
   )
 }
@@ -277,18 +419,21 @@ export default function AdminApp() {
       <header className="adm-top">
         <img src={logoRow} alt="Ôn Tập" className="adm-logo" />
         <span className="adm-title">Quản trị hệ thống</span>
-        <span className="adm-me">{me ? me.name || me.phone : ''}</span>
+        <span className="adm-me">{me ? `${me.name || me.phone} · ${ROLE[me.role] || ''}` : ''}</span>
         <button className="cta small ghost" onClick={() => { setAdminToken(''); setLogged(false) }}>Đăng xuất</button>
       </header>
       <nav className="adm-tabs">
-        {TABS.map(([k, l]) => <button key={k} className={'adm-tab' + (tab === k ? ' on' : '')} onClick={() => setTab(k)}>{l}</button>)}
+        {TABS.filter((x) => !x[2] || (me && me.role === x[2])).map(([k, l]) => <button key={k} className={'adm-tab' + (tab === k ? ' on' : '')} onClick={() => setTab(k)}>{l}</button>)}
       </nav>
       <main className="adm-main">
         {tab === 'home' && <Overview go={setTab} />}
         {tab === 'books' && <BooksTab />}
         {tab === 'users' && <Users />}
         {tab === 'fb' && <FeedbackTab />}
-        {tab === 'price' && <Pricing />}
+        {tab === 'price' && <Pricing role={me && me.role} />}
+        {tab === 'chg' && <Changes role={me && me.role} />}
+        {tab === 'staff' && me && me.role === 'super' && <Staff />}
+        {tab === 'cfg' && me && me.role === 'super' && <Settings />}
       </main>
     </div>
   )

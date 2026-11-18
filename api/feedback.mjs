@@ -7,6 +7,8 @@
 //  img   {id, n} -> ảnh chụp màn hình của tin nhắn n
 import { redis, redisEnv, send, readBody } from "./_store.mjs";
 import { userOf } from "./_admin.mjs";
+import { aiAnswer, alertAdmins } from "./_cskh.mjs";
+import { getSupportCfg } from "./_changes.mjs";
 import { FK, KINDS, okId, newId, cleanText, cleanImg, getThread, putThread, pubThread, meta, SEND_DAY_MAX } from "./_fb.mjs";
 
 const BODY_MAX = 700000;
@@ -18,6 +20,34 @@ async function unreadFor(phone, kid) {
   if (!kid || !(ids || []).length) return (ids || []).length;
   const [vals] = await redis([["MGET", ...ids.map(FK.t)]]);
   return (vals || []).map((x) => { try { return JSON.parse(x); } catch { return null; } }).filter((t) => t && visible(t, kid)).length;
+}
+
+// ONTAP tự trả lời (18/11/2026). Trả lời được -> phiếu "Đã trả lời" (không cần người); cần người -> phiếu chờ ở /quan-tri
+// + thư báo quản trị (chỉ khi phiếu mới chuyển, hoặc mới thành gấp). AI lỗi -> phiếu chờ người như trước.
+async function autoReply(t, req) {
+  const key = process.env.ANTHROPIC_API_KEY || "";
+  const cfg = await getSupportCfg();
+  if (!key || !cfg.aiOn) return t;
+  let a;
+  try { a = await aiAnswer(key, t); } catch (e) { console.error("cskh ai", e && e.message); return t; }
+  const now = Date.now(), was = !!t.escalated, wasUrgent = !!t.urgent;
+  t.msgs.push({ by: "ai", who: "ONTAP", text: a.reply, at: now });
+  t.updated = now;
+  if (a.escalate) {
+    t.escalated = true; t.urgent = wasUrgent || a.urgent; t.aiSummary = a.summary || t.aiSummary || ""; t.status = "new";
+    await redis([["SADD", FK.pending, t.id]]);
+    await putThread(t);
+    if (!was || (t.urgent && !wasUrgent)) {
+      const host = String((req.headers && (req.headers["x-forwarded-host"] || req.headers.host)) || "on-tap-three.vercel.app");
+      const proto = String((req.headers && req.headers["x-forwarded-proto"]) || (/^localhost|^127\./.test(host) ? "http" : "https")).split(",")[0];
+      await alertAdmins(t, cfg.alertEmails, proto + "://" + host);
+    }
+  } else {
+    t.status = "answered";
+    await redis([["SREM", FK.pending, t.id]]);
+    await putThread(t);
+  }
+  return t;
 }
 
 async function bumpDay(phone) {
@@ -58,6 +88,7 @@ export default async function handler(req, res) {
         if (img) cmds.push(["SET", FK.img(t.id, 0), img]);
         await redis(cmds);
         await putThread(t);
+        await autoReply(t, req);
         return send(res, 200, { ok: true, thread: pubThread(t) });
       }
       case "reply": {
@@ -77,6 +108,7 @@ export default async function handler(req, res) {
         if (img) cmds.push(["SET", FK.img(t.id, n), img]);
         await redis(cmds);
         await putThread(t);
+        await autoReply(t, req);
         return send(res, 200, { ok: true, thread: pubThread(t) });
       }
       case "mine": {

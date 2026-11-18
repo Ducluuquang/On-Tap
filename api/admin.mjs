@@ -18,7 +18,9 @@
 import fs from "node:fs";
 import { redis, redisEnv, send, readBody, parse } from "./_store.mjs";
 import crypto from "node:crypto";
-import { userOf, isAdmin, vnPhone } from "./_admin.mjs";
+import { userOf, isAdmin, isSuper, roleOf, adminPhones, vnPhone } from "./_admin.mjs";
+import { CHG_TYPES, newChange, putChange, getChange, listChanges, pendingOf, getSupportCfg, okEmail } from "./_changes.mjs";
+import { deleteBook, markBook, previewBook } from "./books.mjs";
 import { hashPass } from "./account.mjs";
 import { tokenFor } from "./_acctkey.mjs";
 import { FK, KINDS, STATUS, okId, cleanText, getThread, putThread, pubThread } from "./_fb.mjs";
@@ -28,6 +30,10 @@ const PRICE_MAX = 100000000;
 const PAGE = 30;
 const DAY = 86400000;
 
+const SUPER_ONLY = new Set(["chg_approve", "chg_reject", "staff_list", "staff_add", "staff_remove", "settings_set"]);
+async function setPrices(plans, by) {
+  await redis([["SET", "cfg:prices", JSON.stringify({ currency: "VND", plans, updated: Date.now(), by })]]);
+}
 export async function getPrices() {
   const [raw] = await redis([["GET", "cfg:prices"]]);
   const p = parse(raw) || {};
@@ -64,7 +70,8 @@ const pubUser = (a, seen) => ({
   created: a.created || 0, updated: a.updated || 0, seen: Number(seen) || 0,
 });
 const summary = (t) => ({ id: t.id, kind: t.kind, status: t.status, created: t.created, updated: t.updated, who: t.who, child: t.child || null, phone: t.phone,
-  first: (t.msgs[0] && t.msgs[0].text || "").slice(0, 160), n: t.msgs.length, last: (t.msgs[t.msgs.length - 1] || {}).by || "user" });
+  first: (t.msgs[0] && t.msgs[0].text || "").slice(0, 160), n: t.msgs.length, last: (t.msgs[t.msgs.length - 1] || {}).by || "user",
+  escalated: !!t.escalated, urgent: !!t.urgent, aiSummary: t.aiSummary || "" });
 
 const sameStr = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
 async function setup(req, res, b) {
@@ -100,10 +107,15 @@ export default async function handler(req, res) {
     if (String(b.action || "") === "setup") return setup(req, res, b);
     const u = await userOf(req);
     if (!u) return send(res, 200, { ok: false, error: "bad_token" });
-    if (!isAdmin(u.phone)) return send(res, 200, { ok: false, error: "not_admin" });
-    switch (String(b.action || "")) {
+    const role = await roleOf(u.phone);   // "super" | "admin" | ""
+    if (!role) return send(res, 200, { ok: false, error: "not_admin" });
+    const action = String(b.action || "");
+    // việc chỉ SUPER ADMIN làm được
+    if (SUPER_ONLY.has(action) && role !== "super") return send(res, 200, { ok: false, error: "not_super" });
+    const who = { by: u.phone, byName: u.acc.parentName || "" };
+    switch (action) {
       case "whoami":
-        return send(res, 200, { ok: true, admin: true, name: u.acc.parentName || "", phone: u.phone });
+        return send(res, 200, { ok: true, admin: true, role, name: u.acc.parentName || "", phone: u.phone });
       case "overview": {
         await ensureIndex();
         const now = Date.now();
@@ -155,9 +167,100 @@ export default async function handler(req, res) {
           if (!(m >= 0 && m <= PRICE_MAX && y >= 0 && y <= PRICE_MAX)) return send(res, 200, { ok: false, error: "bad_price" });
           plans[id] = { month: m, year: y };
         }
-        const next = { currency: "VND", plans, updated: Date.now(), by: u.phone };
-        await redis([["SET", "cfg:prices", JSON.stringify(next)]]);
+        const old = await pendingOf("prices");
+        if (role !== "super") {
+          // admin: đề xuất giá mới, CHỜ super admin duyệt (trang đăng ký vẫn hiện giá cũ); đề xuất mới thay đề xuất cũ đang chờ
+          const c = newChange({ type: "prices", ...who, title: "Bảng giá gói", before: cur.plans, after: plans });
+          if (old) await putChange({ ...old, status: "rejected", reviewedBy: u.phone, reviewedAt: Date.now(), note: "Thay bằng đề xuất mới" });
+          await putChange(c);
+          return send(res, 200, { ok: true, pending: true, change: c, prices: cur });
+        }
+        await setPrices(plans, u.phone);
+        await putChange(newChange({ type: "prices", ...who, title: "Bảng giá gói", before: cur.plans, after: plans, status: "applied" }));
+        if (old) await putChange({ ...old, status: "rejected", reviewedBy: u.phone, reviewedAt: Date.now(), note: "Super admin đã đặt giá khác" });
         return send(res, 200, { ok: true, prices: await getPrices() });
+      }
+      case "prices_pending":
+        return send(res, 200, { ok: true, change: await pendingOf("prices") });
+      // ---- Duyệt thay đổi + nhật ký ----
+      case "chg_list": {
+        const r = await listChanges(200);
+        return send(res, 200, { ok: true, pending: r.pending, changes: r.list, types: CHG_TYPES });
+      }
+      case "chg_approve": case "chg_reject": {
+        const c = await getChange(b.id);
+        if (!c) return send(res, 200, { ok: false, error: "not_found" });
+        if (c.status !== "pending") return send(res, 200, { ok: false, error: "not_pending" });
+        const note = cleanText(b.note, 500);
+        if (action === "chg_approve") {
+          if (c.type === "prices") await setPrices(c.after, u.phone);
+          else if (c.type === "book_publish") {
+            const [raw] = await redis([["HGET", "book:idx", c.ref]]);
+            const m = parse(raw);
+            if (!m) return send(res, 200, { ok: false, error: "no_book" });
+            if (m.status !== "ready") return send(res, 200, { ok: false, error: "not_ready" });
+            await markBook(c.ref, { approved: true, rejected: false });
+          } else if (c.type === "book_delete") await deleteBook(c.ref);
+        } else if (c.type === "book_publish") await markBook(c.ref, { approved: false, rejected: true });
+        else if (c.type === "book_delete") await markBook(c.ref, { delReq: false });
+        const done = await putChange({ ...c, status: action === "chg_approve" ? "approved" : "rejected", reviewedBy: u.phone, reviewedAt: Date.now(), note });
+        return send(res, 200, { ok: true, change: done });
+      }
+      case "book_preview": {
+        const id = String(b.id || "");
+        if (!/^b[0-9a-f]{12}$/.test(id)) return send(res, 200, { ok: false, error: "no_book" });
+        return send(res, 200, { ok: true, pages: await previewBook(id, Math.max(1, Math.round(Number(b.from) || 1)), 4) });
+      }
+      // ---- Quản trị viên (super admin thêm / bỏ admin) ----
+      case "staff_list": {
+        const [ids, info] = await redis([["SMEMBERS", "adm:staff"], ["HGETALL", "adm:staffinfo"]]);
+        const inf = {};
+        for (let i = 0; i + 1 < (info || []).length; i += 2) inf[info[i]] = parse(info[i + 1]) || {};
+        const phones = [...adminPhones(), ...(ids || [])];
+        const [accs, seens] = phones.length ? await redis([["MGET", ...phones.map((p) => "acct:u:" + p)], ["MGET", ...phones.map((p) => "acct:seen:" + p)]]) : [[], []];
+        const list = phones.map((p, i) => { const a = parse(accs[i]) || {}; return { phone: p, role: isSuper(p) ? "super" : "admin", name: (inf[p] && inf[p].name) || a.parentName || "", hasAccount: !!accs[i], seen: Number(seens[i]) || 0, addedAt: (inf[p] && inf[p].at) || 0 } });
+        return send(res, 200, { ok: true, staff: list });
+      }
+      case "staff_add": {
+        const phone = vnPhone(b.phone), name = String(b.name || "").replace(/\s+/g, " ").trim().slice(0, 60), pass = typeof b.pass === "string" ? b.pass : "";
+        if (!/^\d{8,12}$/.test(phone)) return send(res, 200, { ok: false, error: "bad_phone" });
+        if (isSuper(phone)) return send(res, 200, { ok: false, error: "is_super" });
+        const [raw] = await redis([["GET", "acct:u:" + phone]]);
+        let created = false;
+        if (!raw) {
+          // chưa có tài khoản: tạo tài khoản chỉ để quản trị (không con) với mật khẩu ban đầu super admin đặt
+          if (pass.length < 8 || pass.length > 64) return send(res, 200, { ok: false, error: "bad_pass" });
+          const now = Date.now();
+          const acc = { v: 1, phone, email: "", parentName: name || "Admin", province: "", plan: 1, pin: "", children: [], sys: "admin", ...(await hashPass(pass)), pwv: 1, rev: 1, created: now, updated: now };
+          const [ok] = await redis([["SET", "acct:u:" + phone, JSON.stringify(acc), "NX"]]);
+          created = ok === "OK";
+        }
+        await redis([["SADD", "adm:staff", phone], ["HSET", "adm:staffinfo", phone, JSON.stringify({ name, by: u.phone, at: Date.now() })]]);
+        await putChange(newChange({ type: "staff_add", ...who, title: `Thêm admin ${name || ""} ${phone}`.replace(/\s+/g, " "), after: { phone, name }, status: "applied" }));
+        return send(res, 200, { ok: true, created });
+      }
+      case "staff_remove": {
+        const phone = vnPhone(b.phone);
+        const [m] = await redis([["SISMEMBER", "adm:staff", phone]]);
+        if (Number(m) !== 1) return send(res, 200, { ok: false, error: "not_found" });
+        await redis([["SREM", "adm:staff", phone], ["HDEL", "adm:staffinfo", phone]]);
+        await putChange(newChange({ type: "staff_remove", ...who, title: `Bỏ quyền admin ${phone}`, before: { phone }, status: "applied" }));
+        return send(res, 200, { ok: true });
+      }
+      // ---- Cài đặt chăm sóc khách hàng ----
+      case "settings_get":
+        return send(res, 200, { ok: true, settings: await getSupportCfg() });
+      case "settings_set": {
+        const cur = await getSupportCfg();
+        const next = { aiOn: b.aiOn == null ? cur.aiOn : !!b.aiOn, alertEmails: cur.alertEmails, updated: Date.now(), by: u.phone };
+        if (b.alertEmails != null) {
+          const list = String(Array.isArray(b.alertEmails) ? b.alertEmails.join(",") : b.alertEmails).split(/[,;\s]+/).map((e) => e.trim().toLowerCase()).filter(Boolean);
+          if (list.length > 5 || list.some((e) => !okEmail(e))) return send(res, 200, { ok: false, error: "bad_email" });
+          next.alertEmails = list;
+        }
+        await redis([["SET", "cfg:support", JSON.stringify(next)]]);
+        await putChange(newChange({ type: "settings", ...who, title: "Chăm sóc khách hàng (ONTAP, email báo)", before: { aiOn: cur.aiOn, emails: cur.alertEmails.length }, after: { aiOn: next.aiOn, emails: next.alertEmails.length }, status: "applied" }));
+        return send(res, 200, { ok: true, settings: await getSupportCfg() });
       }
       case "fb_list": {
         const st = String(b.status || "open");
@@ -201,7 +304,12 @@ export default async function handler(req, res) {
           if (!STATUS[b.status]) return send(res, 200, { ok: false, error: "bad_status" });
           t.status = b.status;
         }
-        if (b.lesson != null) t.lesson = cleanText(b.lesson, 3000);
+        if (b.lesson != null) {
+          t.lesson = cleanText(b.lesson, 3000);
+          // bài học -> kho bài học cho ONTAP chăm sóc khách hàng (api/_cskh.mjs đọc khi trả lời)
+          if (t.lesson) await redis([["HSET", "fb:lessons", t.id, JSON.stringify({ kind: t.kind, q: (t.msgs[0] && t.msgs[0].text || "").slice(0, 200), lesson: t.lesson, at: Date.now() })]]);
+          else await redis([["HDEL", "fb:lessons", t.id]]);
+        }
         if (b.kind != null && KINDS[b.kind]) t.kind = b.kind;
         t.updated = Date.now();
         await redis([t.status === "new" ? ["SADD", FK.pending, t.id] : ["SREM", FK.pending, t.id]]);
@@ -217,7 +325,8 @@ export default async function handler(req, res) {
             const t = parse(v);
             if (t) out.push({ id: t.id, kind: KINDS[t.kind] || t.kind, status: STATUS[t.status] || t.status, created: new Date(t.created).toISOString(),
               who: t.who === "child" ? "học sinh" : "phụ huynh", grade: (t.child && t.child.grade) || "", ctx: t.ctx || {},
-              conversation: t.msgs.map((m) => ({ from: m.by === "admin" ? "Ôn Tập" : (t.who === "child" ? "học sinh" : "phụ huynh"), text: m.text, at: new Date(m.at).toISOString(), screenshot: !!m.img })),
+              escalated: !!t.escalated, urgent: !!t.urgent,
+              conversation: t.msgs.map((m) => ({ from: m.by === "admin" ? "Ôn Tập (người)" : m.by === "ai" ? "ONTAP (AI)" : (t.who === "child" ? "học sinh" : "phụ huynh"), text: m.text, at: new Date(m.at).toISOString(), screenshot: !!m.img })),
               lesson: t.lesson || "" });
           }
         }

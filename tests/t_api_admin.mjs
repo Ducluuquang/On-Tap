@@ -30,6 +30,7 @@ async function account(phone, extra = {}) {
 const PNG = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63f8ffff3f0005fe02fea7d6a4b40000000049454e44ae426082', 'hex').toString('base64')
 
 const tA = await account('0912000777')
+await adm('settings_set', { aiOn: false }, tA)   // bộ thử này kiểm tra NGƯỜI trả lời; ONTAP tự trả lời thử ở t_api_roles
 const U1 = '0919' + RUN, U2 = '0920' + RUN
 const t1 = await account(U1, { email: `ph${RUN}@vidu.test` })
 const t2 = await account(U2)
@@ -121,7 +122,7 @@ const bs = await adm('fb_status', { id: f1.thread.id, status: 'xyz' }, tA)
 check('trạng thái lạ -> từ chối', bs.error === 'bad_status')
 const X = await adm('fb_export', {}, tA)
 const xt = X.threads.find((t) => t.id === f1.thread.id)
-check('tải toàn bộ nhật ký cho AI học: đủ cuộc trò chuyện (3 tin), loại, trạng thái, bối cảnh, BÀI HỌC; KHÔNG kèm số điện thoại / email', X.ok && xt && xt.conversation.length === 3 && xt.conversation[1].from === 'Ôn Tập' && xt.kind === 'Báo lỗi' && xt.status === 'Đã xong' && /iPadOS/.test(xt.lesson) && !JSON.stringify(X).includes(U1) && !JSON.stringify(X).includes('vidu.test'), JSON.stringify(xt).slice(0, 300))
+check('tải toàn bộ nhật ký cho AI học: đủ cuộc trò chuyện (3 tin), loại, trạng thái, bối cảnh, BÀI HỌC; KHÔNG kèm số điện thoại / email', X.ok && xt && xt.conversation.length === 3 && xt.conversation[1].from === 'Ôn Tập (người)' && xt.kind === 'Báo lỗi' && xt.status === 'Đã xong' && /iPadOS/.test(xt.lesson) && !JSON.stringify(X).includes(U1) && !JSON.stringify(X).includes('vidu.test'), JSON.stringify(xt).slice(0, 300))
 const [ttl1, ttl2] = await store([['TTL', 'fb:t:' + f1.thread.id], ['TTL', 'fb:img:' + f1.thread.id + ':0']])
 check('nhật ký + ảnh lưu vĩnh viễn (không hết hạn)', ttl1 === -1 && ttl2 === -1, JSON.stringify([ttl1, ttl2]))
 const kb = await adm('kb', {}, tA), kbU = await adm('kb', {}, t1)

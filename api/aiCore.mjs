@@ -64,6 +64,9 @@ export async function thinkingFor(key, model) {
   return THINKING_OPTIONS[thinkingOk.get(model) ?? 2] || null
 }
 
+// Hỏi AI một đoạn chữ, trả chữ (ONTAP chăm sóc khách hàng — api/_cskh.mjs). Dùng model chính xác, tắt thinking như trên.
+export const askText = (key, text, max = 1500) => ask(key, [{ type: 'text', text }], max)
+
 async function ask(key, content, max = 2500, { fast = false } = {}) {
   const model = await pickModel(key, { fast })
   try {

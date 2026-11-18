@@ -1103,3 +1103,14 @@ select.auth-in{appearance:auto;cursor:pointer}
 .adm-kb summary{cursor:pointer;font-weight:700;color:var(--ink-soft)}
 .adm-kb-t{white-space:pre-wrap;font-family:inherit;font-size:.88rem;margin:8px 0 0;max-height:420px;overflow:auto}
 .adm-setup-link{align-self:center}
+/* Hai cấp quản trị + duyệt thay đổi + ONTAP chăm sóc khách hàng (18/11/2026) */
+.adm-msg.ai{background:#EEF0FB;align-self:flex-start}
+.adm-h{margin:6px 0 0;font-size:1rem}
+.adm-pend{background:#FFF7E6;border:1px solid #F1D39A;border-radius:10px;padding:9px 12px;font-size:.9rem}
+.adm-chg{cursor:auto;gap:8px}
+.adm-log{cursor:auto}
+.adm-prev{background:#F7F8FA;border-radius:8px;padding:8px}
+.adm-form{display:flex;flex-direction:column;gap:8px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px 13px}
+.lib-wait{font-size:.84rem;font-weight:700;color:#8A5A12}
+.lib-no{font-size:.84rem;font-weight:700;color:#B4232A}
+.fb-msg.ai{background:#EEF0FB;align-self:flex-start}

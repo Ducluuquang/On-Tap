@@ -41,7 +41,7 @@ const FRUITS = [['apple', 'quả táo', '🍎'], ['banana', 'quả chuối', '�
 // MOCK=1: AI tạo bộ từ cho ván thi đấu cũng là AI giả (trả về nhanh, không tốn tiền).
 // AI giả làm đúng lời dặn: tạo đúng N từ, KHÔNG lặp lại các từ trong danh sách "do not repeat any of them".
 // Từ lấy trong từ điển Scrabble (từ thông dụng 4–8 chữ). /__mock/ai: số lần gọi + lời dặn gần nhất; fail/on|off; delay/<ms>.
-const MOCKAI = { calls: [], fail: false, delay: 300, gen: [] }
+const MOCKAI = { calls: [], fail: false, delay: 300, gen: [], cskh: [] }
 // Message Batches giả (đọc chữ sách)
 const OCR = { batches: [], status: {}, books: {}, fail: new Set(), cut: new Set(), hold: false, canceled: [], seq: 0 }
 const jres = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json' } })
@@ -117,6 +117,17 @@ if (MOCK) {
       // như model thật: sonnet-5-5 không nhận thinking "disabled"
       if (body.model === 'claude-sonnet-5-5' && body.thinking && body.thinking.type === 'disabled') return jres({ type: 'error', error: { type: 'invalid_request_error', message: 'thinking.type "disabled" is not supported for this model' } }, 400)
       const allText = (body.messages[0].content || []).map ? [].concat(body.messages[0].content).map((c) => (typeof c === 'string' ? c : c.text || '')).join('\n') : String(body.messages[0].content)
+      if (allText.includes('CHĂM SÓC KHÁCH HÀNG ÔN TẬP')) {
+        // ONTAP chăm sóc khách hàng (api/_cskh.mjs): trả lời theo tin nhắn mới nhất của KHÁCH.
+        //  "[ai-hong]" -> AI lỗi · "GẤP" / "mất dữ liệu" -> chuyển người, gấp · "đề nghị" / "kiến nghị" -> chuyển người · còn lại: tự trả lời
+        const last = (allText.match(/^KHÁCH: (.*)$/gm) || []).pop() || ''
+        MOCKAI.cskh.push({ prompt: allText, last, t: Date.now() }); if (MOCKAI.cskh.length > 30) MOCKAI.cskh.shift()
+        await new Promise((r) => setTimeout(r, 300))
+        if (last.includes('[ai-hong]')) return jres({ type: 'error', error: { type: 'api_error', message: 'mock cskh failure' } }, 500)
+        const urgent = /GẤP|mất dữ liệu/i.test(last), esc = urgent || /đề nghị|kiến nghị/i.test(last)
+        const reply = esc ? 'ONTAP đã ghi nhận và chuyển cho đội ngũ Ôn Tập, sẽ trả lời anh/chị sớm nhất.' : 'Chào bạn! ONTAP hướng dẫn: vào "Bắt đầu ôn", chọn môn rồi bấm "Ôn ngay" nhé.'
+        return jres({ content: [{ type: 'text', text: JSON.stringify({ reply, escalate: esc, urgent, summary: esc ? 'Khách cần người xử lý: ' + last.slice(7, 60) : '' }) }], stop_reason: 'end_turn' })
+      }
       if (allText.includes('{"questions":[')) {
         // soạn câu hỏi (api/aiCore.mjs): ghi lại lời nhắc, trả câu giả
         const n = Number((/Tạo (\d+) câu/.exec(allText) || [])[1] || 3)
@@ -205,7 +216,7 @@ const server = http.createServer((req, res) => {
   const url = req.url.split('?')[0]
   if (url.startsWith('/__mock/ai')) {
     const m = url.match(/^\/__mock\/ai(?:\/(reset|fail|delay)\/?(\w+)?)?$/)
-    if (m && m[1] === 'reset') { MOCKAI.calls = []; MOCKAI.fail = false; MOCKAI.delay = 300; MOCKAI.gen = [] }
+    if (m && m[1] === 'reset') { MOCKAI.calls = []; MOCKAI.fail = false; MOCKAI.delay = 300; MOCKAI.gen = []; MOCKAI.cskh = [] }
     if (m && m[1] === 'fail') MOCKAI.fail = m[2] === 'on'
     if (m && m[1] === 'delay') MOCKAI.delay = Number(m[2]) || 0
     res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify(MOCKAI))

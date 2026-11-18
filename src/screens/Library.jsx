@@ -147,6 +147,7 @@ export default function Library({ initial = [] }) {
     setConfirmDel(null)
     const r = await booksCall('delete', { id: book.id })
     if (!r.ok) { setMsg({ id: book.id, ok: false, text: errText(r.error) }); return }
+    if (r.pending) { if (r.book) putBook(r.book); setMsg({ id: book.id, ok: true, text: 'Đã gửi yêu cầu xoá ✓ Chờ super admin duyệt.' }); return }
     docs.current.delete(book.id)
     setBooks((list) => list.filter((x) => x.id !== book.id))
   }
@@ -193,6 +194,9 @@ export default function Library({ initial = [] }) {
                 <b className="lib-title">{b.title}</b>
               </div>
               <div className="lib-sub">Lớp {b.grade} · {b.subject} · {b.pages} trang</div>
+              {b.rejected ? <div className="lib-no">✗ Super admin không duyệt — ONTAP không dùng sách này</div>
+                : b.approved === false ? <div className="lib-wait">⏳ Chờ super admin duyệt — ONTAP chưa dùng sách này khi soạn câu</div> : null}
+              {b.delReq && <div className="lib-wait">🗑️ Đã xin xoá, chờ super admin duyệt</div>}
               {b.status === 'ready' ? (
                 <div className="lib-st ok" data-st="ready">✓ Đã đọc xong{p.failed ? ` · ${p.failed} nửa trang không đọc được` : ''}</div>
               ) : (

@@ -205,7 +205,7 @@ export async function readIndex() {
 
 async function loadBooksFor(grade, group) {
   if (!idxCache || Date.now() - idxCache.at > IDX_TTL) idxCache = { at: Date.now(), list: await readIndex() };
-  const metas = idxCache.list.filter((m) => m && m.status === "ready" && m.grade === grade && subjGroup(m.subject) === group);
+  const metas = idxCache.list.filter((m) => m && m.status === "ready" && m.approved !== false && m.grade === grade && subjGroup(m.subject) === group);   // chỉ sách đã duyệt (18/11/2026)
   const out = [];
   for (const m of metas) {
     let c = textCache.get(m.id);

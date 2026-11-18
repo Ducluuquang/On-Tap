@@ -9,9 +9,10 @@
 // Lệnh kho: "list" khi không có gì mới chỉ tốn 1 lệnh + 1 lệnh mỗi cuốn đang đọc; mỗi nhóm ảnh gửi lên ~6 lệnh.
 import crypto from "node:crypto";
 import { redis, redisEnv, send, readBody, clean, parse } from "./_store.mjs";
-import { adminPhones, userOf } from "./_admin.mjs";
+import { adminPhones, userOf, roleOf } from "./_admin.mjs";
+import { newChange, putChange, pendingOf } from "./_changes.mjs";
 export { adminPhones };
-import { BK, KINDS, KIND_ORDER, pack, assemblePages, readIndex, gradeNum } from "./_books/core.mjs";
+import { BK, KINDS, KIND_ORDER, pack, unpack, assemblePages, readIndex, gradeNum } from "./_books/core.mjs";
 import { pickModel, thinkingFor } from "./aiCore.mjs";
 
 const API = "https://api.anthropic.com/v1/messages/batches";
@@ -65,7 +66,31 @@ function progress(meta, job) {
   return { total, done: Object.keys(job.done).length, failed: Object.keys(job.failed).length, inflight: Object.keys(job.sent).length, missing };
 }
 const pubMeta = (m, job) => ({ id: m.id, title: m.title, grade: m.grade, subject: m.subject, kind: m.kind, pages: m.pages, file: m.file || "",
-  status: m.status, created: m.created, updated: m.updated, chars: m.chars || 0, progress: progress(m, job) });
+  status: m.status, created: m.created, updated: m.updated, chars: m.chars || 0, progress: progress(m, job),
+  approved: m.approved !== false, rejected: !!m.rejected, delReq: !!m.delReq });
+
+// Xoá hẳn một cuốn (huỷ batch đang chạy). Dùng khi super admin xoá hoặc duyệt yêu cầu xoá của admin (api/admin.mjs).
+export async function deleteBook(id) {
+  const key = process.env.ANTHROPIC_API_KEY || "";
+  const job = await getJob(id);
+  if (job && key) for (const bid of Object.keys(job.batches || {})) await fetch(API + "/" + bid + "/cancel", { method: "POST", headers: H(key) }).catch(() => {});
+  await redis([["HDEL", BK.idx, id], ["DEL", BK.job(id)], ["DEL", BK.half(id)], ["DEL", BK.text(id)]]);
+}
+// Đánh dấu duyệt / từ chối đưa sách vào dùng (ONTAP chỉ dùng sách đã duyệt), bỏ cờ "đang xin xoá".
+export async function markBook(id, patch) {
+  const m = await getMeta(id);
+  if (!m) return null;
+  const next = { ...m, ...patch, updated: Date.now() };
+  await redis([["HSET", BK.idx, id, JSON.stringify(next)]]);
+  return next;
+}
+// Xem thử chữ AI đã đọc (super admin xem trước khi duyệt). Trả tối đa `n` trang có chữ, bắt đầu từ trang `from`.
+export async function previewBook(id, from = 1, n = 4) {
+  const [raw] = await redis([["GET", BK.text(id)]]);
+  const book = unpack(raw);
+  if (!book) return [];
+  return (book.pages || []).filter((p) => p.n >= from).slice(0, n).map((p) => ({ n: p.n, printed: p.printed, text: String(p.text).slice(0, 4000) }));
+}
 
 async function withLock(id, fn) {
   const lk = BK.lock(id), nonce = crypto.randomBytes(8).toString("hex");
@@ -165,7 +190,8 @@ export default async function handler(req, res) {
     // chỉ máy đã đăng nhập; chỉ số điện thoại trong ADMIN_PHONES
     const u = await userOf(req);
     if (!u) return send(res, 200, { ok: false, error: "bad_token" });
-    const admin = adminPhones().includes(u.phone);
+    const role = await roleOf(u.phone);   // "super" | "admin" | ""
+    const admin = !!role;
     const action = String(b.action || "");
     if (action === "list" && !admin) return send(res, 200, { ok: true, admin: false });
     if (!admin) return send(res, 200, { ok: false, error: "not_admin" });
@@ -184,7 +210,7 @@ export default async function handler(req, res) {
           out.push(pubMeta(m, m.status === "reading" ? await getJob(m.id) : null));
         }
         out.sort((x, y) => x.grade - y.grade || String(x.subject).localeCompare(String(y.subject)) || String(x.title).localeCompare(String(y.title)) || (KIND_ORDER[x.kind] || 0) - (KIND_ORDER[y.kind] || 0));
-        return send(res, 200, { ok: true, admin: true, ai: !!key, books: out });
+        return send(res, 200, { ok: true, admin: true, role, ai: !!key, books: out });
       }
       // Tạo sách mới (chưa có chữ)
       case "create": {
@@ -195,8 +221,12 @@ export default async function handler(req, res) {
         const [n] = await redis([["HLEN", BK.idx]]);
         if (Number(n) >= BOOKS_MAX) return send(res, 200, { ok: false, error: "too_many" });
         const now = Date.now();
-        const m = { id: "b" + crypto.randomBytes(6).toString("hex"), title, grade, subject, kind, pages, file: clean(b.file, 160), status: "reading", failed: 0, created: now, updated: now };
+        // admin nạp: sách chờ super admin duyệt mới được ONTAP dùng; super admin nạp: dùng ngay khi đọc xong
+        const m = { id: "b" + crypto.randomBytes(6).toString("hex"), title, grade, subject, kind, pages, file: clean(b.file, 160), status: "reading", failed: 0, created: now, updated: now,
+          by: u.phone, approved: role === "super" };
         await redis([["HSET", BK.idx, m.id, JSON.stringify(m)], ["SET", BK.job(m.id), JSON.stringify(newJob())]]);
+        await putChange(newChange({ type: "book_publish", by: u.phone, byName: u.acc.parentName || "", title: `${KINDS[kind]} ${title} (lớp ${grade}, ${subject}, ${pages} trang)`,
+          after: { id: m.id, title, grade, subject, kind, pages }, ref: m.id, status: role === "super" ? "applied" : "pending" }));
         return send(res, 200, { ok: true, book: pubMeta(m, newJob()) });
       }
       // Gửi một nhóm nửa trang -> một Message Batch
@@ -259,9 +289,17 @@ export default async function handler(req, res) {
         const id = String(b.id || "");
         const m = /^b[0-9a-f]{12}$/.test(id) ? await getMeta(id) : null;
         if (!m) return send(res, 200, { ok: true, gone: true });
-        const job = await getJob(id);
-        if (job && key) for (const bid of Object.keys(job.batches || {})) await fetch(API + "/" + bid + "/cancel", { method: "POST", headers: H(key) }).catch(() => {});
-        await redis([["HDEL", BK.idx, id], ["DEL", BK.job(id)], ["DEL", BK.half(id)], ["DEL", BK.text(id)]]);
+        const title = `${KINDS[m.kind]} ${m.title} (lớp ${m.grade}, ${m.subject})`;
+        if (role !== "super") {
+          // admin: chỉ GỬI YÊU CẦU xoá, chờ super admin duyệt
+          if (!(await pendingOf("book_delete", id))) await putChange(newChange({ type: "book_delete", by: u.phone, byName: u.acc.parentName || "", title, before: { id, title: m.title }, ref: id }));
+          const mm = await markBook(id, { delReq: true });
+          return send(res, 200, { ok: true, gone: false, pending: true, book: pubMeta(mm, mm.status === "reading" ? await getJob(id) : null) });
+        }
+        await deleteBook(id);
+        await putChange(newChange({ type: "book_delete", by: u.phone, byName: u.acc.parentName || "", title, before: { id, title: m.title }, ref: id, status: "applied" }));
+        const pend = await pendingOf("book_delete", id);
+        if (pend) await putChange({ ...pend, status: "approved", reviewedBy: u.phone, reviewedAt: Date.now() });
         return send(res, 200, { ok: true, gone: true });
       }
       default:

@@ -41,6 +41,7 @@ export const getThread = async (id) => parse((await redis([["GET", FK.t(id)]]))[
 export const putThread = (t) => redis([["SET", FK.t(t.id), JSON.stringify(t)], ["ZADD", FK.all, String(t.updated), t.id], ["ZADD", FK.user(t.phone), String(t.updated), t.id]]);
 // Bản gửi về trình duyệt (không kèm ảnh, chỉ đánh dấu có ảnh).
 export const pubThread = (t) => ({ id: t.id, kind: t.kind, status: t.status, created: t.created, updated: t.updated, who: t.who, child: t.child || null,
+  escalated: !!t.escalated,
   msgs: (t.msgs || []).map((m, i) => ({ n: i, by: m.by, who: m.who || "", text: m.text, at: m.at, img: !!m.img })) });
 export const meta = (b) => ({
   screen: clean(b && b.screen, 60), ua: clean(b && b.ua, 160), ver: clean(b && b.ver, 40),

@@ -22,6 +22,10 @@ async function until(fn, ms = 15000, step = 300) { const t0 = Date.now(); for (;
 const ADMIN = '0912000777', PASS = '12345678', USER = '0922' + RUN, KID = 'kidF' + RUN
 if (!(await acct('register', { phone: ADMIN, pass: PASS, parentName: 'Quản trị', plan: 1, pin: '1', children: [{ id: 'kA' + RUN, name: 'Bé', pin: '1', icon: '🦊', grade: 'Lớp 7' }] })).ok) await acct('login', { id: ADMIN, pass: PASS })
 await acct('register', { phone: USER, pass: PASS, parentName: 'Ba Minh', plan: 1, pin: '3', children: [{ id: KID, name: 'Minh', pin: '7', icon: '🦊', grade: 'Lớp 4' }] })
+{ // bộ thử này kiểm tra NGƯỜI trả lời góp ý: tắt ONTAP tự trả lời (ONTAP thử ở t_api_roles / t_ui_roles)
+  const t = (await acct('login', { id: ADMIN, pass: PASS })).token
+  await fetch(BASE + '/api/admin', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + t }, body: JSON.stringify({ action: 'settings_set', aiOn: false }) })
+}
 
 const allErrs = []
 async function device(name, { width = 390, height = 844 } = {}) {
@@ -77,7 +81,7 @@ check('sai mật khẩu -> "Sai số điện thoại / email hoặc mật khẩu
 await adminLogin(A)
 await A.page.waitForSelector('.adm-tabs', { timeout: 10000 })
 const tabs = await A.page.$$eval('.adm-tab', (els) => els.map((e) => e.textContent))
-check('quản trị đăng nhập -> 5 mục: Tổng quan · Thư viện sách · Người dùng · Góp ý · Định giá', tabs.join('|') === '📊 Tổng quan|📚 Thư viện sách|👪 Người dùng|💬 Góp ý|💰 Định giá', tabs.join('|'))
+check('super admin đăng nhập -> 8 mục: Tổng quan · Thư viện sách · Người dùng · Góp ý · Định giá · Duyệt & nhật ký · Quản trị viên · Cài đặt', tabs.join('|') === '📊 Tổng quan|📚 Thư viện sách|👪 Người dùng|💬 Góp ý|💰 Định giá|✅ Duyệt & nhật ký|👥 Quản trị viên|⚙️ Cài đặt', tabs.join('|'))
 await A.page.waitForSelector('[data-testid=adm-overview]', { timeout: 10000 })
 const ov = await A.page.locator('[data-testid=adm-overview]').innerText()
 check('Tổng quan: số tài khoản, học sinh, đăng ký mới, dùng app 7 ngày, góp ý chờ, sách, theo gói; doanh thu ghi rõ "chưa ghép cổng thanh toán"', /tài khoản phụ huynh/.test(ov) && /học sinh/.test(ov) && /đăng ký mới 7 ngày/.test(ov) && /dùng app 7 ngày/.test(ov) && /góp ý đang chờ/.test(ov) && /sách trong thư viện/.test(ov) && /Theo gói/.test(ov) && /chưa ghép cổng thanh toán/.test(ov), ov)

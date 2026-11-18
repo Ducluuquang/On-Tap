@@ -25,8 +25,8 @@ function ThreadView({ t, who, child, onUpdated }) {
   return (
     <div className="fb-thread">
       {t.msgs.map((m) => (
-        <div key={m.n} className={'fb-msg ' + (m.by === 'admin' ? 'them' : 'me')}>
-          <div className="fb-msg-h">{m.by === 'admin' ? '🧑‍💼 Ôn Tập' : m.who} · {fmt(m.at)}</div>
+        <div key={m.n} className={'fb-msg ' + (m.by === 'admin' ? 'them' : m.by === 'ai' ? 'ai' : 'me')}>
+          <div className="fb-msg-h">{m.by === 'admin' ? '🧑‍💼 Ôn Tập' : m.by === 'ai' ? '🤖 ONTAP' : m.who} · {fmt(m.at)}</div>
           <div className="fb-msg-t">{m.text}</div>
           {m.img && <div className="fb-msg-h">📎 có ảnh chụp màn hình</div>}
         </div>
@@ -35,7 +35,7 @@ function ThreadView({ t, who, child, onUpdated }) {
         <>
           <textarea className="auth-in fb-ta" rows={2} placeholder="Nhắn thêm…" value={text} onChange={(e) => setText(e.target.value)} aria-label="Nhắn thêm" />
           {err && <div className="err">{err}</div>}
-          <button className="cta small" disabled={busy || !text.trim()} onClick={send}>{busy ? 'Đang gửi…' : 'Gửi'}</button>
+          <button className="cta small" disabled={busy || !text.trim()} onClick={send}>{busy ? 'Đang gửi… ONTAP đang đọc' : 'Gửi'}</button>
         </>
       )}
     </div>
@@ -73,8 +73,11 @@ export default function Feedback({ who = 'parent', child = null, screen = '', on
     setBusy(false)
     if (!r.ok) { setMsg({ ok: false, text: ERR[r.error] || 'Chưa gửi được (' + r.error + ').' }); return }
     setText(''); setShot(null)
-    setMsg({ ok: true, text: 'Đã gửi ✓ Cảm ơn ' + (who === 'child' ? 'con' : 'anh/chị') + '! Ôn Tập sẽ trả lời trong mục "Góp ý của tôi".' })
-    loadMine()
+    const ai = (r.thread.msgs || []).some((m) => m.by === 'ai')
+    setMsg({ ok: true, text: ai ? 'Đã gửi ✓ ONTAP đã trả lời ' + (who === 'child' ? 'con' : 'anh/chị') + ' ngay bên dưới.'
+      : 'Đã gửi ✓ Cảm ơn ' + (who === 'child' ? 'con' : 'anh/chị') + '! Ôn Tập sẽ trả lời trong mục "Góp ý của ' + (who === 'child' ? 'con' : 'tôi') + '".' })
+    await loadMine()
+    if (ai) { setTab('mine'); setOpen(r.thread.id) }
   }
   const unread = list && list.ok ? list.unread : 0
   const upd = (t, n) => setList((l) => (l && l.ok ? { ...l, threads: l.threads.map((x) => (x.id === t.id ? { ...x, ...t } : x)), unread: n == null ? l.unread : n } : l))
@@ -99,10 +102,11 @@ export default function Feedback({ who = 'parent', child = null, screen = '', on
           </label>
           {shot && <div className="cr-hint">📎 {shot.name} <button className="linkbtn" onClick={() => setShot(null)}>bỏ ảnh</button></div>}
           {msg && <div className={msg.ok ? 'ok-msg' : 'err'}>{msg.text}</div>}
-          <button className="cta" disabled={busy || text.trim().length < 3} onClick={send}>{busy ? 'Đang gửi…' : 'Gửi góp ý'}</button>
+          <button className="cta" disabled={busy || text.trim().length < 3} onClick={send}>{busy ? 'Đang gửi… ONTAP đang đọc' : 'Gửi góp ý'}</button>
         </section>
       ) : (
         <section className="set-sec">
+          {msg && msg.ok && <div className="ok-msg">{msg.text}</div>}
           {!list ? <p className="cr-hint">Đang tải…</p> : !list.ok ? <div className="err">{ERR[list.error] || 'Chưa tải được.'}</div>
             : !list.threads.length ? <p className="cr-hint">Chưa có góp ý nào.</p> : (
               <ul className="fb-list">

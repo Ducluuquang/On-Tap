@@ -6,7 +6,18 @@ import { readToken } from "./_acctkey.mjs";
 // Số Việt Nam viết "+84 912…" / "84912…" -> "0912…" (giống cách tài khoản lưu số).
 export const vnPhone = (v) => { const d = String(v == null ? "" : v).replace(/\D+/g, ""); return /^84\d{9}$/.test(d) ? "0" + d.slice(2) : d; };
 export const adminPhones = () => String(process.env.ADMIN_PHONES || "").split(/[,;\n]+/).map(vnPhone).filter((p) => /^\d{8,12}$/.test(p));
-export const isAdmin = (phone) => !!phone && adminPhones().includes(phone);
+// HAI CẤP QUẢN TRỊ (anh duyệt 18/11/2026):
+//  - SUPER ADMIN = số trong ADMIN_PHONES (Vercel): làm được mọi việc, duyệt thay đổi của admin, thêm / bỏ admin, cài đặt.
+//  - ADMIN (người làm) = do super admin thêm trong /quan-tri (kho: SET adm:staff, HASH adm:staffinfo): làm việc hằng ngày;
+//    đổi bảng giá, đưa sách mới vào dùng, xoá sách phải CHỜ super admin duyệt (api/_changes.mjs).
+export const isSuper = (phone) => !!phone && adminPhones().includes(phone);
+export const isAdmin = isSuper;   // giữ tên cũ: "là super admin" (lần đầu tạo tài khoản bằng mã cài đặt chỉ dành cho super admin)
+export async function roleOf(phone) {
+  if (!phone) return "";
+  if (isSuper(phone)) return "super";
+  const [m] = await redis([["SISMEMBER", "adm:staff", phone]]);
+  return Number(m) === 1 ? "admin" : "";
+}
 
 // Máy đã đăng nhập: chìa khoá hợp lệ + tài khoản còn trên máy chủ + chưa đổi mật khẩu. Trả { phone, acc } hoặc null.
 export async function userOf(req) {

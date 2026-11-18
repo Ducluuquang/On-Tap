@@ -21,10 +21,11 @@
     },
     "api/admin.mjs": {
       "maxDuration": 30,
-      "includeFiles": "api/{_support,_sync}/**"
+      "includeFiles": "api/{_support,_sync,_books}/**"
     },
     "api/feedback.mjs": {
-      "maxDuration": 30
+      "maxDuration": 60,
+      "includeFiles": "api/_support/**"
     }
   },
   "rewrites": [
