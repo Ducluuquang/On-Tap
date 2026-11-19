@@ -8,6 +8,9 @@ bài học đã ghi để không xử lý sai một lỗi đã gặp. Cập nh�
 - Ôn Tập: app ôn bài cho học sinh lớp 1–12 (mở trên trình duyệt điện thoại / máy tính, thêm được vào màn hình chính).
 - Một tài khoản = một phụ huynh (đăng nhập bằng số điện thoại hoặc email + mật khẩu 8 số), có 1–5 con theo gói. Mỗi con có PIN riêng.
 - Thanh trên cùng: "Con | Phụ huynh", "Đổi người học", "Đăng xuất". Vào khu Phụ huynh cần PIN phụ huynh (1 chữ số).
+- Bản máy tính (màn rộng từ 1024 px: máy tính, iPad nằm ngang): mở app là thấy NGAY ô đăng nhập (bên trái là bảng giới thiệu Ôn Tập),
+  bên dưới có nút "Đăng ký tài khoản phụ huynh". Chọn người học, khu Phụ huynh, trang quản trị có bố cục rộng; màn của con trên máy tính
+  vẫn là cột điện thoại phóng to. Điện thoại / iPad dọc giữ giao diện cũ (màn đầu có 2 nút Đăng nhập / Đăng ký).
 
 ## Học sinh (vai Con)
 - Trang chủ: việc chính hôm nay (mục tiêu phút / ngày, nút "Bắt đầu ôn"), chuỗi ngày + quà (ngày thứ 7 nhận quà), Việc khác
@@ -23,6 +26,9 @@ bài học đã ghi để không xử lý sai một lỗi đã gặp. Cập nh�
 ## Phụ huynh
 - Trang báo cáo: thời gian học, phần đã vững / cần ôn, theo từng con. Nút "⚙️ Mục tiêu & bật/tắt trắc nghiệm" → Cài đặt
   (đổi mật khẩu, email, mục tiêu phút, trắc nghiệm, xoá dữ liệu học của một con — lan sang mọi máy, không hoàn tác).
+- Trên máy tính, trang báo cáo có 4 ô số liệu (hôm nay, tổng thời gian, chuỗi ngày đạt mục tiêu, chủ đề cần ôn), biểu đồ 7 ngày (bấm một cột
+  để xem nhận xét ngày đó) và bản đồ kiến thức theo môn. Nút "⚙️ Mục tiêu & bật/tắt trắc nghiệm" và nút "💬 Góp ý / báo lỗi cho Ôn Tập"
+  nằm ở GÓC TRÊN BÊN PHẢI trang Phụ huynh (trên điện thoại hai nút này nằm cuối trang báo cáo).
 - Dữ liệu học của từng con tự đồng bộ giữa các máy cùng tài khoản (vài giây khi có mạng). Mất mạng vẫn học được, có mạng tự gửi.
 
 ## Câu hỏi hay gặp

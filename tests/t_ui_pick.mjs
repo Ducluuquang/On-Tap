@@ -6,7 +6,7 @@
 //     bấm ra ngoài / Esc thì đóng; "Tìm bạn thi" gửi đúng lựa chọn lên máy chủ; màn 320px không tràn ngang.
 //  O  Phòng thi, chủ phòng đang mở danh sách thì có bạn vào phòng -> danh sách không tự đóng; chọn xong bạn kia thấy đúng.
 //  C  Vở Spelling · Thêm bộ từ theo chủ đề: ô Trình độ + Số từ chọn được, giữ đúng khi màn vẽ lại.
-//  R  Ôn Tập · Đăng ký: ô "Lớp" tự vẽ (12 lớp, chữ to), tô đỏ khi chưa chọn; điện thoại 390px + máy tính (app phóng to).
+//  R  Ôn Tập · Đăng ký: ô "Lớp" tự vẽ (12 lớp, chữ to), tô đỏ khi chưa chọn; điện thoại 390px + máy tính (bản máy tính từ 19/11/2026).
 //  A  Ôn Tập · Nội dung đã đọc được: ô "Môn" tự vẽ, danh sách nổi không bị cắt, đổi môn được.
 // Đối chứng: chạy với bản cũ (BASE=…) thì các phần trên phải hỏng (bản cũ còn <select>).
 import { pw, OUT_DIR } from './_env.mjs'
@@ -218,12 +218,13 @@ await part('r', 'R. Ôn Tập · Đăng ký: ô Lớp', async () => {
     check(`R ${w}px: ô Lớp tự vẽ (không còn <select>), chưa chọn hiện "— Chọn lớp —", bắt đầu điền mà chưa chọn lớp thì tô đỏ`, nSel === 0 && ph === '— Chọn lớp —' && red, JSON.stringify({ nSel, ph, red }))
     await box.locator('.sel-btn').click(); await sleep(250)
     const L = await box.evaluate((el) => {
-      const btn = el.querySelector('.sel-btn'), fit = Number(getComputedStyle(document.documentElement).getPropertyValue('--fit')) || 1
-      const list = el.querySelector('.sel-list'), lr = list.getBoundingClientRect(), pr = document.querySelector('.phone').getBoundingClientRect()
+      // bản máy tính (≥ 1024 px, 19/11/2026): Đăng ký không còn nằm trong cột điện thoại phóng to -> khung là khối thông tin của con
+      const phone = document.querySelector('.phone'), fit = phone ? Number(getComputedStyle(document.documentElement).getPropertyValue('--fit')) || 1 : 1
+      const btn = el.querySelector('.sel-btn'), list = el.querySelector('.sel-list'), lr = list.getBoundingClientRect(), pr = (phone || el).getBoundingClientRect()
       return { fit, bfs: parseFloat(getComputedStyle(btn).fontSize), inside: lr.left >= pr.left - 1 && lr.right <= pr.right + 1,
         opts: [...el.querySelectorAll('.sel-opt')].map((o) => ({ t: o.textContent.trim(), fs: parseFloat(getComputedStyle(o).fontSize), h: o.getBoundingClientRect().height / fit })) }
     })
-    check(`R ${w}px: danh sách 12 lớp (Lớp 1…Lớp 12), chữ to bằng trong ô (${L.bfs}px), dòng cao ≥ 44px, nằm trong khung (app phóng to ${L.fit} lần)`,
+    check(`R ${w}px: danh sách 12 lớp (Lớp 1…Lớp 12), chữ to bằng trong ô (${L.bfs}px), dòng cao ≥ 44px, nằm trong khung (${w >= 1024 ? 'bản máy tính, không phóng to' : 'phóng to ' + L.fit + ' lần'})`,
       L.opts.length === 12 && L.opts[0].t === 'Lớp 1' && L.opts[11].t === 'Lớp 12' && L.bfs >= 16 && L.opts.every((o) => o.fs === L.bfs && o.h >= 44) && L.inside, JSON.stringify(L))
     if (w === 390) await page.screenshot({ path: `${OUT}/pick_reg_grade.png` })
     await box.locator('.sel-opt').filter({ hasText: /^Lớp 5$/ }).click()

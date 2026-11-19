@@ -41,12 +41,19 @@ function pagesOf(cids) {
   return [...m.entries()].sort((a, b) => a[0] - b[0])
 }
 
-export default function Library({ initial = [] }) {
+const plain = (x) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase().trim()
+
+// desk: bản máy tính (≥ 1024 px, mẫu g 19/11/2026) — 4 ô số liệu, ô tìm + lọc Lớp / Môn, bảng sách, form nạp sách là hộp nổi giữa màn.
+// role: 'super' thấy nút "👁️ Xem & duyệt" ở sách chờ duyệt (onReview mở mục Duyệt & nhật ký).
+export default function Library({ initial = [], desk = false, role = '', onReview }) {
   const [books, setBooks] = useState(initial)
   const [form, setForm] = useState(null)        // { file, doc, pages, grade, subject, kind, title, err }
   const [work, setWork] = useState(null)        // { id, done, total, text } khi đang gửi ảnh
   const [msg, setMsg] = useState(null)          // { id?, ok, text }
   const [confirmDel, setConfirmDel] = useState(null)
+  const [q, setQ] = useState('')                // bản máy tính: tìm theo tên sách (không phân biệt dấu)
+  const [fGrade, setFGrade] = useState('all')
+  const [fSubj, setFSubj] = useState('all')
   const docs = useRef(new Map())                // id sách -> file PDF đang mở (để tự gửi lại nửa trang lỗi)
   const busy = useRef(false)
   const alive = useRef(true)
@@ -177,6 +184,37 @@ export default function Library({ initial = [] }) {
   const subjOpts = BOOK_SUBJECTS.map((s) => ({ value: s, label: s }))
   const kindOpts = Object.entries(KIND_LABEL).map(([value, label]) => ({ value, label }))
 
+  const formBox = form ? (
+    <div className={'lib-form' + (desk ? ' dk-card dk-libform' : '')} role={desk ? 'dialog' : undefined} aria-label={desk ? 'Nạp sách' : undefined}>
+      {desk && <h3>Nạp sách</h3>}
+      <div className="lib-file">📄 {form.file.name}</div>
+      {form.loading && <p className="cr-hint">Đang mở file…</p>}
+      {form.pages > 0 && (
+        <p className="lib-cost" data-testid="lib-cost"><b>{form.pages} trang</b> · chi phí đọc chữ ước tính <b>{costText(form.pages)}</b></p>
+      )}
+      <label className="auth-lbl">Lớp</label>
+      <SelectPicker btnClass="auth-in" value={form.grade} onChange={(v) => setForm({ ...form, grade: v })} placeholder="— Chọn lớp —" ariaLabel="Lớp của sách" options={gradeOpts} />
+      <label className="auth-lbl">Môn</label>
+      <SelectPicker btnClass="auth-in" value={form.subject} onChange={(v) => setForm({ ...form, subject: v })} placeholder="— Chọn môn —" ariaLabel="Môn của sách" options={subjOpts} />
+      <label className="auth-lbl">Loại sách</label>
+      <SelectPicker btnClass="auth-in" value={form.kind} onChange={(v) => setForm({ ...form, kind: v })} placeholder="— Chọn loại —" ariaLabel="Loại sách" options={kindOpts} />
+      <label className="auth-lbl">Tên sách</label>
+      <input className="auth-in" value={form.title} maxLength={120} placeholder="vd Ngữ văn 7 tập 1" onChange={(e) => setForm({ ...form, title: e.target.value })} aria-label="Tên sách" />
+      {form.err && <div className="err">{form.err}</div>}
+      <div className="modal-btns">
+        <button className="cta small ghost" onClick={() => setForm(null)}>Huỷ</button>
+        <button className="cta small" disabled={!form.doc || form.starting} onClick={start}>{form.starting ? 'Đang tạo…' : `Bắt đầu đọc (${form.pages || '…'} trang)`}</button>
+      </div>
+    </div>
+  ) : null
+  const addBtn = (
+    <label className={'cta small lib-add' + (work ? ' disabled' : '')}>
+      ＋ Nạp sách
+      <input type="file" accept="application/pdf,.pdf" hidden disabled={!!work} onChange={pickNew} />
+    </label>
+  )
+  if (desk) return deskView()
+
   return (
     <section className="set-sec lib" data-testid="library">
       <h3>Thư viện sách (dùng chung)</h3>
@@ -233,33 +271,104 @@ export default function Library({ initial = [] }) {
         })}
       </ul>
 
-      {!form ? (
-        <label className={'cta small lib-add' + (work ? ' disabled' : '')}>
-          ＋ Nạp sách
-          <input type="file" accept="application/pdf,.pdf" hidden disabled={!!work} onChange={pickNew} />
-        </label>
-      ) : (
-        <div className="lib-form">
-          <div className="lib-file">📄 {form.file.name}</div>
-          {form.loading && <p className="cr-hint">Đang mở file…</p>}
-          {form.pages > 0 && (
-            <p className="lib-cost" data-testid="lib-cost"><b>{form.pages} trang</b> · chi phí đọc chữ ước tính <b>{costText(form.pages)}</b></p>
-          )}
-          <label className="auth-lbl">Lớp</label>
-          <SelectPicker btnClass="auth-in" value={form.grade} onChange={(v) => setForm({ ...form, grade: v })} placeholder="— Chọn lớp —" ariaLabel="Lớp của sách" options={gradeOpts} />
-          <label className="auth-lbl">Môn</label>
-          <SelectPicker btnClass="auth-in" value={form.subject} onChange={(v) => setForm({ ...form, subject: v })} placeholder="— Chọn môn —" ariaLabel="Môn của sách" options={subjOpts} />
-          <label className="auth-lbl">Loại sách</label>
-          <SelectPicker btnClass="auth-in" value={form.kind} onChange={(v) => setForm({ ...form, kind: v })} placeholder="— Chọn loại —" ariaLabel="Loại sách" options={kindOpts} />
-          <label className="auth-lbl">Tên sách</label>
-          <input className="auth-in" value={form.title} maxLength={120} placeholder="vd Ngữ văn 7 tập 1" onChange={(e) => setForm({ ...form, title: e.target.value })} aria-label="Tên sách" />
-          {form.err && <div className="err">{form.err}</div>}
-          <div className="modal-btns">
-            <button className="cta small ghost" onClick={() => setForm(null)}>Huỷ</button>
-            <button className="cta small" disabled={!form.doc || form.starting} onClick={start}>{form.starting ? 'Đang tạo…' : `Bắt đầu đọc (${form.pages || '…'} trang)`}</button>
-          </div>
-        </div>
-      )}
+      {!form ? addBtn : formBox}
     </section>
   )
+  // ================= BẢN MÁY TÍNH =================
+  function deskView() {
+    const used = books.filter((b) => b.status === 'ready' && b.approved !== false && !b.rejected).length
+    const waiting = books.filter((b) => b.approved === false && !b.rejected).length
+    const reading = books.filter((b) => b.status === 'reading').length
+    const pq = plain(q)
+    const shownBooks = books.filter((b) => (!pq || plain(b.title).includes(pq)) && (fGrade === 'all' || String(b.grade) === fGrade) && (fSubj === 'all' || b.subject === fSubj))
+    const gradeF = [{ value: 'all', label: 'Tất cả lớp' }, ...Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: 'Lớp ' + (i + 1) }))]
+    const subjF = [{ value: 'all', label: 'Tất cả môn' }, ...BOOK_SUBJECTS.map((x) => ({ value: x, label: x }))]
+    return (
+      <section className="dk-lib lib" data-testid="library">
+        <div className="dk-ph">
+          <div><h1>Thư viện sách (dùng chung)</h1><p>Sách chỉ để ONTAP <b>tham khảo</b> khi soạn câu hỏi cho mọi tài khoản, đúng lớp + môn của con; con không thấy nguyên văn sách.</p></div>
+          <div className="dk-acts">{addBtn}</div>
+        </div>
+        <div className="dk-sum">
+          <div className="dk-card"><span className="ic blue">📚</span><span><b>{books.length}</b><span>sách trong thư viện</span></span></div>
+          <div className="dk-card"><span className="ic green">✅</span><span><b>{used}</b><span>ONTAP đang dùng</span></span></div>
+          <div className="dk-card"><span className="ic amber">⏳</span><span><b>{waiting}</b><span>chờ super admin duyệt</span></span></div>
+          <div className="dk-card"><span className="ic teal">📖</span><span><b>{reading}</b><span>đang đọc chữ</span></span></div>
+        </div>
+        <section className="dk-card dk-tablecard">
+          <div className="dk-tools">
+            <input className="auth-in dk-q" type="search" placeholder="🔍 Tìm theo tên sách" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Tìm theo tên sách" />
+            <SelectPicker className="dk-selw" btnClass="auth-in" overlay value={fGrade} onChange={setFGrade} ariaLabel="Lọc theo lớp" options={gradeF} />
+            <SelectPicker className="dk-selw" btnClass="auth-in" overlay value={fSubj} onChange={setFSubj} ariaLabel="Lọc theo môn" options={subjF} />
+            <span className="dk-cost">Chi phí đọc chữ ~250đ / trang</span>
+          </div>
+          <div className="dk-tscroll">
+            <table className="dk-table dk-libtable">
+              <thead><tr><th>Loại</th><th>Tên sách</th><th>Lớp</th><th>Môn</th><th>Số trang</th><th>Tình trạng</th><th aria-label="Thao tác" /></tr></thead>
+              <tbody>
+                {shownBooks.map((b) => {
+                  const p = b.progress || { total: b.pages * 2, done: 0, failed: 0, inflight: 0, missing: [] }
+                  const pct = Math.round((100 * (p.done + p.failed)) / Math.max(1, p.total))
+                  const sending = work && work.id === b.id
+                  const needFile = !sending && b.status !== 'ready' && !p.inflight && p.missing.length > 0
+                  return (
+                    <tr key={b.id} className="lib-book" data-book={b.id}>
+                      <td><span className={'lib-kind k-' + b.kind}>{KIND_SHORT[b.kind]}</span></td>
+                      <td><b className="lib-title">{b.title}</b></td>
+                      <td>{b.grade}</td>
+                      <td>{b.subject}</td>
+                      <td className="n">{b.pages}</td>
+                      <td>
+                        <div className="dk-st">
+                          {b.status === 'ready' ? (
+                            <>
+                              <span className="lib-st ok" data-st="ready">✓ Đã đọc xong{p.failed ? ` · ${p.failed} nửa trang không đọc được` : ''}</span>
+                              {b.rejected ? <span className="dk-pill red lib-no">✗ Super admin không duyệt</span>
+                                : b.delReq ? <span className="dk-pill amber lib-wait">🗑️ Đã xin xoá, chờ duyệt</span>
+                                  : b.approved === false ? <span className="dk-pill amber lib-wait">⏳ Chờ super admin duyệt</span>
+                                    : <span className="dk-pill ok">ONTAP đang dùng</span>}
+                            </>
+                          ) : (
+                            <>
+                              <div className="lib-bar"><i style={{ width: pct + '%' }} /></div>
+                              <small className="lib-st" data-st="reading">
+                                {sending ? work.text
+                                  : p.inflight ? `AI đang đọc: xong ${p.done}/${p.total} nửa trang`
+                                    : p.missing.length ? `Còn ${p.missing.length} nửa trang cần gửi${p.done ? ` (đã xong ${p.done}/${p.total})` : ''}`
+                                      : `Đang hoàn tất (${p.done}/${p.total})`}
+                              </small>
+                            </>
+                          )}
+                          {msg && msg.id === b.id && <div className={msg.ok ? 'ok-msg' : 'err'}>{msg.text}</div>}
+                        </div>
+                      </td>
+                      <td className="dk-act">
+                        {confirmDel === b.id ? (
+                          <>
+                            <button className="dk-lk" onClick={() => setConfirmDel(null)}>Huỷ</button>
+                            <button className="dk-lk del" onClick={() => del(b)}>Xoá sách</button>
+                          </>
+                        ) : (
+                          <>
+                            {role === 'super' && b.approved === false && !b.rejected && onReview && <button className="dk-lk pri" onClick={onReview}>👁️ Xem &amp; duyệt</button>}
+                            {needFile && !docs.current.has(b.id) && (
+                              <label className="dk-lk pri lib-again">📄 Chọn lại file PDF<input type="file" accept="application/pdf,.pdf" hidden onChange={(e) => pickAgain(b, e)} /></label>
+                            )}
+                            {needFile && docs.current.has(b.id) && <button className="dk-lk pri" onClick={() => sendMissing(b, docs.current.get(b.id), p.missing)}>Gửi tiếp</button>}
+                            <button className="dk-lk del lib-del" disabled={!!sending} onClick={() => setConfirmDel(b.id)}>🗑️ Xoá</button>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+                {!shownBooks.length && <tr><td colSpan={7} className="lib-empty">{books.length ? 'Không có sách nào khớp.' : 'Chưa có sách nào.'}</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </section>
+        {formBox && <div className="dk-modal-back" onClick={(e) => { if (e.target === e.currentTarget) setForm(null) }}>{formBox}</div>}
+      </section>
+    )
+  }
 }

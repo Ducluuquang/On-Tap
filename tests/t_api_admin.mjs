@@ -37,7 +37,7 @@ const t2 = await account(U2)
 check('chuẩn bị: tài khoản quản trị + 2 tài khoản thường', !!tA && !!t1 && !!t2)
 
 console.log('— 1. Quyền')
-const acts = ['whoami', 'overview', 'users', 'prices_set', 'fb_list', 'fb_get', 'fb_reply', 'fb_status', 'fb_export']
+const acts = ['whoami', 'overview', 'users', 'prices_set', 'fb_list', 'fb_get', 'fb_reply', 'fb_status', 'fb_export', 'badges']
 const r0 = await Promise.all(acts.map((a) => adm(a, {}, '')))
 const r1 = await Promise.all(acts.map((a) => adm(a, {}, t1)))
 const r2 = await Promise.all(acts.map((a) => adm(a, {}, tA, BASE_NOADMIN)))
@@ -94,6 +94,18 @@ check('cùng tài khoản: con chỉ thấy phiếu của mình (con khác khôn
 const L = await adm('fb_list', {}, tA)
 const li = L.threads.find((t) => t.id === f1.thread.id)
 check('quản trị: hộp thư có 2 phiếu mới (chờ trả lời), kèm số điện thoại', L.ok && L.pending >= 2 && li && li.pending && li.phone === U1 && L.threads.some((t) => t.id === f2.thread.id && t.who === 'child'), JSON.stringify(L).slice(0, 300))
+// bản máy tính (19/11/2026): fb_list trả thêm số đếm cho các chip lọc; hành động "badges" cho huy hiệu menu
+{
+  const by = {}
+  for (const k of ['open', 'new', 'answered', 'done', 'all']) by[k] = (await adm('fb_list', { status: k }, tA)).threads.length
+  const c = L.counts || {}
+  check('fb_list: counts { open, new, answered, done, all } = số phiếu của từng chip lọc (tính trước khi lọc)', ['open', 'new', 'answered', 'done', 'all'].every((k) => c[k] === by[k]) && c.all === L.threads.length + by.done && c.open + c.done === c.all, JSON.stringify({ c, by }))
+  const B = await adm('badges', {}, tA)
+  const [nFb, nChg] = await store([['SCARD', 'fb:new'], ['SCARD', 'chg:pending']])
+  const Bu = await adm('badges', {}, t1), B0 = await adm('badges', {}, '')
+  check('badges: { fb = số phiếu chờ trả lời, chg = số thay đổi chờ duyệt } (đọc thẳng 2 tập trong kho)', B.ok && B.fb === nFb && B.chg === nChg && B.fb >= 2 && B.fb === L.pending, JSON.stringify({ B, nFb, nChg }))
+  check('badges: tài khoản thường -> not_admin, chưa đăng nhập -> bad_token', Bu.ok === false && Bu.error === 'not_admin' && B0.error === 'bad_token' && !('fb' in Bu), JSON.stringify([Bu, B0]))
+}
 const G = await adm('fb_get', { id: f1.thread.id }, tA)
 const im = await adm('fb_img', { id: f1.thread.id, n: 0 }, tA)
 check('xem phiếu: bối cảnh (màn hình, máy, gói, số con), tên + email phụ huynh, ảnh chụp màn hình', G.ok && G.thread.ctx.screen === 'trang phụ huynh' && /iPhone/.test(G.thread.ctx.ua) && G.thread.ctx.kids === 2 && G.thread.user.email === `ph${RUN}@vidu.test` && im.ok && im.img === PNG, JSON.stringify(G.thread).slice(0, 300))

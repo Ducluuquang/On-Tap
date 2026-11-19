@@ -2,13 +2,16 @@ import { useState } from 'react'
 import { Brand, SelectPicker } from '../components.jsx'
 import { newChildId } from '../lib/auth.js'
 import { CHILD_ICONS, iconFor } from '../lib/icons.js'
+import logoRow from '../assets/logo-row.png'
 
 const SCHOOL_TYPES = ['Công lập', 'Tư thục', 'Song ngữ', 'Quốc tế (đơn ngữ)']
 const GRADES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 
 // Màn CHỌN CON: sau khi phụ huynh đăng nhập, các tài khoản con hiện ra để chọn học.
 // Bấm 1 con -> gõ PIN (nếu có) -> vào học. Còn slot theo gói -> thêm con mới.
-export default function ChildPicker({ account, onEnter, onAddChild, onParent, requireParent, onLogout }) {
+// BẢN MÁY TÍNH (desk, ≥ 1024 px — mẫu 19/11/2026): thanh trên 72 px (logo + Đăng xuất), giữa màn "Ai học hôm nay?" + thẻ các con
+// xếp hàng ngang; nhập PIN / thêm con nằm trong thẻ giữa màn. Cùng state với bản điện thoại.
+export default function ChildPicker({ account, desk = false, onEnter, onAddChild, onParent, requireParent, onLogout }) {
   const children = account?.children || []
   const plan = account?.plan || 1
   const canAdd = children.length < plan
@@ -49,8 +52,61 @@ export default function ChildPicker({ account, onEnter, onAddChild, onParent, re
     setAdding(false); setName(''); setIcon(''); setGrade(''); setSchool(''); setSchoolType(''); setNpin('')
   }
 
+  function addFields() {
+    return (
+      <>
+          <label className="auth-lbl">Tên hoặc nickname</label>
+          <input className="auth-in" placeholder="VD: Bin" value={name} onChange={(e) => setName(e.target.value)} />
+          <label className="auth-lbl">Mã PIN (1–2 số)</label>
+          <input className="auth-in" inputMode="numeric" maxLength={2} placeholder="VD: 7 hoặc 12"
+            value={npin} onChange={(e) => setNpin(onlyDigits(e.target.value))} />
+          <label className="auth-lbl">Chọn icon ưa thích</label>
+          <div className="icon-pick">
+            {CHILD_ICONS.map((ic) => (
+              <button type="button" key={ic} className={'icon-opt' + (icon === ic ? ' on' : '')} onClick={() => setIcon(ic)}>{ic}</button>
+            ))}
+          </div>
+          <label className="auth-lbl">Lớp</label>
+          <SelectPicker btnClass="auth-in" value={grade} onChange={setGrade} placeholder="— Chọn lớp —" ariaLabel="Lớp"
+            options={GRADES.map((g) => ({ value: 'Lớp ' + g, label: 'Lớp ' + g }))} />
+          <label className="auth-lbl">Trường</label>
+          <input className="auth-in" placeholder="VD: Tiểu học Kim Đồng" value={school} onChange={(e) => setSchool(e.target.value)} />
+          <label className="auth-lbl">Thuộc khối</label>
+          <div className="chips reg-types">
+            {SCHOOL_TYPES.map((t) => (
+              <button type="button" key={t} className={'chip' + (schoolType === t ? ' on' : '')} onClick={() => setSchoolType(t)}>{schoolType === t ? '✓ ' : ''}{t}</button>
+            ))}
+          </div>
+      </>
+    )
+  }
+  function deskShell(body) {
+    return (
+      <div className="dk-pick pick">
+        <header className="dk-tb"><div className="dk-tb-in">
+          <img className="dk-tb-logo" src={logoRow} alt="Ôn Tập" />
+          <div className="dk-tb-r"><button className="ds-logout dk-tb-btn" onClick={onLogout} title="Đăng xuất">Đăng xuất</button></div>
+        </div></header>
+        <main className="dk-center">{body}</main>
+      </div>
+    )
+  }
+
   // ---- Nhập PIN để vào 1 con ----
   if (pinFor) {
+    if (desk) return deskShell(
+      <div className="pick-pinbox dk-card dk-pinbox">
+        <div className="pick-ava big">{iconFor(pinFor)}</div>
+        <h2>Chào {pinFor.name} 👋</h2>
+        <p className="cr-hint">Gõ mã PIN của con để vào học.</p>
+        <input className="auth-in pin-in" inputMode="numeric" maxLength={2} autoFocus placeholder="••"
+          value={pin} onChange={(e) => { setPin(onlyDigits(e.target.value)); setErr('') }}
+          onKeyDown={(e) => e.key === 'Enter' && submitPin()} />
+        {err && <div className="err">{err}</div>}
+        <button className="cta" onClick={submitPin}>Vào học →</button>
+        <button className="ghost small" onClick={() => { setPinFor(null); setErr('') }}>← Đổi người học</button>
+      </div>
+    )
     return (
       <div className="screen pick">
         <header className="topbar"><Brand /></header>
@@ -71,33 +127,24 @@ export default function ChildPicker({ account, onEnter, onAddChild, onParent, re
 
   // ---- Thêm tài khoản con ----
   if (adding) {
+    if (desk) return deskShell(
+      <div className="dk-card dk-addbox">
+        <h2 className="pick-h">Thêm tài khoản con</h2>
+        <p className="cr-hint">Còn {plan - children.length} chỗ trong gói {plan} con.</p>
+        {addFields()}
+        {err && <div className="err">{err}</div>}
+        <div className="dk-row-btns">
+          <button className="ghost small" onClick={() => { setAdding(false); setErr('') }}>← Quay lại</button>
+          <button className="cta" onClick={submitAdd}>Thêm con</button>
+        </div>
+      </div>
+    )
     return (
       <div className="screen pick">
         <header className="topbar"><Brand /></header>
         <h2 className="pick-h">Thêm tài khoản con</h2>
         <p className="cr-hint">Còn {plan - children.length} chỗ trong gói {plan} con.</p>
-        <label className="auth-lbl">Tên hoặc nickname</label>
-        <input className="auth-in" placeholder="VD: Bin" value={name} onChange={(e) => setName(e.target.value)} />
-        <label className="auth-lbl">Mã PIN (1–2 số)</label>
-        <input className="auth-in" inputMode="numeric" maxLength={2} placeholder="VD: 7 hoặc 12"
-          value={npin} onChange={(e) => setNpin(onlyDigits(e.target.value))} />
-        <label className="auth-lbl">Chọn icon ưa thích</label>
-        <div className="icon-pick">
-          {CHILD_ICONS.map((ic) => (
-            <button type="button" key={ic} className={'icon-opt' + (icon === ic ? ' on' : '')} onClick={() => setIcon(ic)}>{ic}</button>
-          ))}
-        </div>
-        <label className="auth-lbl">Lớp</label>
-        <SelectPicker btnClass="auth-in" value={grade} onChange={setGrade} placeholder="— Chọn lớp —" ariaLabel="Lớp"
-          options={GRADES.map((g) => ({ value: 'Lớp ' + g, label: 'Lớp ' + g }))} />
-        <label className="auth-lbl">Trường</label>
-        <input className="auth-in" placeholder="VD: Tiểu học Kim Đồng" value={school} onChange={(e) => setSchool(e.target.value)} />
-        <label className="auth-lbl">Thuộc khối</label>
-        <div className="chips reg-types">
-          {SCHOOL_TYPES.map((t) => (
-            <button type="button" key={t} className={'chip' + (schoolType === t ? ' on' : '')} onClick={() => setSchoolType(t)}>{schoolType === t ? '✓ ' : ''}{t}</button>
-          ))}
-        </div>
+        {addFields()}
 
         {err && <div className="err">{err}</div>}
         <button className="cta" onClick={submitAdd}>Thêm con</button>
@@ -107,6 +154,39 @@ export default function ChildPicker({ account, onEnter, onAddChild, onParent, re
   }
 
   // ---- Danh sách con ----
+  const addCard = () => {
+    setErr('')
+    // Thêm con là việc của phụ huynh -> qua cửa PIN phụ huynh trước (không cần mật khẩu).
+    if (requireParent) requireParent(() => setAdding(true))
+    else setAdding(true)
+  }
+  if (desk) return deskShell(
+    <>
+      <h1 className="dk-hi">Ai học hôm nay?</h1>
+      <p className="dk-hi-sub">{account?.parentName ? `Tài khoản của ${account.parentName}` : 'Chọn tài khoản con để bắt đầu'}</p>
+      <div className="pick-grid dk-cards">
+        {children.map((c, i) => (
+          <button key={c.id} className="pick-card" onClick={() => tapChild(c)}>
+            <span className={'pick-ava' + (i % 2 ? ' cool' : '')}>{iconFor(c)}</span>
+            <b className="pick-name">{c.name}</b>
+            <em className="pick-sub">{c.grade || 'Chưa đặt lớp'}</em>
+            {c.pin ? <span className="pick-lock">🔒 PIN</span> : <span className="pick-lock open">Vào thẳng</span>}
+          </button>
+        ))}
+        {canAdd && (
+          <button className="pick-card add" onClick={addCard}>
+            <span className="pick-ava">＋</span>
+            <b className="pick-name">Thêm con</b>
+            <em className="pick-sub">Còn {plan - children.length} chỗ</em>
+          </button>
+        )}
+      </div>
+      <div className="dk-parent">
+        <button className="cta ghost pick-parent" onClick={() => onParent && onParent()}>⚙️ Dành cho Phụ huynh</button>
+        <p>Gói hiện tại: {plan} con{!canAdd && children.length >= plan ? ' · đã dùng hết chỗ' : ''}.</p>
+      </div>
+    </>
+  )
   return (
     <div className="screen pick">
       <header className="topbar">
@@ -130,12 +210,7 @@ export default function ChildPicker({ account, onEnter, onAddChild, onParent, re
         ))}
 
         {canAdd && (
-          <button className="pick-card add" onClick={() => {
-            setErr('')
-            // Thêm con là việc của phụ huynh -> qua cửa PIN phụ huynh trước (không cần mật khẩu).
-            if (requireParent) requireParent(() => setAdding(true))
-            else setAdding(true)
-          }}>
+          <button className="pick-card add" onClick={addCard}>
             <span className="pick-ava">➕</span>
             <b className="pick-name">Thêm con</b>
             <em className="pick-sub">Còn {plan - children.length} chỗ</em>

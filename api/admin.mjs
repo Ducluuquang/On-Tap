@@ -9,7 +9,8 @@
 //       overview              -> tổng quan: số tài khoản, mới 7 / 30 ngày, dùng app 7 ngày, số con, theo gói, góp ý chờ xử lý, sách
 //       users {q, offset}     -> danh sách tài khoản (tìm theo số điện thoại hoặc email), 30 tài khoản mỗi trang
 //       prices_set {plans}    -> đặt giá gói (VND; 0 = chưa đặt)
-//       fb_list {status}      -> hộp thư góp ý · fb_get {id} · fb_img {id, n}
+//       fb_list {status}      -> hộp thư góp ý (+ counts: số phiếu mỗi chip lọc) · fb_get {id} · fb_img {id, n}
+//       badges                -> { fb: số phiếu chờ trả lời, chg: số thay đổi chờ duyệt } (huy hiệu menu, 1 lần gọi kho)
 //       fb_reply {id, text}   -> trả lời (người gửi thấy trong app, chấm đỏ báo mới)
 //       fb_status {id, status, lesson} -> đổi trạng thái + ghi "Bài học / cách xử lý" (để AI chăm sóc khách hàng học sau này)
 //       fb_export             -> TOÀN BỘ nhật ký góp ý (JSON) để AI đọc và học
@@ -114,6 +115,11 @@ export default async function handler(req, res) {
     if (SUPER_ONLY.has(action) && role !== "super") return send(res, 200, { ok: false, error: "not_super" });
     const who = { by: u.phone, byName: u.acc.parentName || "" };
     switch (action) {
+      // huy hiệu số trên menu quản trị (bản máy tính 19/11/2026): phiếu góp ý chờ trả lời + thay đổi chờ duyệt — 1 lần gọi kho
+      case "badges": {
+        const [fb, chg] = await redis([["SCARD", FK.pending], ["SCARD", "chg:pending"]]);
+        return send(res, 200, { ok: true, fb: Number(fb) || 0, chg: Number(chg) || 0 });
+      }
       case "whoami":
         return send(res, 200, { ok: true, admin: true, role, name: u.acc.parentName || "", phone: u.phone });
       case "overview": {
@@ -268,9 +274,12 @@ export default async function handler(req, res) {
         const list = (ids || []).length ? (await redis([["MGET", ...ids.map(FK.t)]]))[0] : [];
         const p = new Set(pend || []);
         let threads = (list || []).map((x) => parse(x)).filter(Boolean);
+        // số đếm cho các chip lọc (bản máy tính 19/11/2026): tính trên cùng danh sách (≤ 300 phiếu) trước khi lọc
+        const counts = { open: 0, new: 0, answered: 0, done: 0, all: threads.length };
+        for (const t of threads) { if (t.status !== "done") counts.open++; if (counts[t.status] != null && t.status !== "all") counts[t.status]++; }
         if (st === "open") threads = threads.filter((t) => t.status !== "done");
         else if (STATUS[st]) threads = threads.filter((t) => t.status === st);
-        return send(res, 200, { ok: true, pending: p.size, threads: threads.map((t) => ({ ...summary(t), pending: p.has(t.id) })) });
+        return send(res, 200, { ok: true, pending: p.size, counts, threads: threads.map((t) => ({ ...summary(t), pending: p.has(t.id) })) });
       }
       case "fb_get": {
         const t = okId(b.id) ? await getThread(String(b.id)) : null;

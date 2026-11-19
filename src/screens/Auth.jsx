@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { CHILD_ICONS } from '../lib/icons.js'
 import { SelectPicker } from '../components.jsx'
 import logoFull from '../assets/logo-full.png'
@@ -79,7 +79,10 @@ function QR({ seed }) {
 // QUÊN MẬT KHẨU (10/11/2026): máy nào cũng làm được — onForgotSend gửi mã 6 số tới email đã đăng ký, onForgotReset
 // kiểm mã + đặt mật khẩu mới rồi vào app. Máy đã từng đăng nhập tài khoản đó (localResetPhone) vẫn có cách cũ
 // (onReset, không cần mã) làm dự phòng khi không gửi được email.
-export default function Auth({ account, notice = '', onRegister, onLogin, onReset, onCheck, onForgotSend, onForgotReset, localResetPhone }) {
+// BẢN MÁY TÍNH (desk = màn từ 1024 px, anh duyệt mẫu 19/11/2026): màn chia đôi — bảng thương hiệu nền xanh bên trái, thẻ bên phải;
+// mở app là thấy NGAY ô đăng nhập (không còn bước bấm "Đăng nhập" ở màn đầu). Đăng ký / Thanh toán: bảng trái hẹp có 3 bước.
+// Cùng một bộ state cho cả hai bản: kéo cửa sổ qua lại mốc 1024 px không mất chữ đang gõ.
+export default function Auth({ account, notice = '', desk = false, onRegister, onLogin, onReset, onCheck, onForgotSend, onForgotReset, localResetPhone }) {
   const [mode, setMode] = useState(notice ? 'login' : 'landing') // landing | login | register | pay | forgot
   const [busy, setBusy] = useState(false) // đang chờ máy chủ
   const [touched, setTouched] = useState(false)
@@ -225,6 +228,10 @@ export default function Auth({ account, notice = '', onRegister, onLogin, onRese
     if (r !== true) setErr(MSG['reset_' + r] || MSG.error)
   }
 
+  const toForgot = () => { setMode('forgot'); setFStep('send'); setFbPhone(''); setErr(''); setNp(''); setNp2(''); setCode('') }
+  const toRegister = () => { setMode('register'); setErr(''); setTouched(false) }
+  if (desk) return renderDesk()
+
   const Brandline = ({ big = false }) => <div className="auth-brand"><img className={'auth-logo' + (big ? ' big' : '')} src={logoFull} alt="Ôn Tập" /></div>
 
   // ================= MÀN ĐẦU =================
@@ -236,7 +243,7 @@ export default function Auth({ account, notice = '', onRegister, onLogin, onRese
           <h1>Ôn tập thông minh cho con</h1>
           <p className="auth-sub">Chọn một trong hai để bắt đầu.</p>
           <button className="cta" onClick={() => { setMode('login'); setErr('') }}>Đăng nhập</button>
-          <button className="cta ghost" onClick={() => { setMode('register'); setErr(''); setTouched(false) }}>Đăng ký</button>
+          <button className="cta ghost" onClick={toRegister}>Đăng ký</button>
           <p className="auth-note">Chưa có tài khoản thì bấm <b>Đăng ký</b>. Đây là tài khoản phụ huynh (mua gói) — các tài khoản con sẽ nằm trong đó.</p>
         </div>
       </div>
@@ -259,7 +266,7 @@ export default function Auth({ account, notice = '', onRegister, onLogin, onRese
             onChange={(e) => setP(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submitLogin()} />
           {err && <div className="err">{err}</div>}
           <button className="cta" disabled={busy} onClick={submitLogin}>{busy ? 'Đang đăng nhập…' : 'Đăng nhập'}</button>
-          <button className="linkbtn" onClick={() => { setMode('forgot'); setFStep('send'); setFbPhone(''); setErr(''); setNp(''); setNp2(''); setCode('') }}>Quên mật khẩu?</button>
+          <button className="linkbtn" onClick={toForgot}>Quên mật khẩu?</button>
           <button className="ghost small" onClick={() => { setMode('landing'); setErr('') }}>← Quay lại</button>
         </div>
       </div>
@@ -268,67 +275,11 @@ export default function Auth({ account, notice = '', onRegister, onLogin, onRese
 
   // ================= QUÊN MẬT KHẨU =================
   if (mode === 'forgot') {
-    const back = <button className="ghost small" onClick={() => { setMode('login'); setErr('') }}>← Quay lại đăng nhập</button>
-    // Cách cũ: đặt mật khẩu mới ngay trên máy đã từng đăng nhập tài khoản này (không cần mã email)
-    if (fStep === 'old') {
-      return (
-        <div className="auth">
-          <div className="auth-card">
-            <Brandline />
-            <h1>Đặt mật khẩu mới trên máy này</h1>
-            <p className="auth-sub">Máy này đã từng đăng nhập tài khoản này nên đặt được mật khẩu mới ngay, không cần mã email. Xong thì mọi máy dùng mật khẩu mới.</p>
-            <label className="auth-lbl">Mật khẩu mới (8 số)</label>
-            <input className="auth-in" type="password" inputMode="numeric" maxLength={8} placeholder="8 chữ số" value={np} onChange={(e) => setNp(onlyDigits(e.target.value))} />
-            <label className="auth-lbl">Nhập lại mật khẩu mới</label>
-            <input className="auth-in" type="password" inputMode="numeric" maxLength={8} placeholder="Nhập lại 8 chữ số" value={np2}
-              onChange={(e) => setNp2(onlyDigits(e.target.value))} onKeyDown={(e) => e.key === 'Enter' && submitReset()} />
-            {err && <div className="err">{err}</div>}
-            <button className="cta" disabled={busy} onClick={submitReset}>{busy ? 'Đang đặt lại…' : 'Đặt lại mật khẩu'}</button>
-            <button className="ghost small" onClick={() => { setFStep('send'); setErr('') }}>← Quay lại</button>
-          </div>
-        </div>
-      )
-    }
-    // Bước 2: nhập mã 6 số trong email + mật khẩu mới
-    if (fStep === 'code') {
-      const left = Math.max(0, RESEND_WAIT - Math.floor((now - sentAt) / 1000))
-      return (
-        <div className="auth">
-          <div className="auth-card">
-            <Brandline />
-            <h1>Quên mật khẩu</h1>
-            <div className="auth-notice auth-sent">Đã gửi mã 6 số tới <b>{sentTo}</b>. Mở hộp thư (xem cả mục Thư rác/Spam). Mã dùng được 15 phút.</div>
-            <label className="auth-lbl">Mã 6 số</label>
-            <input className="auth-in" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="6 chữ số trong email" value={code} onChange={(e) => setCode(onlyDigits(e.target.value).slice(0, 6))} />
-            <label className="auth-lbl">Mật khẩu mới (8 số)</label>
-            <input className="auth-in" type="password" inputMode="numeric" maxLength={8} placeholder="8 chữ số" value={np} onChange={(e) => setNp(onlyDigits(e.target.value))} />
-            <label className="auth-lbl">Nhập lại mật khẩu mới</label>
-            <input className="auth-in" type="password" inputMode="numeric" maxLength={8} placeholder="Nhập lại 8 chữ số" value={np2}
-              onChange={(e) => setNp2(onlyDigits(e.target.value))} onKeyDown={(e) => e.key === 'Enter' && submitCode()} />
-            {err && <div className="err">{err}</div>}
-            <button className="cta" disabled={busy} onClick={submitCode}>{busy ? 'Đang đặt lại…' : 'Đặt lại mật khẩu'}</button>
-            <button className="ghost small f-resend" disabled={busy || left > 0} onClick={sendCode}>{left > 0 ? `Gửi lại mã (sau ${left} giây)` : 'Gửi lại mã'}</button>
-            {back}
-          </div>
-        </div>
-      )
-    }
-    // Bước 1: nhập số điện thoại hoặc email -> gửi mã
     return (
       <div className="auth">
         <div className="auth-card">
           <Brandline />
-          <h1>Quên mật khẩu</h1>
-          <p className="auth-sub">Nhập số điện thoại hoặc email đã đăng ký. Ôn Tập gửi <b>mã 6 số</b> tới email của tài khoản để đặt mật khẩu mới — làm được trên mọi máy.</p>
-          <label className="auth-lbl">Số điện thoại hoặc email</label>
-          <input className="auth-in" type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="Số điện thoại hoặc email đã đăng ký" value={u}
-            onChange={(e) => setU(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && sendCode()} />
-          {err && <div className="err">{err}</div>}
-          <button className="cta" disabled={busy} onClick={sendCode}>{busy ? 'Đang gửi mã…' : 'Gửi mã'}</button>
-          {err && fbPhone && (
-            <button className="cta ghost f-old" onClick={() => { setFStep('old'); setErr(''); setNp(''); setNp2('') }}>Đặt mật khẩu mới ngay trên máy này</button>
-          )}
-          {back}
+          {forgotInner()}
         </div>
       </div>
     )
@@ -336,7 +287,6 @@ export default function Auth({ account, notice = '', onRegister, onLogin, onRese
 
   // ================= THANH TOÁN (demo) =================
   if (mode === 'pay') {
-    const seed = Number(onlyDigits(phone).slice(-6)) || 123456
     return (
       <div className="auth">
         <div className="auth-card">
@@ -344,106 +294,330 @@ export default function Auth({ account, notice = '', onRegister, onLogin, onRese
           <h1>Thanh toán</h1>
           <p className="auth-sub">Gói <b>{plan} học sinh</b> · {kids.map((k) => k.name.trim()).filter(Boolean).join(', ')}</p>
 
-          <div className="pay-cycle chips">
-            <button className={'chip' + (cycle === 'month' ? ' on' : '')} onClick={() => setCycle('month')}>Hàng tháng</button>
-            <button className={'chip' + (cycle === 'year' ? ' on' : '')} onClick={() => setCycle('year')}>Hàng năm</button>
-          </div>
-
-          <p className="auth-sub pay-price" data-testid="pay-price">{priceOf(plan, cycle) ? <>Số tiền: <b>{priceOf(plan, cycle)}</b> / {cycle === 'year' ? 'năm' : 'tháng'}</> : 'Giá: liên hệ'}</p>
-          <div className="pay-box">
-            <div className="pay-qr-wrap"><QR seed={seed} /></div>
-            <div className="pay-bank">
-              <b>Chuyển khoản</b>
-              <span>Ngân hàng: <i>(Admin cấu hình)</i></span>
-              <span>Số TK: <i>(Admin cấu hình)</i></span>
-              <span>Nội dung: <b>ONTAP {onlyDigits(phone)}</b></span>
-            </div>
-          </div>
-
-          <div className="auth-grouplbl">Hoặc thẻ tín dụng (tự động gia hạn)</div>
-          <label className="auth-lbl">Số thẻ</label>
-          <input className="auth-in" inputMode="numeric" autoComplete="off" placeholder="•••• •••• •••• ••••" />
-          <div className="pay-row">
-            <div><label className="auth-lbl">Hết hạn</label><input className="auth-in" autoComplete="off" placeholder="MM/YY" /></div>
-            <div><label className="auth-lbl">CVC</label><input className="auth-in" inputMode="numeric" autoComplete="off" placeholder="•••" /></div>
-          </div>
-          <label className="auth-lbl">Tên trên thẻ</label>
-          <input className="auth-in" autoComplete="off" placeholder="NGUYEN VAN A" />
-
-          <p className="auth-note">⚠️ <b>Bản demo</b>: giá gói do Admin đặt theo thời điểm. Việc đọc tiền/xác nhận thẻ và gửi <b>mã kích hoạt qua email</b> sẽ chạy khi ghép <b>cổng thanh toán + máy chủ</b>. Tuyệt đối không lưu số thẻ thô — dùng cổng thanh toán đạt chuẩn (vd Stripe).</p>
-
-          {err && <div className="err">{err}</div>}
-          <button className="cta" disabled={busy} onClick={finishRegister}>{busy ? 'Đang tạo tài khoản…' : 'Hoàn tất & vào học →'}</button>
-          <button className="ghost small" onClick={() => { setMode('register'); setErr('') }}>← Sửa thông tin đăng ký</button>
+          {payBody()}
         </div>
       </div>
     )
   }
 
   // ================= ĐĂNG KÝ =================
-  return (
-    <div className="auth">
-      <div className="auth-card">
-        <Brandline />
-        <h1>Đăng ký</h1>
-        <p className="auth-sub">Điền đủ thông tin. Thiếu mục nào, mục đó tô màu và nút “Tiếp theo” sẽ mờ.</p>
+  return renderRegister()
 
-        <div className="auth-grouplbl">Thông tin phụ huynh</div>
-        <label className="auth-lbl">Họ và tên</label>
-        <input className={ec(vName)} placeholder="VD: Nguyễn Văn A" value={parentName} onChange={bind(setParentName)} />
-        <label className="auth-lbl">Số điện thoại (dùng để đăng nhập)</label>
-        <input className={ec(vPhone)} inputMode="numeric" placeholder="VD: 0912345678" value={phone} onChange={bind(setPhone)} />
-        <label className="auth-lbl">Mật khẩu (8 chữ số)</label>
-        <input className={ec(vPass)} type="password" inputMode="numeric" maxLength={8} placeholder="8 chữ số" value={pass} onChange={bind(setPass, true)} />
-        <label className="auth-lbl">Nhập lại mật khẩu</label>
-        <input className={ec(vPass2)} type="password" inputMode="numeric" maxLength={8} placeholder="Nhập lại 8 chữ số" value={pass2} onChange={bind(setPass2, true)} />
-        <label className="auth-lbl">Email</label>
-        <input className={ec(vEmail)} type="email" placeholder="email@vidu.com" value={email} onChange={bind(setEmail)} />
-        <label className="auth-lbl">Tỉnh / Thành phố</label>
-        <input className={ec(vProv)} placeholder="VD: TP. Hồ Chí Minh" value={province} onChange={bind(setProvince)} />
-
-        <div className="auth-grouplbl">Chọn gói ôn tập</div>
-        <div className="chips reg-plan">
-          {PLANS.map((n) => (
-            <button type="button" key={n} className={'chip' + (plan === n ? ' on' : '')} onClick={() => setPlanN(n)}>{n} học sinh</button>
-          ))}
+  // ================= BẢN MÁY TÍNH (≥ 1024 px) =================
+  function renderDesk() {
+    // Đăng ký / Thanh toán: bảng trái hẹp có 3 bước; bên phải các khối thẻ trắng.
+    if (mode === 'register' || mode === 'pay') {
+      const step = mode === 'pay' ? 2 : 1
+      const box = (label, node) => <div key={label} className="dk-fl"><label className="auth-lbl">{label}</label>{node}</div>
+      return (
+        <div className="dk-split dk-split-reg">
+          <aside className="dk-brand dk-brand-reg"><div className="dk-brand-in">
+            <div className="dk-brand-logo sm"><img src={logoFull} alt="Ôn Tập" /></div>
+            <h1>Đăng ký tài khoản phụ huynh</h1>
+            <p className="dk-brand-p">Một tài khoản cho cả nhà: mỗi con có bản đồ kiến thức riêng.</p>
+            <ol className="dk-steps">
+              {['Thông tin phụ huynh, gói & các con', 'Thanh toán', 'Vào học'].map((t, i) => (
+                <li key={t} className={step === i + 1 ? 'on' : ''} aria-current={step === i + 1 ? 'step' : undefined}><i>{i + 1}</i>{t}</li>
+              ))}
+            </ol>
+            <div className="dk-tip">📱 Đăng ký xong, đăng nhập được trên mọi máy (điện thoại, máy tính bảng, máy tính) bằng số điện thoại hoặc email và mật khẩu này.</div>
+          </div></aside>
+          {mode === 'pay' ? (
+            <main className="dk-reg-main">
+              <div className="auth-card dk-card dk-paybox">
+                <h1>Thanh toán</h1>
+                <p className="auth-sub">Gói <b>{plan} học sinh</b> · {kids.map((k) => k.name.trim()).filter(Boolean).join(', ')}</p>
+                {payBody()}
+              </div>
+            </main>
+          ) : (
+            <main className="dk-reg-main">
+              <div className="auth-card dk-reg-inner">
+                <div className="dk-head">
+                  <h1>Đăng ký</h1>
+                  <p>Điền đủ thông tin. Thiếu mục nào, mục đó tô màu và nút “Tiếp theo” sẽ mờ.</p>
+                </div>
+                <section className="dk-card dk-sec">
+                  <div className="dk-sec-h"><span className="dk-num">1</span>Thông tin phụ huynh</div>
+                  <div className="dk-grid2">{fieldsParent(box)}</div>
+                </section>
+                <section className="dk-card dk-sec">
+                  <div className="dk-sec-h"><span className="dk-num">2</span>Chọn gói ôn tập</div>
+                  {planChips()}
+                  <p className="auth-hint reg-price dk-price" data-testid="reg-price">💰 Gói {plan} học sinh: <b>{priceLine(plan)}</b></p>
+                  <p className="auth-hint">Mỗi con có bản đồ kiến thức riêng.</p>
+                </section>
+                <section className="dk-card dk-sec">
+                  <div className="dk-sec-h"><span className="dk-num">3</span>Thông tin các con<small>Gói {plan} học sinh → điền {plan} khối</small></div>
+                  <div className={'dk-kids' + (kids.length > 1 ? ' two' : '')}>
+                    {kids.map((k, i) => (
+                      <div className="reg-kid dk-kid" key={i}>
+                        <div className="reg-kid-h">👦 Học sinh {i + 1}</div>
+                        <div className="dk-grid2">
+                          {box('Tên hoặc nickname', kidName(k, i))}
+                          {box('Mã PIN (1–2 số)', kidPin(k, i))}
+                        </div>
+                        {box('Chọn icon ưa thích', kidIcons(k, i))}
+                        <div className="dk-grid2 dk-g-lop">
+                          {box('Lớp', kidGrade(k, i))}
+                          {box('Trường', kidSchool(k, i))}
+                        </div>
+                        {box('Thuộc khối', kidTypes(k, i))}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+                {err && <div className="err">{err}</div>}
+                <div className="dk-foot">
+                  <button className="cta ghost dk-btn" onClick={() => { setMode('landing'); setErr('') }}>← Quay lại</button>
+                  <p>{!regValid && touched ? <span className="auth-hint--warn">Còn mục được tô màu chưa điền.</span> : null}</p>
+                  <button className="cta dk-btn" disabled={!regValid || busy} onClick={goPay}>{busy ? 'Đang kiểm tra…' : 'Tiếp theo: Thanh toán →'}</button>
+                </div>
+              </div>
+            </main>
+          )}
         </div>
-        <p className="auth-hint reg-price" data-testid="reg-price">💰 Gói {plan} học sinh: <b>{priceLine(plan)}</b></p>
-        <p className="auth-hint">Gói {plan} học sinh → điền {plan} khối thông tin con dưới đây. Mỗi con có bản đồ kiến thức riêng.</p>
+      )
+    }
+    // Đăng nhập (mở app là thấy ngay) + Quên mật khẩu: màn chia đôi, chỉ thẻ bên phải đổi nội dung.
+    const typing = (setter) => (e) => { if (mode === 'landing') setMode('login'); setter(e.target.value) }
+    return (
+      <div className="dk-split dk-split-login">
+        <aside className="dk-brand"><div className="dk-brand-in">
+          <div className="dk-brand-logo"><img src={logoFull} alt="Ôn Tập" /></div>
+          <h1>Ôn tập thông minh cho con</h1>
+          <p className="dk-brand-sub">Chụp hoặc gõ bài con vừa học trên lớp — ONTAP soạn câu ôn vừa sức, con ôn mỗi ngày như chơi.</p>
+          <ul className="dk-feat">
+            <li><span>📸</span><div><b>Ôn đúng bài trên lớp</b><em>Câu hỏi đúng lớp, đúng môn, theo sách giáo khoa.</em></div></li>
+            <li><span>🎮</span><div><b>Học mà chơi</b><em>Trắc nghiệm, tự gõ, Vở Spelling, thi đấu cùng bạn.</em></div></li>
+            <li><span>📊</span><div><b>Báo cáo cho phụ huynh</b><em>Thời gian học và bản đồ kiến thức của từng con.</em></div></li>
+          </ul>
+          <p className="dk-brand-foot">💻 📱 Một tài khoản — dùng trên điện thoại, máy tính bảng và máy tính.</p>
+        </div></aside>
+        <main className="dk-side">
+          {mode === 'forgot' ? (
+            <div className="auth-card dk-card dk-abox dk-forgot">{forgotInner()}</div>
+          ) : (
+            <div className="auth-card auth-landing dk-card dk-abox">
+              <h1>Đăng nhập</h1>
+              {notice && <div className="auth-notice">{notice}</div>}
+              <p className="dk-sub">Dùng số điện thoại hoặc email và mật khẩu phụ huynh. Đăng ký ở máy nào cũng đăng nhập được ở máy khác.</p>
+              <div className="dk-fl">
+                <label className="auth-lbl" htmlFor="dk-u">Số điện thoại hoặc email</label>
+                <input id="dk-u" className="auth-in" type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} autoFocus placeholder="Số điện thoại hoặc email"
+                  value={u} onChange={typing(setU)} onKeyDown={(e) => e.key === 'Enter' && submitLogin()} />
+              </div>
+              <div className="dk-fl">
+                <div className="dk-pw"><label className="auth-lbl" htmlFor="dk-p">Mật khẩu phụ huynh</label><button type="button" className="linkbtn" onClick={toForgot}>Quên mật khẩu?</button></div>
+                <input id="dk-p" className="auth-in" type="password" inputMode="numeric" placeholder="Mật khẩu 8 số" value={p}
+                  onChange={typing(setP)} onKeyDown={(e) => e.key === 'Enter' && submitLogin()} />
+              </div>
+              {err && <div className="err">{err}</div>}
+              <button className="cta dk-big" disabled={busy} onClick={submitLogin}>{busy ? 'Đang đăng nhập…' : 'Đăng nhập'}</button>
+              <div className="dk-or">Chưa có tài khoản?</div>
+              <button className="cta ghost dk-big2" onClick={toRegister}>Đăng ký tài khoản phụ huynh</button>
+              <p className="dk-anote">Tài khoản phụ huynh (mua gói) — các tài khoản con nằm trong đó.</p>
+            </div>
+          )}
+        </main>
+      </div>
+    )
+  }
 
-        {kids.map((k, i) => (
-          <div className="reg-kid" key={i}>
-            <div className="reg-kid-h">👦 Học sinh {i + 1}</div>
-            <label className="auth-lbl">Tên hoặc nickname</label>
-            <input className={ec(!!k.name.trim())} placeholder="VD: Anna" value={k.name} onChange={(e) => setKid(i, 'name', e.target.value)} />
-            <label className="auth-lbl">Mã PIN (1–2 số, con gõ để vào học)</label>
-            <input className={ec(/^\d{1,2}$/.test(k.pin))} inputMode="numeric" maxLength={2} placeholder="VD: 7 hoặc 12" value={k.pin} onChange={(e) => setKid(i, 'pin', onlyDigits(e.target.value))} />
-            <label className="auth-lbl">Chọn icon ưa thích</label>
-            <div className={'icon-pick' + (touched && !k.icon ? ' icon-pick--err' : '')}>
-              {CHILD_ICONS.map((ic) => (
-                <button type="button" key={ic} className={'icon-opt' + (k.icon === ic ? ' on' : '')} onClick={() => setKid(i, 'icon', ic)}>{ic}</button>
-              ))}
-            </div>
-            <label className="auth-lbl">Lớp</label>
-            <SelectPicker btnClass={ec(!!k.grade)} value={k.grade} onChange={(v) => setKid(i, 'grade', v)} placeholder="— Chọn lớp —" ariaLabel="Lớp"
-              options={GRADES.map((g) => ({ value: 'Lớp ' + g, label: 'Lớp ' + g }))} />
-            <label className="auth-lbl">Trường</label>
-            <input className={ec(!!k.school.trim())} placeholder="VD: Tiểu học Kim Đồng" value={k.school} onChange={(e) => setKid(i, 'school', e.target.value)} />
-            <label className="auth-lbl">Thuộc khối</label>
-            <div className={'chips reg-types' + (touched && !k.schoolType ? ' reg-types--err' : '')}>
-              {SCHOOL_TYPES.map((t) => (
-                <button type="button" key={t} className={'chip' + (k.schoolType === t ? ' on' : '')} onClick={() => setKid(i, 'schoolType', t)}>{k.schoolType === t ? '✓ ' : ''}{t}</button>
-              ))}
-            </div>
-          </div>
+  // Quên mật khẩu (2 bước + cách cũ): cùng nội dung cho thẻ điện thoại và thẻ bên phải của bản máy tính.
+  function forgotInner() {
+    const back = <button className="ghost small" onClick={() => { setMode('login'); setErr('') }}>← Quay lại đăng nhập</button>
+    // Cách cũ: đặt mật khẩu mới ngay trên máy đã từng đăng nhập tài khoản này (không cần mã email)
+    if (fStep === 'old') {
+      return (
+        <>
+          <h1>Đặt mật khẩu mới trên máy này</h1>
+          <p className="auth-sub">Máy này đã từng đăng nhập tài khoản này nên đặt được mật khẩu mới ngay, không cần mã email. Xong thì mọi máy dùng mật khẩu mới.</p>
+          <label className="auth-lbl">Mật khẩu mới (8 số)</label>
+          <input className="auth-in" type="password" inputMode="numeric" maxLength={8} placeholder="8 chữ số" value={np} onChange={(e) => setNp(onlyDigits(e.target.value))} />
+          <label className="auth-lbl">Nhập lại mật khẩu mới</label>
+          <input className="auth-in" type="password" inputMode="numeric" maxLength={8} placeholder="Nhập lại 8 chữ số" value={np2}
+            onChange={(e) => setNp2(onlyDigits(e.target.value))} onKeyDown={(e) => e.key === 'Enter' && submitReset()} />
+          {err && <div className="err">{err}</div>}
+          <button className="cta" disabled={busy} onClick={submitReset}>{busy ? 'Đang đặt lại…' : 'Đặt lại mật khẩu'}</button>
+          <button className="ghost small" onClick={() => { setFStep('send'); setErr('') }}>← Quay lại</button>
+        </>
+      )
+    }
+    // Bước 2: nhập mã 6 số trong email + mật khẩu mới
+    if (fStep === 'code') {
+      const left = Math.max(0, RESEND_WAIT - Math.floor((now - sentAt) / 1000))
+      return (
+        <>
+          <h1>Quên mật khẩu</h1>
+          <div className="auth-notice auth-sent">Đã gửi mã 6 số tới <b>{sentTo}</b>. Mở hộp thư (xem cả mục Thư rác/Spam). Mã dùng được 15 phút.</div>
+          <label className="auth-lbl">Mã 6 số</label>
+          <input className="auth-in" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="6 chữ số trong email" value={code} onChange={(e) => setCode(onlyDigits(e.target.value).slice(0, 6))} />
+          <label className="auth-lbl">Mật khẩu mới (8 số)</label>
+          <input className="auth-in" type="password" inputMode="numeric" maxLength={8} placeholder="8 chữ số" value={np} onChange={(e) => setNp(onlyDigits(e.target.value))} />
+          <label className="auth-lbl">Nhập lại mật khẩu mới</label>
+          <input className="auth-in" type="password" inputMode="numeric" maxLength={8} placeholder="Nhập lại 8 chữ số" value={np2}
+            onChange={(e) => setNp2(onlyDigits(e.target.value))} onKeyDown={(e) => e.key === 'Enter' && submitCode()} />
+          {err && <div className="err">{err}</div>}
+          <button className="cta" disabled={busy} onClick={submitCode}>{busy ? 'Đang đặt lại…' : 'Đặt lại mật khẩu'}</button>
+          <button className="ghost small f-resend" disabled={busy || left > 0} onClick={sendCode}>{left > 0 ? `Gửi lại mã (sau ${left} giây)` : 'Gửi lại mã'}</button>
+          {back}
+        </>
+      )
+    }
+    // Bước 1: nhập số điện thoại hoặc email -> gửi mã
+    return (
+      <>
+        <h1>Quên mật khẩu</h1>
+        <p className="auth-sub">Nhập số điện thoại hoặc email đã đăng ký. Ôn Tập gửi <b>mã 6 số</b> tới email của tài khoản để đặt mật khẩu mới — làm được trên mọi máy.</p>
+        <label className="auth-lbl">Số điện thoại hoặc email</label>
+        <input className="auth-in" type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="Số điện thoại hoặc email đã đăng ký" value={u}
+          onChange={(e) => setU(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && sendCode()} />
+        {err && <div className="err">{err}</div>}
+        <button className="cta" disabled={busy} onClick={sendCode}>{busy ? 'Đang gửi mã…' : 'Gửi mã'}</button>
+        {err && fbPhone && (
+          <button className="cta ghost f-old" onClick={() => { setFStep('old'); setErr(''); setNp(''); setNp2('') }}>Đặt mật khẩu mới ngay trên máy này</button>
+        )}
+        {back}
+      </>
+    )
+  }
+
+  // ===================================================================
+  // Ô nhập / nút dùng chung cho bản điện thoại và bản máy tính (cùng placeholder, cùng xử lý).
+  function fieldsParent(wrap) {
+    return (
+      <>
+        {wrap("Họ và tên", <input className={ec(vName)} placeholder="VD: Nguyễn Văn A" value={parentName} onChange={bind(setParentName)} /> )}
+        {wrap("Số điện thoại (dùng để đăng nhập)", <input className={ec(vPhone)} inputMode="numeric" placeholder="VD: 0912345678" value={phone} onChange={bind(setPhone)} /> )}
+        {wrap("Mật khẩu (8 chữ số)", <input className={ec(vPass)} type="password" inputMode="numeric" maxLength={8} placeholder="8 chữ số" value={pass} onChange={bind(setPass, true)} /> )}
+        {wrap("Nhập lại mật khẩu", <input className={ec(vPass2)} type="password" inputMode="numeric" maxLength={8} placeholder="Nhập lại 8 chữ số" value={pass2} onChange={bind(setPass2, true)} /> )}
+        {wrap("Email", <input className={ec(vEmail)} type="email" placeholder="email@vidu.com" value={email} onChange={bind(setEmail)} /> )}
+        {wrap("Tỉnh / Thành phố", <input className={ec(vProv)} placeholder="VD: TP. Hồ Chí Minh" value={province} onChange={bind(setProvince)} /> )}
+      </>
+    )
+  }
+  function planChips() {
+    return (
+      <div className="chips reg-plan">
+        {PLANS.map((n) => (
+          <button type="button" key={n} className={'chip' + (plan === n ? ' on' : '')} onClick={() => setPlanN(n)}>{n} học sinh</button>
         ))}
+      </div>
+    )
+  }
+  function kidName(k, i) { return <input className={ec(!!k.name.trim())} placeholder="VD: Anna" value={k.name} onChange={(e) => setKid(i, 'name', e.target.value)} /> }
+  function kidPin(k, i) { return <input className={ec(/^\d{1,2}$/.test(k.pin))} inputMode="numeric" maxLength={2} placeholder="VD: 7 hoặc 12" value={k.pin} onChange={(e) => setKid(i, 'pin', onlyDigits(e.target.value))} /> }
+  function kidIcons(k, i) {
+    return (
+    <div className={'icon-pick' + (touched && !k.icon ? ' icon-pick--err' : '')}>
+      {CHILD_ICONS.map((ic) => (
+        <button type="button" key={ic} className={'icon-opt' + (k.icon === ic ? ' on' : '')} onClick={() => setKid(i, 'icon', ic)}>{ic}</button>
+      ))}
+    </div>
+    )
+  }
+
+  function kidGrade(k, i) {
+    return (
+    <SelectPicker btnClass={ec(!!k.grade)} value={k.grade} onChange={(v) => setKid(i, 'grade', v)} placeholder="— Chọn lớp —" ariaLabel="Lớp"
+      options={GRADES.map((g) => ({ value: 'Lớp ' + g, label: 'Lớp ' + g }))} />
+    )
+  }
+
+  function kidSchool(k, i) { return <input className={ec(!!k.school.trim())} placeholder="VD: Tiểu học Kim Đồng" value={k.school} onChange={(e) => setKid(i, 'school', e.target.value)} /> }
+  function kidTypes(k, i) {
+    return (
+    <div className={'chips reg-types' + (touched && !k.schoolType ? ' reg-types--err' : '')}>
+      {SCHOOL_TYPES.map((t) => (
+        <button type="button" key={t} className={'chip' + (k.schoolType === t ? ' on' : '')} onClick={() => setKid(i, 'schoolType', t)}>{k.schoolType === t ? '✓ ' : ''}{t}</button>
+      ))}
+    </div>
+    )
+  }
+
+  function payBody() {
+    const seed = Number(onlyDigits(phone).slice(-6)) || 123456
+    return (
+      <>
+        <div className="pay-cycle chips">
+          <button className={'chip' + (cycle === 'month' ? ' on' : '')} onClick={() => setCycle('month')}>Hàng tháng</button>
+          <button className={'chip' + (cycle === 'year' ? ' on' : '')} onClick={() => setCycle('year')}>Hàng năm</button>
+        </div>
+
+        <p className="auth-sub pay-price" data-testid="pay-price">{priceOf(plan, cycle) ? <>Số tiền: <b>{priceOf(plan, cycle)}</b> / {cycle === 'year' ? 'năm' : 'tháng'}</> : 'Giá: liên hệ'}</p>
+        <div className="pay-box">
+          <div className="pay-qr-wrap"><QR seed={seed} /></div>
+          <div className="pay-bank">
+            <b>Chuyển khoản</b>
+            <span>Ngân hàng: <i>(Admin cấu hình)</i></span>
+            <span>Số TK: <i>(Admin cấu hình)</i></span>
+            <span>Nội dung: <b>ONTAP {onlyDigits(phone)}</b></span>
+          </div>
+        </div>
+
+        <div className="auth-grouplbl">Hoặc thẻ tín dụng (tự động gia hạn)</div>
+        <label className="auth-lbl">Số thẻ</label>
+        <input className="auth-in" inputMode="numeric" autoComplete="off" placeholder="•••• •••• •••• ••••" />
+        <div className="pay-row">
+          <div><label className="auth-lbl">Hết hạn</label><input className="auth-in" autoComplete="off" placeholder="MM/YY" /></div>
+          <div><label className="auth-lbl">CVC</label><input className="auth-in" inputMode="numeric" autoComplete="off" placeholder="•••" /></div>
+        </div>
+        <label className="auth-lbl">Tên trên thẻ</label>
+        <input className="auth-in" autoComplete="off" placeholder="NGUYEN VAN A" />
+
+        <p className="auth-note">⚠️ <b>Bản demo</b>: giá gói do Admin đặt theo thời điểm. Việc đọc tiền/xác nhận thẻ và gửi <b>mã kích hoạt qua email</b> sẽ chạy khi ghép <b>cổng thanh toán + máy chủ</b>. Tuyệt đối không lưu số thẻ thô — dùng cổng thanh toán đạt chuẩn (vd Stripe).</p>
 
         {err && <div className="err">{err}</div>}
-        <button className="cta" disabled={!regValid || busy} onClick={goPay}>{busy ? 'Đang kiểm tra…' : 'Tiếp theo →'}</button>
-        {!regValid && touched && <p className="auth-hint auth-hint--warn">Còn mục được tô màu chưa điền.</p>}
-        <button className="ghost small" onClick={() => { setMode('landing'); setErr('') }}>← Quay lại</button>
-        <p className="auth-note">📱 Đăng ký xong, đăng nhập được trên mọi máy (điện thoại, máy tính bảng, máy tính) bằng số điện thoại hoặc email và mật khẩu này. Sắp có trên App Store &amp; Google Play.</p>
+        <button className="cta" disabled={busy} onClick={finishRegister}>{busy ? 'Đang tạo tài khoản…' : 'Hoàn tất & vào học →'}</button>
+        <button className="ghost small" onClick={() => { setMode('register'); setErr('') }}>← Sửa thông tin đăng ký</button>
+      </>
+    )
+  }
+
+  // ================= ĐĂNG KÝ (điện thoại) =================
+  function renderRegister() {
+    const plain = (label, node) => <Fragment key={label}><label className="auth-lbl">{label}</label>{node}</Fragment>
+    return (
+      <div className="auth">
+        <div className="auth-card">
+          <Brandline />
+          <h1>Đăng ký</h1>
+          <p className="auth-sub">Điền đủ thông tin. Thiếu mục nào, mục đó tô màu và nút “Tiếp theo” sẽ mờ.</p>
+
+          <div className="auth-grouplbl">Thông tin phụ huynh</div>
+          {fieldsParent(plain)}
+
+          <div className="auth-grouplbl">Chọn gói ôn tập</div>
+          {planChips()}
+          <p className="auth-hint reg-price" data-testid="reg-price">💰 Gói {plan} học sinh: <b>{priceLine(plan)}</b></p>
+          <p className="auth-hint">Gói {plan} học sinh → điền {plan} khối thông tin con dưới đây. Mỗi con có bản đồ kiến thức riêng.</p>
+
+          {kids.map((k, i) => (
+            <div className="reg-kid" key={i}>
+              <div className="reg-kid-h">👦 Học sinh {i + 1}</div>
+              <label className="auth-lbl">Tên hoặc nickname</label>
+              {kidName(k, i)}
+              <label className="auth-lbl">Mã PIN (1–2 số, con gõ để vào học)</label>
+              {kidPin(k, i)}
+              <label className="auth-lbl">Chọn icon ưa thích</label>
+              {kidIcons(k, i)}
+              <label className="auth-lbl">Lớp</label>
+              {kidGrade(k, i)}
+              <label className="auth-lbl">Trường</label>
+              {kidSchool(k, i)}
+              <label className="auth-lbl">Thuộc khối</label>
+              {kidTypes(k, i)}
+            </div>
+          ))}
+
+          {err && <div className="err">{err}</div>}
+          <button className="cta" disabled={!regValid || busy} onClick={goPay}>{busy ? 'Đang kiểm tra…' : 'Tiếp theo →'}</button>
+          {!regValid && touched && <p className="auth-hint auth-hint--warn">Còn mục được tô màu chưa điền.</p>}
+          <button className="ghost small" onClick={() => { setMode('landing'); setErr('') }}>← Quay lại</button>
+          <p className="auth-note">📱 Đăng ký xong, đăng nhập được trên mọi máy (điện thoại, máy tính bảng, máy tính) bằng số điện thoại hoặc email và mật khẩu này. Sắp có trên App Store &amp; Google Play.</p>
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 }

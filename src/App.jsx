@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { loadMemory, saveMemory, applyReviewResults, addConcepts, resetMemory, conceptKey, prettyName } from './lib/memory.js'
 import { subjectModes, subjectDisplayName } from './lib/subjects.js'
 import { resolveTopic } from './lib/review.js'
@@ -19,6 +20,8 @@ import { canon, localMatch } from './lib/answerMatch.js'
 import { dotNumbers } from './lib/num.js'
 import { loadRecent, pushRecent, resetRecent } from './lib/recent.js'
 import { resetSpelling, cleanupOldVocabGames } from './lib/spelling.js'
+import { useDesk } from './lib/desk.js'
+import logoRow from './assets/logo-row.png'
 
 import Auth from './screens/Auth.jsx'
 import ChildPicker from './screens/ChildPicker.jsx'
@@ -252,6 +255,9 @@ if (INIT_ACCOUNT && RAW_ACCOUNT && !(Array.isArray(RAW_ACCOUNT.children) && RAW_
 }
 
 export default function App() {
+  // BẢN MÁY TÍNH (anh duyệt 19/11/2026, đợt 1): màn ≥ 1024 px -> Đăng nhập / Đăng ký, Chọn người học, khu Phụ huynh
+  // dùng bố cục máy tính (không nằm trong cột điện thoại phóng to). Màn của con giữ nguyên tới đợt 2.
+  const desk = useDesk()
   const [account, setAccount] = useState(INIT_ACCOUNT)
   const [authed, setAuthed] = useState(() => loadSession() && !!INIT_ACCOUNT)
   const [authNotice, setAuthNotice] = useState('') // lời nhắn ở màn đăng nhập (vd mật khẩu đã đổi ở máy khác)
@@ -876,8 +882,9 @@ export default function App() {
   // Cổng PIN phụ huynh (hiện đè lên mọi màn).
   const onlyDigit = (v) => (v || '').replace(/\D+/g, '')
   const gateEnterKey = (e) => { if (e.key === 'Enter') submitParentGate() }
+  // Màn rộng: hộp PIN phủ CẢ CỬA SỔ (position: fixed, vẽ thẳng vào body — không bị phóng to theo cột của con).
   const gateModal = parentGate ? (
-    <div className="modal-back" onClick={() => setParentGate(null)}>
+    <div className={'modal-back' + (desk ? ' dk-modal-back' : '')} onClick={() => setParentGate(null)}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         {gateStep === 'enter' && (
           <>
@@ -915,11 +922,13 @@ export default function App() {
     </div>
   ) : null
 
+  const gatePortal = desk && gateModal ? createPortal(gateModal, document.body) : null
+  // Cùng một cây phần tử cho cả hai bản (chỉ đổi tên lớp) -> kéo cửa sổ qua mốc 1024 px không mất chữ đang gõ.
   if (!authed) {
     return (
-      <div className="stage">
-        <div className="phone">
-          <Auth account={account} notice={authNotice} onRegister={handleRegister} onLogin={handleLogin} onReset={handleReset} onCheck={checkAvailable}
+      <div className={desk ? 'dk dk-root' : 'stage'}>
+        <div className={desk ? 'dk-page' : 'phone'}>
+          <Auth account={account} notice={authNotice} desk={desk} onRegister={handleRegister} onLogin={handleLogin} onReset={handleReset} onCheck={checkAvailable}
             onForgotSend={forgotSend} onForgotReset={forgotReset} localResetPhone={localResetPhone} />
         </div>
       </div>
@@ -929,11 +938,12 @@ export default function App() {
   // Đã đăng nhập nhưng CHƯA chọn con -> màn chọn con (các con hiện ra để chọn học).
   if (!activeChild) {
     return (
-      <div className="stage">
-        <div className="phone">
-          <ChildPicker account={account} onEnter={enterChild} onAddChild={addChild} onParent={enterParentArea} requireParent={askParent} onLogout={logout} />
-          {gateModal}
+      <div className={desk ? 'dk dk-root' : 'stage'}>
+        <div className={desk ? 'dk-page' : 'phone'}>
+          <ChildPicker account={account} desk={desk} onEnter={enterChild} onAddChild={addChild} onParent={enterParentArea} requireParent={askParent} onLogout={logout} />
+          {desk ? null : gateModal}
         </div>
+        {gatePortal}
       </div>
     )
   }
@@ -995,26 +1005,44 @@ export default function App() {
     }
   } else {
     // Phụ huynh chỉ xem báo cáo + vào Cài đặt (mục tiêu, bật/tắt trắc nghiệm).
-    screen = <ParentDashboard key={activeChild?.id || 'none'} mem={mem} session={session} stats={stats} child={activeChild}
+    screen = <ParentDashboard key={activeChild?.id || 'none'} desk={desk} mem={mem} session={session} stats={stats} child={activeChild}
       kids={account?.children || []} onViewChild={viewChildInParent}
       onSettings={() => setView('settings')} onFeedback={() => setView('feedback')} toast={toast} />
   }
 
+  // Khu Phụ huynh trên màn rộng: thanh trên bản máy tính (logo, Con | Phụ huynh, Đổi người học, Đăng xuất) + nội dung rộng tối đa 1280 px.
+  // Cài đặt / Góp ý của phụ huynh: thẻ trắng ở giữa (≤ 760 px). Màn của con (kể cả Cài đặt / Góp ý mở từ tab Con) giữ cột phóng to.
+  const deskParent = desk && role === 'parent'
+  const segBtns = (
+    <div className="ds-seg">
+      <button className={role === 'child' ? 'on' : ''} onClick={() => switchRole('child')}>Con</button>
+      <button className={role === 'parent' ? 'on' : ''} onClick={() => switchRole('parent')}>Phụ huynh</button>
+    </div>
+  )
+  const actBtns = (
+    <div className="ds-actions">
+      {activeChild && <button className="ds-logout" onClick={switchChild} title="Đổi người học">Đổi người học</button>}
+      <button className="ds-logout" onClick={logout} title="Đăng xuất">Đăng xuất</button>
+    </div>
+  )
   return (
-    <div className="stage">
+    <div className={deskParent ? 'dk dk-root dk-parentpage' : 'stage'}>
       {/* Thanh trên cùng (chốt 13/10/2026): rộng ĐÚNG BẰNG khung màn hình bên dưới, thẳng mép trái/phải.
           Bỏ chữ "Bản demo" (12/10), bỏ nút ⚙️ (Cài đặt nằm trong tab Phụ huynh), bỏ mũi tên "↔". */}
-      <div className="demoswitch">
-        <div className="ds-seg">
-          <button className={role === 'child' ? 'on' : ''} onClick={() => switchRole('child')}>Con</button>
-          <button className={role === 'parent' ? 'on' : ''} onClick={() => switchRole('parent')}>Phụ huynh</button>
-        </div>
-        <div className="ds-actions">
-          {activeChild && <button className="ds-logout" onClick={switchChild} title="Đổi người học">Đổi người học</button>}
-          <button className="ds-logout" onClick={logout} title="Đăng xuất">Đăng xuất</button>
-        </div>
+      <div className={deskParent ? 'dk-tb' : 'demoswitch'}>
+        {deskParent ? (
+          <div className="dk-tb-in">
+            <img className="dk-tb-logo" src={logoRow} alt="Ôn Tập" />
+            {segBtns}
+            {actBtns}
+          </div>
+        ) : <>{segBtns}{actBtns}</>}
       </div>
-      <div className="phone">{screen}{gateModal}</div>
+      <div className={deskParent ? 'dk-wrap' : 'phone'}>
+        <div className={deskParent && (view === 'settings' || view === 'feedback') ? 'dk-card dk-narrow' : 'scr-wrap'}>{screen}</div>
+        {desk ? null : gateModal}
+      </div>
+      {gatePortal}
     </div>
   )
 }
