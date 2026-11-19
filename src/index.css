@@ -1121,9 +1121,12 @@ select.auth-in{appearance:auto;cursor:pointer}
    (chỉ vẽ khi màn ≥ 1024 px — src/lib/desk.js) nên màn điện thoại / iPad dọc giữ nguyên. Không phóng to (--fit).
    ===================================================================================================== */
 .scr-wrap{display:contents}
+/* Màn lớn (Surface, 2K / 4K…): cả bản máy tính phóng to theo --dk-z (src/main.jsx, chuẩn 1440 × 900). Phóng to làm "100vh" bên trong
+   cũng bị nhân lên -> mọi chiều cao theo màn hình viết calc(100vh / var(--dk-z)). */
+.dk,body > .modal-back.dk-modal-back{zoom:var(--dk-z,1)}
 .dk{--teal-50:#F2F8F7;--red:#D64B4B;--red-bg:#FCE8E8;--dk-gut:40px;
   --shadow-sm:0 1px 2px rgba(20,33,46,.04),0 8px 22px rgba(20,33,46,.05);--shadow-lg:0 30px 70px rgba(20,33,46,.13);
-  font-size:15px;line-height:1.5;color:var(--ink);min-height:100vh}
+  font-size:15px;line-height:1.5;color:var(--ink);min-height:calc(100vh / var(--dk-z,1))}
 @media (max-width:1279px){.dk{--dk-gut:24px}}
 .dk h1,.dk h2,.dk h3,.dk h4,.dk p{margin:0}
 .dk button{font-family:inherit}
@@ -1182,7 +1185,7 @@ select.auth-in{appearance:auto;cursor:pointer}
 .dk-wrap .toast{position:fixed}
 
 /* ---- Màn chia đôi: Đăng nhập / Quên mật khẩu (mẫu a), Đăng ký / Thanh toán (mẫu b), Đăng nhập quản trị ---- */
-.dk-split{display:grid;grid-template-columns:minmax(520px,46%) 1fr;min-height:100vh}
+.dk-split{display:grid;grid-template-columns:minmax(520px,46%) 1fr;min-height:calc(100vh / var(--dk-z,1))}
 .dk-split-reg{grid-template-columns:400px 1fr}
 .dk-brand{position:relative;overflow:hidden;color:#fff;background:linear-gradient(155deg,#12867D 0%,#0F766E 45%,#0B5C55 100%);display:flex;align-items:center}
 .dk-brand::before,.dk-brand::after{content:"";position:absolute;border-radius:50%;background:rgba(255,255,255,.06);pointer-events:none}
@@ -1290,7 +1293,7 @@ select.auth-in{appearance:auto;cursor:pointer}
 .dk-paybox .ghost.small{align-self:flex-start}
 
 /* ---- Chọn người học (mẫu c) ---- */
-.dk-pick{min-height:100vh;display:flex;flex-direction:column}
+.dk-pick{min-height:calc(100vh / var(--dk-z,1));display:flex;flex-direction:column}
 .dk-center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px var(--dk-gut) 70px;text-align:center}
 .dk-hi{font-size:40px;font-weight:800;letter-spacing:-.015em}
 .dk-hi-sub{margin-top:8px !important;color:var(--ink-soft);font-size:17px}
@@ -1435,9 +1438,9 @@ select.auth-in{appearance:auto;cursor:pointer}
 .dk-narrow .err,.dk-narrow .ok-msg{font-size:15px}
 
 /* ---- Trang quản trị /quan-tri (mẫu e, f, g) ---- */
-.dk-adm{display:grid;grid-template-columns:268px minmax(0,1fr);min-height:100vh;background:#F3F7F6}
+.dk-adm{display:grid;grid-template-columns:268px minmax(0,1fr);min-height:calc(100vh / var(--dk-z,1));background:#F3F7F6}
 @media (max-width:1279px){.dk-adm{grid-template-columns:232px minmax(0,1fr)}}
-.dk-aside{background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;padding:22px 16px 18px;height:100vh;position:sticky;top:0;overflow-y:auto}
+.dk-aside{background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;padding:22px 16px 18px;height:calc(100vh / var(--dk-z,1));position:sticky;top:0;overflow-y:auto}
 .dk-aside-logo{height:42px;width:auto;margin:2px 10px 0;align-self:flex-start}
 .dk-aside-t{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:22px 14px 8px}
 .dk .adm-tabs.dk-nav{display:flex;flex-direction:column;gap:3px;border:0;padding:0;flex-wrap:nowrap}
@@ -1507,7 +1510,7 @@ select.auth-in{appearance:auto;cursor:pointer}
 .dk-fbchips .chip{padding:8px 15px}
 .dk-panes{display:grid;grid-template-columns:400px minmax(0,1fr);gap:18px;align-items:start}
 @media (max-width:1279px){.dk-panes{grid-template-columns:340px minmax(0,1fr)}}
-.dk-fblist{padding:8px;max-height:calc(100vh - 220px);overflow-y:auto;position:sticky;top:20px}
+.dk-fblist{padding:8px;max-height:calc(100vh / var(--dk-z,1) - 220px);overflow-y:auto;position:sticky;top:20px}
 .dk-fblist .adm-list{gap:2px}
 .dk .dk-fblist .adm-fbi{padding:14px 14px 13px;border-radius:14px;border:1.5px solid transparent;display:flex;flex-direction:column;gap:5px;background:transparent;cursor:pointer}
 .dk .dk-fblist .adm-fbi + .adm-fbi{box-shadow:0 -1px 0 var(--line)}
@@ -1592,7 +1595,7 @@ select.auth-in{appearance:auto;cursor:pointer}
 .dk-lk.del{color:#A53434}
 .dk-lk.pri{color:var(--teal-dark);border-color:#BFDCD6;background:var(--teal-50)}
 .dk-lib .lib-empty{text-align:center;color:var(--muted);padding:26px}
-.dk .lib-form.dk-libform{width:100%;max-width:520px;padding:26px 28px;border-top:0;gap:8px;max-height:calc(100vh - 48px);overflow-y:auto}
+.dk .lib-form.dk-libform{width:100%;max-width:520px;padding:26px 28px;border-top:0;gap:8px;max-height:calc(100vh / var(--dk-z,1) - 48px);overflow-y:auto}
 .dk-libform h3{font-size:22px;font-weight:800;margin-bottom:4px}
 .dk-libform .lib-cost{font-size:15px}
 .dk-libform .modal-btns{margin-top:10px}

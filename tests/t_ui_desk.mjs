@@ -413,6 +413,39 @@ for (const [w, h] of [[1024, 768], [1280, 800], [1366, 768], [1440, 900], [1920,
   await A.ctx.close(); await D.ctx.close()
 }
 
+/* ======== 7. Màn lớn (anh báo 19/11/2026, ảnh Surface: "nhỏ tí, đọc không ra chữ, khoảng trống mênh mông") ======== */
+console.log('— 7. Màn lớn (2K / 4K, trình duyệt thu nhỏ): bản máy tính tự phóng to theo chuẩn 1440 × 900')
+for (const [w, h] of [[2880, 1800], [3840, 2160], [2560, 1440]]) {
+  const z = Math.max(1, Math.min(3, Math.floor(Math.min(w / 1440, h / 900) * 20) / 20))
+  const bad = []
+  const A = await device('big' + w, { width: w, height: h })
+  await adminIn(A, SUPER, PASS); await A.page.waitForSelector('[data-testid=adm-todo]'); await A.page.waitForSelector('.dk-aside .adm-me')
+  const g = await A.page.evaluate(() => { const a = document.querySelector('.dk-aside').getBoundingClientRect(), t = document.querySelector('.dk-ph h1').getBoundingClientRect(), k = document.querySelector('.dk-kpis').getBoundingClientRect()
+    return { aw: a.width, ah: a.height, th: t.height, kr: k.right, vw: innerWidth } })
+  // cỡ chữ thật trên màn = cỡ mẫu × z: tiêu đề 28 px -> cao ≥ 28 × z; cột trái 268 × z; nội dung kín bề ngang (không trống một nửa màn)
+  if (Math.abs(g.aw - 268 * z) > 2 || Math.abs(g.ah - h) > 2 || g.th < 28 * z || g.kr < w - 40 * z - 2) bad.push('quản trị ' + JSON.stringify(g))
+  if (!(await noHScroll(A.page))) bad.push('quản trị cuộn ngang')
+  await A.page.click('.adm-tab:has-text("Góp ý")'); await A.page.waitForSelector('.dk-fblist'); if (!(await noHScroll(A.page))) bad.push('góp ý cuộn ngang')
+  if (w === 3840) await A.page.screenshot({ path: `${OUT}/desk_big_admin_fb.png` })
+  await A.ctx.close()
+  const D = await device('bigp' + w, { width: w, height: h, init: seed })
+  await D.page.goto(BASE + '/', { waitUntil: 'networkidle' })
+  const pk = await D.page.evaluate(() => { const c = document.querySelector('.dk-cards .pick-card').getBoundingClientRect(); return { cw: c.width } })
+  if (Math.abs(pk.cw - 236 * z) > 2) bad.push('thẻ con ' + JSON.stringify(pk))
+  await D.page.click('button.pick-parent'); await gate(D.page); await D.page.waitForSelector('.dk-dash')
+  const pd = await D.page.evaluate(() => { const t = document.querySelector('.dk-tb').getBoundingClientRect(), w = document.querySelector('.dk-wrap').getBoundingClientRect(); return { tb: t.height, ww: w.width } })
+  if (Math.abs(pd.tb - 72 * z) > 2 || Math.abs(pd.ww - Math.min(1280 * z, w)) > 2) bad.push('phụ huynh ' + JSON.stringify(pd))
+  if (!(await noHScroll(D.page))) bad.push('phụ huynh cuộn ngang')
+  if (w === 3840) await D.page.screenshot({ path: `${OUT}/desk_big_parent.png` })
+  await D.page.click('.dk-tb .ds-seg button:has-text("Con")')   // vào Phụ huynh từ màn chọn người học -> "Con" về màn chọn (như cũ)
+  await D.page.click('.pick-card:has-text("An")'); await D.page.waitForSelector('.kh-cta')
+  const kf = await D.page.evaluate(() => Number(getComputedStyle(document.documentElement).getPropertyValue('--fit')))
+  const kz = Math.max(1, Math.min(3, Math.floor(Math.min(w / 900, h / 560) * 20) / 20))
+  if (kf !== kz) bad.push('màn con --fit ' + kf + ' ≠ ' + kz)
+  await D.ctx.close()
+  check(`${w}×${h}: phóng to ${z} lần (quản trị, chọn người học, phụ huynh to đúng tỉ lệ mẫu, kín màn, không cuộn ngang); màn con phóng to ${kz} lần`, bad.length === 0, bad.join(' | '))
+}
+
 check('không có lỗi trang / lỗi console', allErrs.length === 0, allErrs.join(' | '))
 await browser.close()
 const fails = Object.entries(results).filter(([, v]) => v !== 'PASS')
