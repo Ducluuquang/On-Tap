@@ -1649,14 +1649,29 @@ select.auth-in{appearance:auto;cursor:pointer}
 /* Báo cáo con tự xem: nút quay lại */
 .dk .dk-toprow .backhead h2{font-size:22px;font-weight:800}
 .dk .dk-toprow .backhead .back{width:44px;height:44px;border-radius:12px}
-/* Làm bài / trò chơi / kết quả / Vở Spelling: khung dọc giữa màn, phóng to theo --fit như trước (bù lại --dk-z của khung ngoài) */
-.dk .phone.dk-play{zoom:calc(var(--fit,1) / var(--dk-z,1));margin:0 auto}
-.dk-kidpage .dk-wrap{padding-top:24px}
-/* Vở Spelling: không phóng to (tự lo bố cục), khung rộng hơn; chiều cao vừa màn (đo --sp-top theo đơn vị đã chia --dk-z) */
-.spelling-open .dk{min-height:0}
-.spelling-open .dk-wrap{padding-bottom:14px}
-.dk .phone.dk-play.dk-spell{zoom:1;max-width:620px}
 .dk .spelling-frame{height:calc(100vh / var(--dk-z,1) - var(--sp-top,98px) - 15px)}
 .dk .chip.chip-count.on{color:var(--ink)}
-/* khung làm bài vừa chiều cao cửa sổ (trừ thanh trên + lề), tính trong đơn vị đã phóng to --fit */
-.dk .phone.dk-play > .screen{min-height:max(480px, calc((100vh - 130px * var(--dk-z,1)) / var(--fit,1)))}
+
+/* =====================================================================================================
+   LÀM BÀI + TRÒ CHƠI TRÊN MÁY TÍNH (anh báo 21/11/2026: "vào trong các trang làm bài và trò chơi thì vẫn là bản mobile")
+   Thẻ chơi rộng tối đa 1120 px giữa màn; nội dung phóng to --gz (chữ to cho trẻ); câu hỏi to; 4 đáp án xếp 2 × 2;
+   sân chơi (thả rơi, bắn bóng, Mario, sushi) rộng và cao hơn. Vở Spelling: khung rộng hết nội dung (app tự chia cột khi rộng).
+   ===================================================================================================== */
+.dk .dk-game{--gz:1.25;max-width:1120px;margin:0 auto;background:linear-gradient(180deg,#FBFDFC,#F4F9F8);border:1px solid var(--border);border-radius:24px;box-shadow:var(--shadow-sm);overflow:clip}
+.dk .dk-game > .screen{zoom:var(--gz);min-height:max(420px, calc((100vh / var(--dk-z,1) - 140px) / var(--gz)));padding:24px 34px 30px;gap:16px}
+.dk-game .backhead h2{font-size:1.3rem}
+.dk-game .question{font-size:1.7rem;line-height:1.3}
+.dk-game .opts{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.dk-game .opt{min-height:78px;display:flex;align-items:center;font-size:1.15rem;padding:16px 20px;margin:0}
+.dk-game .fb{max-width:none}
+/* sân chơi cao vừa cửa sổ: phần còn lại sau thanh trên, tiêu đề, câu hỏi (đơn vị đã chia --dk-z và --gz) */
+.dk-game{--ah:clamp(260px, calc((100vh / var(--dk-z,1) - 430px) / var(--gz,1.25)), 440px)}
+.dk-game .fall-area,.dk-game .bl-arena,.dk-game .mario-arena{height:var(--ah)}
+.dk-game .sushi-arena{height:calc(var(--ah) * .62)}
+.dk-game .qf-qwrap .qtag{display:inline-block}
+.dk-game .qf-note{font-size:.95rem}
+.dk-game .screen.center{justify-content:center}
+.dk .dk-game.dk-spell{max-width:none;background:transparent;border:0;box-shadow:none;border-radius:0}
+/* Vở Spelling (khung cao vừa màn): trang không cao hơn cửa sổ */
+.spelling-open .dk{min-height:0}
+.spelling-open .dk-wrap{padding-bottom:14px}

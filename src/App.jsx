@@ -1015,8 +1015,8 @@ export default function App() {
   // Đợt 2 (21/11/2026): màn của CON trên màn rộng cũng dùng khung bản máy tính (cùng thanh trên với khu Phụ huynh):
   //  - rộng: trang báo cáo phụ huynh, trang chủ của con, Bắt đầu ôn, báo cáo con tự xem (bố cục máy tính riêng);
   //  - thẻ giữa ≤ 760 px: Cài đặt, Góp ý, Thêm bài học (chụp / gõ), Duyệt nội dung đọc được;
-  //  - khung dọc giữa màn (.phone.dk-play, phóng to như cũ theo --fit): làm bài, trò chơi, kết quả, Vở Spelling — các màn này
-  //    vẽ theo chiều dọc như máy chơi game, giữ đúng cách chơi đã thử kỹ.
+  //  - thẻ chơi rộng (.dk-game, 21/11/2026 anh báo "vào trong làm bài, trò chơi vẫn là bản mobile"): làm bài, trò chơi, kết quả —
+  //    câu hỏi to, đáp án 2 × 2, sân chơi rộng; Vở Spelling khung rộng hết nội dung (app tự chia cột khi rộng).
   const deskParent = desk
   const NARROW = ['settings', 'feedback', 'capture', 'approve']
   const PLAY = ['spelling', 'review', 'typed', 'falling', 'quickfire', 'boss', 'balloon', 'sushi', 'mario', 'finderror', 'result']
@@ -1048,7 +1048,7 @@ export default function App() {
         ) : <>{segBtns}{actBtns}</>}
       </div>
       <div className={deskParent ? 'dk-wrap' : 'phone'}>
-        <div className={kind === 'narrow' ? 'dk-card dk-narrow' : kind === 'play' ? 'phone dk-play' + (view === 'spelling' ? ' dk-spell' : '') : 'scr-wrap'}>{screen}</div>
+        <div className={kind === 'narrow' ? 'dk-card dk-narrow' : kind === 'play' ? 'dk-game' + (view === 'spelling' ? ' dk-spell' : '') : 'scr-wrap'}>{screen}</div>
         {desk ? null : gateModal}
       </div>
       {gatePortal}

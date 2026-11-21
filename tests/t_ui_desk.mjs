@@ -476,14 +476,18 @@ for (const [w, h] of [[1440, 900], [1024, 768], [1920, 1080], [2880, 1800], [390
     return { heroR: a.right, selfL: b.left, top: Math.abs(a.top - b.top), sj: new Set([...document.querySelectorAll('.cr-self .sj-tile')].map((e) => Math.round(e.getBoundingClientRect().top))).size, start: !!document.querySelector('.dk-cr-right .cr-sticky-cta') } })
   if (!(cr.selfL > cr.heroR && cr.sj === 1 && cr.start)) bad.push('Bắt đầu ôn ' + JSON.stringify(cr))
   await hs('Bắt đầu ôn'); if (w === 1440) await shot(p, 'kid_custom')
-  // làm bài: khung dọc giữa màn, phóng to theo --fit
+  // làm bài (anh báo 21/11/2026: trong bài vẫn là bản mobile): thẻ chơi rộng giữa màn, câu hỏi to, 4 đáp án xếp 2 × 2
   await p.click('.cr-self .sj-tile:has-text("Toán")'); await p.click('.cr-sticky-cta')
-  await p.waitForSelector('.dk-play .opt', { timeout: 20000 })
-  const pl = await p.evaluate(() => { const r = document.querySelector('.dk-play').getBoundingClientRect(), d = document.scrollingElement; return { l: r.left, r: d.clientWidth - r.right, w: r.width, fit: Number(getComputedStyle(document.documentElement).getPropertyValue('--fit')), seg: !!document.querySelector('.dk-tb .ds-seg') } })
-  if (!(Math.abs(pl.l - pl.r) <= 2 && Math.abs(pl.w - 430 * pl.fit) <= 3 && pl.seg)) bad.push('làm bài ' + JSON.stringify(pl))
-  await p.locator('.dk-play .opt').first().click(); await sleep(300)
+  await p.waitForSelector('.dk-game .opt', { timeout: 20000 })
+  const pl = await p.evaluate(() => {
+    const r = document.querySelector('.dk-game').getBoundingClientRect(), d = document.scrollingElement
+    const o = [...document.querySelectorAll('.dk-game .opt')].map((e) => { const b = e.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.top), Math.round(b.width)] })
+    return { l: r.left, r: d.clientWidth - r.right, w: r.width, phone: !!document.querySelector('.phone'), opts: o, qfs: parseFloat(getComputedStyle(document.querySelector('.dk-game .question')).fontSize), seg: !!document.querySelector('.dk-tb .ds-seg') } })
+  const cols = new Set(pl.opts.map((o) => o[0])).size, rows = new Set(pl.opts.map((o) => o[1])).size
+  if (!(Math.abs(pl.l - pl.r) <= 2 && pl.w >= Math.min(1000 * z, w - 60) && !pl.phone && cols === 2 && rows === 2 && pl.seg)) bad.push('làm bài ' + JSON.stringify(pl))
+  await p.locator('.dk-game .opt').first().click(); await sleep(300)
   await hs('làm bài'); if (w === 1440) await shot(p, 'kid_review')
-  await p.click('.dk-play .back'); await p.waitForSelector('.dk-kh')
+  await p.click('.dk-game .back'); await p.waitForSelector('.dk-kh')
   // báo cáo con tự xem
   await p.click('.kh-tile.tone-purple'); await p.waitForSelector('.dk-dash')
   const rp = await p.evaluate(() => ({ h1: document.querySelector('.dk-hello h1').textContent, kids: document.querySelectorAll('.dk-kidnav').length, acts: document.querySelectorAll('.dk-acts button').length, today: document.querySelector('.dk-kpi[data-k=today] .v').textContent }))
@@ -500,9 +504,34 @@ for (const [w, h] of [[1440, 900], [1024, 768], [1920, 1080], [2880, 1800], [390
   await p.click('.kh-cta'); await p.locator('.cr-self .sj-tile:has-text("Tiếng Anh")').click(); await p.click('.cr-vocab')
   await p.waitForSelector('iframe.spelling-frame'); await sleep(1200)
   const sp = await p.evaluate(() => { const r = document.querySelector('iframe.spelling-frame').getBoundingClientRect(); return { b: r.bottom, w: r.width, vh: innerHeight, sh: document.scrollingElement.scrollHeight } })
-  if (!(Math.abs(sp.b - (sp.vh - 15 * z)) <= 4 && sp.sh <= sp.vh + 2 && sp.w <= 620 * z + 2)) bad.push('Vở Spelling ' + JSON.stringify(sp))
+  if (!(Math.abs(sp.b - (sp.vh - 15 * z)) <= 4 && sp.sh <= sp.vh + 2 && sp.w >= Math.min(1100 * z, w - 60))) bad.push('Vở Spelling ' + JSON.stringify(sp))   // khung rộng: app tự chia cột
   await hs('Vở Spelling'); if (w === 1440) await shot(p, 'kid_spelling')
-  check(`${w}×${h}: màn của con bản máy tính (phóng to ${z} lần) — trang chủ lưới rộng, Bắt đầu ôn hai cột, làm bài khung giữa, báo cáo, Thêm bài học, Góp ý, Vở Spelling vừa màn; không cuộn ngang`, bad.length === 0, bad.join(' | '))
+  check(`${w}×${h}: màn của con bản máy tính (phóng to ${z} lần) — trang chủ lưới rộng, Bắt đầu ôn hai cột, làm bài thẻ rộng (đáp án 2 × 2), báo cáo, Thêm bài học, Góp ý, Vở Spelling rộng + vừa màn; không cuộn ngang`, bad.length === 0, bad.join(' | '))
+  await D.ctx.close()
+}
+
+// 6 trò chơi + tự điền: thẻ chơi rộng; sân chơi (thả rơi, bắn bóng, Mario) nằm trọn trong cửa sổ cùng câu hỏi
+for (const [w, h] of [[1440, 900], [1280, 800], [1920, 1080]]) {
+  const bad = []
+  const D = await device('game' + w, { width: w, height: h, init: seed })
+  const p = D.page
+  await p.route('**/api/ai', AIQ)
+  await p.goto(BASE + '/', { waitUntil: 'networkidle' }); await p.click('.pick-card:has-text("An")'); await p.waitForSelector('.kh-cta')
+  for (const [g, sel] of [['Thả rơi', '.fall-area'], ['Bắn bóng', '.bl-arena'], ['Xếp sushi', '.sushi-arena'], ['Boss Battle', '.boss-stage'], ['Quick Fire', '.dk-game .opts'], ['Mario nhảy', '.mario-arena'], ['Điền đáp án', '.dk-game input']]) {
+    await p.click('.dk-tb .ds-seg button:has-text("Con")').catch(() => {})
+    if (!(await p.locator('.kh-cta').count())) { await p.goto(BASE + '/', { waitUntil: 'networkidle' }); if (await p.locator('.pick-card').count()) await p.click('.pick-card:has-text("An")') }
+    await p.waitForSelector('.kh-cta'); await p.click('.kh-cta'); await p.click('.cr-self .sj-tile:has-text("Toán")')
+    await p.click('.cr-adv-toggle'); await p.click(`.cr-adv-body .chip:has-text("${g}")`); await p.click('.cr-sticky-cta')
+    try { await p.waitForSelector('.dk-game ' + sel.replace('.dk-game ', ''), { timeout: 20000 }) } catch { bad.push(g + ': không mở được'); continue }
+    await sleep(500)
+    const r = await p.evaluate((sel) => { const g = document.querySelector('.dk-game').getBoundingClientRect(), a = document.querySelector(sel).getBoundingClientRect(), q = document.querySelector('.dk-game .question')?.getBoundingClientRect()
+      return { gw: g.width, gl: g.left, gr: document.scrollingElement.clientWidth - g.right, ab: a.bottom, aw: a.width, qt: q ? q.top : 0, vh: innerHeight, hs: document.scrollingElement.scrollWidth > document.scrollingElement.clientWidth + 1, phone: !!document.querySelector('.phone') } }, sel)
+    const fits = ['.fall-area', '.bl-arena', '.mario-arena'].includes(sel) ? r.ab <= r.vh + 1 : true
+    if (!(Math.abs(r.gl - r.gr) <= 2 && r.gw >= 900 && !r.hs && !r.phone && fits && r.aw >= 600)) bad.push(g + ' ' + JSON.stringify(r))
+    if (w === 1440) await shot(p, 'kid_game_' + g.split(' ')[0].normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace('đ', 'd').toLowerCase())
+    await p.click('.dk-game .back')
+  }
+  check(`${w}×${h}: 6 trò chơi + tự điền trong thẻ chơi rộng giữa màn (không còn khung điện thoại), sân chơi nằm trọn trong cửa sổ, không cuộn ngang`, bad.length === 0, bad.join(' | '))
   await D.ctx.close()
 }
 
