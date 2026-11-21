@@ -72,7 +72,8 @@ function TopicPicker({ label, items, onPick }) {
   )
 }
 
-export default function CustomReview({ mem, onStart, onBack, allowChoice = true, onVocab, initialSubject = null, grade = '' }) {
+// desk: bản máy tính (đợt 2, 21/11/2026, màn ≥ 1024 px) — hai cột: trái Cách 1 (gợi ý, dính khi cuộn), phải Cách 2 (3 bước) + thanh "Bắt đầu".
+export default function CustomReview({ mem, onStart, onBack, allowChoice = true, onVocab, initialSubject = null, grade = '', desk = false }) {
   const subjectList = subjectsWithTone(mem, grade)
   const ofSubject = (name) => (mem || []).filter((c) => subjectDisplayName(c.subject) === name)
   // Môn mặc định: môn được chọn sẵn (vd chạm vào môn ở trang chủ); không có thì GỢI Ý môn đang cần ôn nhiều nhất.
@@ -169,10 +170,8 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true,
     ? `Thử thách Master${text.trim() ? `: ${text.trim()}` : ''}`
     : text.trim() ? describeSelection({ time, level, text }) : lvLabel + timeLabel
 
-  return (
-    <div className="screen cr">
-      <BackHeader title="Bắt đầu ôn" onBack={onBack} />
-
+  const way1 = (
+    <>
       {/* ===== CÁCH 1 — nhanh nhất: ôn theo gợi ý ===== */}
       <div className="cr-way"><b>Cách 1</b><span>Nhanh nhất: ôn theo gợi ý</span></div>
       <div className="cr-hero">
@@ -180,7 +179,7 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true,
         {memSub.length === 0 ? (
           <>
             <div className="cr-hero-big">Chưa có bài học môn {subject}</div>
-            <p className="cr-hero-sub">Về trang chính bấm “Thêm bài học”, hoặc chọn môn khác ở Cách 2 bên dưới.</p>
+            <p className="cr-hero-sub">Về trang chính bấm “Thêm bài học”, hoặc chọn môn khác ở Cách 2 {desk ? 'bên phải' : 'bên dưới'}.</p>
           </>
         ) : (
           <>
@@ -203,8 +202,10 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true,
         )}
       </div>
 
-      <div className="cr-or">hoặc</div>
-
+    </>
+  )
+  const way2 = (
+    <>
       {/* ===== CÁCH 2 — tự chọn bài ôn: 3 bước ===== */}
       <div className="cr-way alt"><b>Cách 2</b><span>Tự chọn bài ôn</span></div>
       <section className="cr-self">
@@ -339,6 +340,10 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true,
         </div>
       </section>
 
+    </>
+  )
+  const sticky = (
+    <>
       {/* ===== Thanh "BẮT ĐẦU" luôn hiển thị, tóm tắt đúng lựa chọn. Ôn Tập (02/11/2026): dính đáy KHI CUỘN,
           nhưng hết nội dung thì nằm NGAY SAU phần chọn (trước đây dính mép dưới cửa sổ, cách xa, khó thấy) ===== */}
       <div className="cr-sticky">
@@ -349,6 +354,26 @@ export default function CustomReview({ mem, onStart, onBack, allowChoice = true,
         </div>
         <button className="cr-sticky-cta" onClick={start} disabled={!canStart}>Bắt đầu →</button>
       </div>
+    </>
+  )
+  if (desk) {
+    return (
+      <div className="screen cr dk-cr">
+        <BackHeader title="Bắt đầu ôn" onBack={onBack} />
+        <div className="dk-cr-grid">
+          <aside className="dk-cr-left">{way1}</aside>
+          <div className="dk-cr-right">{way2}{sticky}</div>
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div className="screen cr">
+      <BackHeader title="Bắt đầu ôn" onBack={onBack} />
+      {way1}
+      <div className="cr-or">hoặc</div>
+      {way2}
+      {sticky}
     </div>
   )
 }

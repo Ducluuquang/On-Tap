@@ -9,8 +9,9 @@ bài học đã ghi để không xử lý sai một lỗi đã gặp. Cập nh�
 - Một tài khoản = một phụ huynh (đăng nhập bằng số điện thoại hoặc email + mật khẩu 8 số), có 1–5 con theo gói. Mỗi con có PIN riêng.
 - Thanh trên cùng: "Con | Phụ huynh", "Đổi người học", "Đăng xuất". Vào khu Phụ huynh cần PIN phụ huynh (1 chữ số).
 - Bản máy tính (màn rộng từ 1024 px: máy tính, iPad nằm ngang): mở app là thấy NGAY ô đăng nhập (bên trái là bảng giới thiệu Ôn Tập),
-  bên dưới có nút "Đăng ký tài khoản phụ huynh". Chọn người học, khu Phụ huynh, trang quản trị có bố cục rộng; màn của con trên máy tính
-  vẫn là cột điện thoại phóng to. Điện thoại / iPad dọc giữ giao diện cũ (màn đầu có 2 nút Đăng nhập / Đăng ký).
+  bên dưới có nút "Đăng ký tài khoản phụ huynh". Chọn người học, khu Phụ huynh, trang quản trị và màn của con (trang chủ, Bắt đầu ôn,
+  báo cáo) có bố cục rộng; khi làm bài / chơi trò chơi, màn chơi là khung dọc ở giữa màn hình. Màn lớn (2K / 4K) tự phóng to chữ.
+  Điện thoại / iPad dọc giữ giao diện cũ (màn đầu có 2 nút Đăng nhập / Đăng ký).
 
 ## Học sinh (vai Con)
 - Trang chủ: việc chính hôm nay (mục tiêu phút / ngày, nút "Bắt đầu ôn"), chuỗi ngày + quà (ngày thứ 7 nhận quà), Việc khác

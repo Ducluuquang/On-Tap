@@ -124,7 +124,8 @@ function DeskChart({ stats, days, sel, onSel }) {
 
 // viewer = 'parent' (đầy đủ: sửa môn, vào cài đặt) | 'child' (học sinh CHỈ XEM báo cáo của mình).
 // kids + onViewChild: hàng icon các con ở tab Phụ huynh — bấm icon để xem báo cáo của con đó.
-// desk: bản máy tính (≥ 1024 px, mẫu d 19/11/2026) — chỉ cho phụ huynh; học sinh tự xem vẫn là cột điện thoại.
+// desk: bản máy tính (≥ 1024 px, mẫu d 19/11/2026); từ đợt 2 (21/11/2026) học sinh tự xem báo cáo cũng dùng bố cục này
+// (không có hàng chọn con, nút Cài đặt / Góp ý; có nút quay về trang chủ).
 export default function ParentDashboard({ mem, stats, child, kids = [], onViewChild, viewer = 'parent', desk = false, onBack, onSettings, onFeedback, toast }) {
   const [fbUnread, setFbUnread] = useState(0)   // góp ý có câu trả lời mới (chấm đỏ)
   useEffect(() => { if (onFeedback) fetchUnread(viewerOf('parent')).then(setFbUnread).catch(() => {}) }, [!!onFeedback]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -133,7 +134,7 @@ export default function ParentDashboard({ mem, stats, child, kids = [], onViewCh
   const R = useReport(mem, stats)
   const { subjectNames, activeSubj, setSubjView, groups, total, todayM, streak, goalToday, selDay, setSelDay, report } = R
 
-  if (desk && !isKid) return deskView()
+  if (desk) return deskView()
 
   return (
     <div className="screen">
@@ -273,6 +274,9 @@ export default function ParentDashboard({ mem, stats, child, kids = [], onViewCh
     return (
       <div className="dk-dash">
         {toast && <div className="toast">{toast}</div>}
+        {isKid ? (
+          <div className="dk-toprow"><BackHeader title="Báo cáo học tập" onBack={onBack} /></div>
+        ) : (
         <div className="dk-toprow">
           <nav className="dk-kidnav" aria-label="Chọn con để xem báo cáo">
             {kids.map((k) => (
@@ -288,10 +292,11 @@ export default function ParentDashboard({ mem, stats, child, kids = [], onViewCh
             {onFeedback && <button className="cta ghost dk-sm pd-fb" onClick={onFeedback}>💬 Góp ý / báo lỗi cho Ôn Tập{fbUnread ? <i className="dot" aria-label="có trả lời mới" /> : null}</button>}
           </div>
         </div>
+        )}
 
         <section className="dk-hello">
-          <h1>Hôm nay của {childName}</h1>
-          <p>Mở 10 giây là biết con học thế nào.</p>
+          <h1>{isKid ? `Kết quả học của ${childName}` : `Hôm nay của ${childName}`}</h1>
+          <p>{isKid ? 'Xem lại mình đã học thế nào nhé! 💪' : 'Mở 10 giây là biết con học thế nào.'}</p>
         </section>
 
         <section className="dk-kpis" data-testid="pd-kpis">

@@ -1618,3 +1618,45 @@ select.auth-in{appearance:auto;cursor:pointer}
 .dk-libtable th:nth-child(1){width:70px} .dk-libtable th:nth-child(3){width:70px} .dk-libtable th:nth-child(4){width:130px}
 .dk-libtable th:nth-child(5){width:110px} .dk-libtable th:nth-child(6){width:270px}
 .dk-libtable td:nth-child(2){min-width:180px} .dk-libtable td:nth-child(4){white-space:nowrap}
+
+/* =====================================================================================================
+   BẢN MÁY TÍNH ĐỢT 2 (21/11/2026, anh: "Em làm cho học sinh luôn đi") — màn của CON trên màn ≥ 1024 px dùng khung bản máy tính
+   (thanh trên giống khu Phụ huynh). Các ô / chữ của màn con vốn vẽ cho điện thoại (đơn vị rem) -> trên máy tính phóng to từng khối
+   bằng --kz để chữ to, dễ đọc cho trẻ, và xếp thành lưới rộng.
+   ===================================================================================================== */
+/* Trang chủ của con */
+.dk .dk-kh{--kz:1.3;min-height:0;padding:0;gap:22px;display:flex;flex-direction:column}
+.dk-kh .kh-greet,.dk-kh .kh-zone,.dk-kh .kh-today,.dk-kh .kh-reward,.dk-kh .kh-two,.dk-kh .kh-fb,.dk-kh .sj-grid,.dk-kh .kh-note,.dk-kh-kid{zoom:var(--kz)}
+.dk-kh-hi{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}
+.dk-kh-hi .kh-greet{flex:1;min-width:0}
+.dk-kh-kid{max-width:none;flex:none}
+.dk-kh-grid{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:22px;align-items:start}
+.dk-kh-main,.dk-kh-side{display:flex;flex-direction:column;gap:16px;min-width:0}
+.dk-kh .kh-today{padding-top:22px;padding-bottom:22px}
+.dk-kh .kh-zone{margin:0 2px -4px}
+.dk-kh .sj-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.dk-kh .kh-note{text-align:left}
+/* Bắt đầu ôn */
+.dk .dk-cr{--kz:1.2;min-height:0;padding:0;gap:18px;display:flex;flex-direction:column}
+.dk-cr > .backhead,.dk-cr .cr-way,.dk-cr .cr-hero,.dk-cr .cr-self,.dk-cr .cr-sticky{zoom:var(--kz)}
+.dk-cr-grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:24px;align-items:start}
+.dk-cr-left{display:flex;flex-direction:column;gap:14px;position:sticky;top:20px;min-width:0}
+.dk-cr-right{display:flex;flex-direction:column;gap:14px;min-width:0}
+.dk-cr .sj-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.dk-cr .cr-lv{grid-template-columns:repeat(3,minmax(0,1fr))}
+.dk-cr .cr-lvc.master{grid-column:span 2}
+.dk-cr .cr-sticky{margin:0;border:1px solid var(--border);border-radius:16px;bottom:12px}
+/* Báo cáo con tự xem: nút quay lại */
+.dk .dk-toprow .backhead h2{font-size:22px;font-weight:800}
+.dk .dk-toprow .backhead .back{width:44px;height:44px;border-radius:12px}
+/* Làm bài / trò chơi / kết quả / Vở Spelling: khung dọc giữa màn, phóng to theo --fit như trước (bù lại --dk-z của khung ngoài) */
+.dk .phone.dk-play{zoom:calc(var(--fit,1) / var(--dk-z,1));margin:0 auto}
+.dk-kidpage .dk-wrap{padding-top:24px}
+/* Vở Spelling: không phóng to (tự lo bố cục), khung rộng hơn; chiều cao vừa màn (đo --sp-top theo đơn vị đã chia --dk-z) */
+.spelling-open .dk{min-height:0}
+.spelling-open .dk-wrap{padding-bottom:14px}
+.dk .phone.dk-play.dk-spell{zoom:1;max-width:620px}
+.dk .spelling-frame{height:calc(100vh / var(--dk-z,1) - var(--sp-top,98px) - 15px)}
+.dk .chip.chip-count.on{color:var(--ink)}
+/* khung làm bài vừa chiều cao cửa sổ (trừ thanh trên + lề), tính trong đơn vị đã phóng to --fit */
+.dk .phone.dk-play > .screen{min-height:max(480px, calc((100vh - 130px * var(--dk-z,1)) / var(--fit,1)))}

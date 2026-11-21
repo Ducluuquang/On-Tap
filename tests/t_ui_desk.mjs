@@ -1,5 +1,6 @@
 // BẢN MÁY TÍNH, ĐỢT 1 (anh duyệt 7 ảnh mẫu 19/11/2026) — màn ≥ 1024 px: Đăng nhập / Đăng ký / Thanh toán / Quên mật khẩu,
-// Chọn người học, khu Phụ huynh (báo cáo, Cài đặt, Góp ý) và trang quản trị /quan-tri. Màn của con giữ cột phóng to (--fit),
+// Chọn người học, khu Phụ huynh (báo cáo, Cài đặt, Góp ý) và trang quản trị /quan-tri. Đợt 2 (21/11/2026): màn của CON cũng dùng khung
+// bản máy tính (phần 8); làm bài / trò chơi là khung dọc giữa màn phóng to theo --fit,
 // màn < 1024 px giữ nguyên. AI giả, thư giả (MAIL_MOCK_FILE), phông thật.
 //  1  Đăng nhập: bảng thương hiệu + ô đăng nhập NGAY; ô trống -> báo lỗi, không gọi máy chủ; Enter đăng nhập; Quên mật khẩu (gửi mã);
 //     kéo cửa sổ qua lại mốc 1024 px không mất chữ đang gõ; 390 px vẫn màn đầu cũ (2 nút).
@@ -136,8 +137,7 @@ console.log('— 1. Đăng nhập (màn rộng)')
   const pinBox = await rect(D.page, '.pick-pinbox')
   await D.page.fill('.pick-pinbox input', '7'); await D.page.click('.pick-pinbox button.cta')
   await D.page.waitForSelector('.kh-cta', { timeout: 10000 })
-  const fit = await D.page.evaluate(() => Number(getComputedStyle(document.documentElement).getPropertyValue('--fit')))
-  check('bấm thẻ An -> nhập PIN (thẻ ≤ 460 px giữa màn) -> vào học; màn của con vẫn là cột phóng to (--fit > 1)', pinBox.w <= 460.5 && Math.abs(pinBox.l + pinBox.w / 2 - 720) <= 2 && fit > 1 && (await D.page.locator('.stage .phone').count()) === 1, JSON.stringify({ pinBox, fit }))
+  check('bấm thẻ An -> nhập PIN (thẻ ≤ 460 px giữa màn) -> vào học: trang chủ của con bản máy tính (thanh trên bản máy tính, không còn cột điện thoại)', pinBox.w <= 460.5 && Math.abs(pinBox.l + pinBox.w / 2 - 720) <= 2 && (await D.page.locator('.dk-tb .ds-seg').count()) === 1 && (await D.page.locator('.dk-kh').count()) === 1 && (await D.page.locator('.stage').count()) === 0, JSON.stringify({ pinBox }))
   await D.ctx.close()
 }
 { // 390 px: màn đầu cũ
@@ -270,8 +270,7 @@ const gate = async (p) => { await p.waitForSelector('.modal input.pin-in', { tim
   // "Con" -> về cột phóng to
   await D.page.click('.dk-tb .ds-seg button:has-text("Con")')
   await D.page.waitForSelector('.kh-cta', { timeout: 10000 })
-  const fit = await D.page.evaluate(() => Number(getComputedStyle(document.documentElement).getPropertyValue('--fit')))
-  check('bấm "Con" -> về màn của con như cũ (cột phóng to, --fit > 1)', fit > 1 && (await D.page.locator('.stage .phone').count()) === 1 && (await D.page.locator('.dk-tb').count()) === 0, String(fit))
+  check('bấm "Con" -> về trang chủ của con (bản máy tính, ô "Con" sáng)', (await D.page.locator('.dk-kh').count()) === 1 && /Con/.test(await D.page.locator('.dk-tb .ds-seg button.on').innerText()))
   await D.ctx.close()
 }
 
@@ -439,11 +438,72 @@ for (const [w, h] of [[2880, 1800], [3840, 2160], [2560, 1440]]) {
   if (w === 3840) await D.page.screenshot({ path: `${OUT}/desk_big_parent.png` })
   await D.page.click('.dk-tb .ds-seg button:has-text("Con")')   // vào Phụ huynh từ màn chọn người học -> "Con" về màn chọn (như cũ)
   await D.page.click('.pick-card:has-text("An")'); await D.page.waitForSelector('.kh-cta')
-  const kf = await D.page.evaluate(() => Number(getComputedStyle(document.documentElement).getPropertyValue('--fit')))
-  const kz = Math.max(1, Math.min(3, Math.floor(Math.min(w / 900, h / 560) * 20) / 20))
-  if (kf !== kz) bad.push('màn con --fit ' + kf + ' ≠ ' + kz)
+  const kf = await D.page.evaluate(() => ({ zoom: Number(getComputedStyle(document.querySelector('.dk')).zoom), cta: document.querySelector('.kh-cta').getBoundingClientRect().height }))
+  const kz = z   // màn của con (đợt 2): cùng khung bản máy tính, phóng to theo --dk-z
+  if (kf.zoom !== z || kf.cta < 50 * z) bad.push('màn con ' + JSON.stringify(kf))
   await D.ctx.close()
-  check(`${w}×${h}: phóng to ${z} lần (quản trị, chọn người học, phụ huynh to đúng tỉ lệ mẫu, kín màn, không cuộn ngang); màn con phóng to ${kz} lần`, bad.length === 0, bad.join(' | '))
+  check(`${w}×${h}: phóng to ${z} lần (quản trị, chọn người học, phụ huynh to đúng tỉ lệ mẫu, kín màn, không cuộn ngang); màn con cũng phóng to ${kz} lần`, bad.length === 0, bad.join(' | '))
+}
+
+/* ======== 8. Màn của con (bản máy tính đợt 2, 21/11/2026) ======== */
+console.log('— 8. Màn của con trên máy tính')
+const AIQ = (r) => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ questions: Array.from({ length: 13 }, (_, i) => ({ q: `Câu ${i + 1}: ${i + 2} + ${i + 3} = ?`, options: [String(2 * i + 5), String(2 * i + 6), String(2 * i + 7), String(2 * i + 8)], answer: 0, explain: 'Cộng hai số.', concept: 'Góc ở vị trí đặc biệt' })) }) })
+for (const [w, h] of [[1440, 900], [1024, 768], [1920, 1080], [2880, 1800], [390, 844]]) {
+  const bad = []
+  const D = await device('kid' + w, { width: w, height: h, init: seed })
+  const p = D.page
+  await p.route('**/api/ai', AIQ)
+  const hs = async (n) => { await sleep(250); if (!(await noHScroll(p))) bad.push(n + ' cuộn ngang') }
+  await p.goto(BASE + '/', { waitUntil: 'networkidle' })
+  await p.click('.pick-card:has-text("An")'); await p.waitForSelector('.kh-cta')
+  if (w < 1024) {
+    const m = await p.evaluate(() => ({ dk: !!document.querySelector('.dk'), phone: !!document.querySelector('.stage .phone'), bar: !!document.querySelector('.demoswitch .ds-seg') }))
+    check('390 px: màn của con giữ nguyên (cột điện thoại, thanh trên cũ)', !m.dk && m.phone && m.bar, JSON.stringify(m))
+    await D.ctx.close(); continue
+  }
+  const z = Math.max(1, Math.min(3, Math.floor(Math.min(w / 1440, h / 900) * 20) / 20))
+  // trang chủ
+  const home = await p.evaluate(() => {
+    const R = (s) => { const e = document.querySelector(s); const r = e.getBoundingClientRect(); return { l: Math.round(r.left), t: Math.round(r.top), r: Math.round(r.right), h: Math.round(r.height) } }
+    const tiles = [...document.querySelectorAll('.dk-kh .sj-grid .sj-tile')].map((e) => Math.round(e.getBoundingClientRect().top))
+    return { today: R('.kh-today'), reward: R('.kh-reward'), cta: R('.kh-cta'), tiles, goal: document.querySelector('.kh-goal em').textContent, wait: document.querySelector('.kh-sub').textContent, bar: !!document.querySelector('.dk-tb .ds-seg') }
+  })
+  if (!(home.bar && home.reward.l > home.today.r && Math.abs(home.reward.t - home.today.t) < 90 * z && home.tiles.length === 3 && new Set(home.tiles).size === 1 && home.cta.h >= 60 * z && home.goal === '9 / 20 phút' && /Có 4 chủ đề/.test(home.wait))) bad.push('trang chủ ' + JSON.stringify(home))
+  await hs('trang chủ'); if (w === 1440) await shot(p, 'kid_home')
+  // Bắt đầu ôn: hai cột
+  await p.click('.kh-cta'); await p.waitForSelector('.dk-cr')
+  const cr = await p.evaluate(() => { const a = document.querySelector('.dk-cr-left .cr-hero').getBoundingClientRect(), b = document.querySelector('.dk-cr-right .cr-self').getBoundingClientRect()
+    return { heroR: a.right, selfL: b.left, top: Math.abs(a.top - b.top), sj: new Set([...document.querySelectorAll('.cr-self .sj-tile')].map((e) => Math.round(e.getBoundingClientRect().top))).size, start: !!document.querySelector('.dk-cr-right .cr-sticky-cta') } })
+  if (!(cr.selfL > cr.heroR && cr.sj === 1 && cr.start)) bad.push('Bắt đầu ôn ' + JSON.stringify(cr))
+  await hs('Bắt đầu ôn'); if (w === 1440) await shot(p, 'kid_custom')
+  // làm bài: khung dọc giữa màn, phóng to theo --fit
+  await p.click('.cr-self .sj-tile:has-text("Toán")'); await p.click('.cr-sticky-cta')
+  await p.waitForSelector('.dk-play .opt', { timeout: 20000 })
+  const pl = await p.evaluate(() => { const r = document.querySelector('.dk-play').getBoundingClientRect(), d = document.scrollingElement; return { l: r.left, r: d.clientWidth - r.right, w: r.width, fit: Number(getComputedStyle(document.documentElement).getPropertyValue('--fit')), seg: !!document.querySelector('.dk-tb .ds-seg') } })
+  if (!(Math.abs(pl.l - pl.r) <= 2 && Math.abs(pl.w - 430 * pl.fit) <= 3 && pl.seg)) bad.push('làm bài ' + JSON.stringify(pl))
+  await p.locator('.dk-play .opt').first().click(); await sleep(300)
+  await hs('làm bài'); if (w === 1440) await shot(p, 'kid_review')
+  await p.click('.dk-play .back'); await p.waitForSelector('.dk-kh')
+  // báo cáo con tự xem
+  await p.click('.kh-tile.tone-purple'); await p.waitForSelector('.dk-dash')
+  const rp = await p.evaluate(() => ({ h1: document.querySelector('.dk-hello h1').textContent, kids: document.querySelectorAll('.dk-kidnav').length, acts: document.querySelectorAll('.dk-acts button').length, today: document.querySelector('.dk-kpi[data-k=today] .v').textContent }))
+  if (!(rp.h1 === 'Kết quả học của An' && rp.kids === 0 && rp.acts === 0 && /^9 \/ 20 phút/.test(rp.today))) bad.push('báo cáo ' + JSON.stringify(rp))
+  await hs('báo cáo'); if (w === 1440) await shot(p, 'kid_report')
+  await p.click('.dk-toprow .back'); await p.waitForSelector('.dk-kh')
+  // Thêm bài học + Góp ý: thẻ giữa
+  await p.click('.kh-tile.tone-blue'); await p.waitForSelector('.dk-narrow .backhead')
+  if (!/Thêm bài học/.test(await p.locator('.dk-narrow').innerText())) bad.push('thêm bài học')
+  await hs('thêm bài học'); await p.click('.dk-narrow .back'); await p.waitForSelector('.dk-kh')
+  await p.click('.kh-fb'); await p.waitForSelector('.dk-narrow [data-testid=feedback]'); await hs('góp ý')
+  await p.click('.dk-narrow .back'); await p.waitForSelector('.dk-kh')
+  // Vở Spelling: khung cao vừa màn
+  await p.click('.kh-cta'); await p.locator('.cr-self .sj-tile:has-text("Tiếng Anh")').click(); await p.click('.cr-vocab')
+  await p.waitForSelector('iframe.spelling-frame'); await sleep(1200)
+  const sp = await p.evaluate(() => { const r = document.querySelector('iframe.spelling-frame').getBoundingClientRect(); return { b: r.bottom, w: r.width, vh: innerHeight, sh: document.scrollingElement.scrollHeight } })
+  if (!(Math.abs(sp.b - (sp.vh - 15 * z)) <= 4 && sp.sh <= sp.vh + 2 && sp.w <= 620 * z + 2)) bad.push('Vở Spelling ' + JSON.stringify(sp))
+  await hs('Vở Spelling'); if (w === 1440) await shot(p, 'kid_spelling')
+  check(`${w}×${h}: màn của con bản máy tính (phóng to ${z} lần) — trang chủ lưới rộng, Bắt đầu ôn hai cột, làm bài khung giữa, báo cáo, Thêm bài học, Góp ý, Vở Spelling vừa màn; không cuộn ngang`, bad.length === 0, bad.join(' | '))
+  await D.ctx.close()
 }
 
 check('không có lỗi trang / lỗi console', allErrs.length === 0, allErrs.join(' | '))

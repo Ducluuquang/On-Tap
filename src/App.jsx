@@ -962,7 +962,7 @@ export default function App() {
       onBack={() => { if (role === 'child') setParentUnlocked(false); setView(homeView) }} />
   } else if (role === 'child') {
     if (view === 'custom') {
-      screen = <CustomReview mem={mem} grade={activeChild?.grade || ''} allowChoice={settings.allowChoice} initialSubject={crSubject} onStart={startReview} onBack={() => setView('home')}
+      screen = <CustomReview desk={desk} mem={mem} grade={activeChild?.grade || ''} allowChoice={settings.allowChoice} initialSubject={crSubject} onStart={startReview} onBack={() => setView('home')}
         onVocab={openSpelling} />
     } else if (view === 'spelling') {
       screen = <SpellingApp key={activeChild.id} child={activeChild} onExit={() => setView('custom')} onSession={recordSpelling} />
@@ -992,9 +992,9 @@ export default function App() {
       screen = <Result session={session} onHome={() => setView('home')} onReport={() => setView('report')} />
     } else if (view === 'report') {
       // Học sinh XEM báo cáo học tập của mình (chỉ xem — không sửa môn, không vào cài đặt, không cần mật khẩu).
-      screen = <ParentDashboard mem={mem} stats={stats} child={activeChild} viewer="child" onBack={() => setView('home')} toast={toast} />
+      screen = <ParentDashboard desk={desk} mem={mem} stats={stats} child={activeChild} viewer="child" onBack={() => setView('home')} toast={toast} />
     } else {
-      screen = <ChildHome mem={mem} stats={stats} child={activeChild}
+      screen = <ChildHome desk={desk} mem={mem} stats={stats} child={activeChild}
         slogan={settings.slogan || ''}
         onSetSlogan={(s) => commitSettings((x) => ({ ...x, slogan: s }))}
         onReview={() => { setCrSubject(null); setView('custom') }}
@@ -1012,7 +1012,16 @@ export default function App() {
 
   // Khu Phụ huynh trên màn rộng: thanh trên bản máy tính (logo, Con | Phụ huynh, Đổi người học, Đăng xuất) + nội dung rộng tối đa 1280 px.
   // Cài đặt / Góp ý của phụ huynh: thẻ trắng ở giữa (≤ 760 px). Màn của con (kể cả Cài đặt / Góp ý mở từ tab Con) giữ cột phóng to.
-  const deskParent = desk && role === 'parent'
+  // Đợt 2 (21/11/2026): màn của CON trên màn rộng cũng dùng khung bản máy tính (cùng thanh trên với khu Phụ huynh):
+  //  - rộng: trang báo cáo phụ huynh, trang chủ của con, Bắt đầu ôn, báo cáo con tự xem (bố cục máy tính riêng);
+  //  - thẻ giữa ≤ 760 px: Cài đặt, Góp ý, Thêm bài học (chụp / gõ), Duyệt nội dung đọc được;
+  //  - khung dọc giữa màn (.phone.dk-play, phóng to như cũ theo --fit): làm bài, trò chơi, kết quả, Vở Spelling — các màn này
+  //    vẽ theo chiều dọc như máy chơi game, giữ đúng cách chơi đã thử kỹ.
+  const deskParent = desk
+  const NARROW = ['settings', 'feedback', 'capture', 'approve']
+  const PLAY = ['spelling', 'review', 'typed', 'falling', 'quickfire', 'boss', 'balloon', 'sushi', 'mario', 'finderror', 'result']
+  const kind = !desk ? '' : role === 'parent' ? (NARROW.includes(view) ? 'narrow' : 'wide')
+    : view === 'approve' && !pending ? 'wide' : NARROW.includes(view) ? 'narrow' : PLAY.includes(view) ? 'play' : 'wide'
   const segBtns = (
     <div className="ds-seg">
       <button className={role === 'child' ? 'on' : ''} onClick={() => switchRole('child')}>Con</button>
@@ -1026,7 +1035,7 @@ export default function App() {
     </div>
   )
   return (
-    <div className={deskParent ? 'dk dk-root dk-parentpage' : 'stage'}>
+    <div className={deskParent ? 'dk dk-root dk-parentpage' + (role === 'child' ? ' dk-kidpage' : '') : 'stage'}>
       {/* Thanh trên cùng (chốt 13/10/2026): rộng ĐÚNG BẰNG khung màn hình bên dưới, thẳng mép trái/phải.
           Bỏ chữ "Bản demo" (12/10), bỏ nút ⚙️ (Cài đặt nằm trong tab Phụ huynh), bỏ mũi tên "↔". */}
       <div className={deskParent ? 'dk-tb' : 'demoswitch'}>
@@ -1039,7 +1048,7 @@ export default function App() {
         ) : <>{segBtns}{actBtns}</>}
       </div>
       <div className={deskParent ? 'dk-wrap' : 'phone'}>
-        <div className={deskParent && (view === 'settings' || view === 'feedback') ? 'dk-card dk-narrow' : 'scr-wrap'}>{screen}</div>
+        <div className={kind === 'narrow' ? 'dk-card dk-narrow' : kind === 'play' ? 'phone dk-play' + (view === 'spelling' ? ' dk-spell' : '') : 'scr-wrap'}>{screen}</div>
         {desk ? null : gateModal}
       </div>
       {gatePortal}

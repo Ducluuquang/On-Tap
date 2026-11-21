@@ -289,7 +289,7 @@ if (only === 'all' || only === 't') {
   })
   const cases = [280, 300, 320, 340, 360, 375, 390, 393, 402, 414, 430].map((w) => ({ w, h: 760, mobile: true, realFonts: true }))
     .concat([320, 375].map((w) => ({ w, h: 760, mobile: true, realFonts: false, tag: ' (phông dự phòng)' })))
-    .concat([[1366, 650], [1920, 950]].map(([w, h]) => ({ w, h, mobile: false, realFonts: true, tag: ' (máy tính, app phóng to)' })))
+    // máy tính (≥ 1024 px): từ 21/11/2026 màn của con dùng thanh trên bản máy tính — kiểm ở cuối phần này
   for (const c of cases) {
     const K = await kid({ id: 'kidT' + c.w + (c.realFonts ? '' : 'f'), width: c.w, height: c.h, mobile: c.mobile, realFonts: c.realFonts })
     await K.page.evaluate(() => document.fonts.ready)
@@ -304,6 +304,20 @@ if (only === 'all' || only === 't') {
     check(`${name}: cả ba ô cùng cỡ chữ ${g.fs.join('/')}px (≥ ${minFs}px)`, g.fs.length === 1 && g.fs[0] >= minFs, JSON.stringify(g.fs))
     if (c.w === 320 && c.realFonts) await K.page.screenshot({ path: `${OUT}/t320_bar.png`, clip: { x: 0, y: 0, width: 320, height: 120 } })
     check(`${name}: không lỗi trang`, K.errs.length === 0, K.errs.join(' | '))
+    await K.ctx.close()
+  }
+  // máy tính: thanh trên bản máy tính (logo + "Con | Phụ huynh" + "Đổi người học" + "Đăng xuất") cũng MỘT HÀNG, ba ô cao bằng nhau
+  for (const [w, h] of [[1366, 650], [1920, 950]]) {
+    const K = await kid({ id: 'kidTd' + w, width: w, height: h, realFonts: true })
+    await K.page.evaluate(() => document.fonts.ready)
+    const g = await K.page.evaluate(() => {
+      const els = [document.querySelector('.dk-tb .ds-seg'), ...document.querySelectorAll('.dk-tb .ds-logout')], rs = els.map((e) => e.getBoundingClientRect())
+      return { labels: [...document.querySelectorAll('.dk-tb button')].map((b) => b.textContent.trim()).join(' · '), h: rs.map((r) => Math.round(r.height)), tops: rs.map((r) => Math.round(r.top)),
+        clipped: [...document.querySelectorAll('.dk-tb button')].filter((b) => b.scrollWidth > b.clientWidth + 1).length, hScroll: document.scrollingElement.scrollWidth > document.scrollingElement.clientWidth + 1 }
+    })
+    check(`${w}px (máy tính, thanh trên bản máy tính): "Con | Phụ huynh", "Đổi người học", "Đăng xuất" cùng MỘT HÀNG, ba ô cao bằng nhau (${g.h.join('/')})`,
+      g.labels === 'Con · Phụ huynh · Đổi người học · Đăng xuất' && g.h.length === 3 && new Set(g.h).size === 1 && new Set(g.tops).size === 1 && !g.clipped && !g.hScroll, JSON.stringify(g))
+    check(`${w}px: không lỗi trang`, K.errs.length === 0, K.errs.join(' | '))
     await K.ctx.close()
   }
   // Nút "Đăng xuất" ở màn chọn con (không nằm trong thanh trên cùng) giữ kiểu cũ
@@ -321,25 +335,32 @@ if (only === 'all' || only === 't') {
   }
 }
 
-// ======================= D — màn máy tính (02/11/2026) =======================
-// App tự phóng to vừa màn hình rộng, nằm giữa, không tràn ngang; thanh "Bắt đầu" nằm ngay sau phần chọn (không lơ lửng xa).
+// ======================= D — màn máy tính (02/11/2026; bản máy tính đợt 2 từ 21/11/2026) =======================
+// Điện thoại: app một cột. Màn ≥ 1024 px: trang chủ + Bắt đầu ôn dùng bố cục máy tính (nội dung giữa màn, phóng to theo --dk-z),
+// không tràn ngang; thanh "Bắt đầu" luôn thấy khi ở đầu trang và nằm ngay sau phần chọn khi cuộn hết (không lơ lửng xa).
 if (only === 'all' || only === 'd') {
   console.log('— D. Màn máy tính')
   const geo = (k) => k.page.evaluate(() => {
-    const r = document.querySelector('.phone').getBoundingClientRect(), d = document.scrollingElement
-    return { left: r.left, right: d.clientWidth - r.right, width: r.width, vw: d.clientWidth, scrollW: d.scrollWidth, fit: getComputedStyle(document.documentElement).getPropertyValue('--fit') }
+    const el = document.querySelector('.dk-wrap') || document.querySelector('.phone'), r = el.getBoundingClientRect(), d = document.scrollingElement
+    const root = getComputedStyle(document.documentElement)
+    return { desk: !!document.querySelector('.dk-wrap'), left: r.left, right: d.clientWidth - r.right, width: r.width, vw: d.clientWidth, scrollW: d.scrollWidth,
+      fit: root.getPropertyValue('--fit'), z: root.getPropertyValue('--dk-z'), zoom: document.querySelector('.dk') ? getComputedStyle(document.querySelector('.dk')).zoom : '' }
   })
   for (const [w, h, minFit] of [[1920, 950, 1.6], [1366, 650, 1.1], [390, 844, 1]]) {
     const K = await kid({ id: 'kidD' + w, width: w, height: h })
     const g = await geo(K)
-    check(`${w}×${h}: app phóng to ≥ ${minFit} lần (${g.fit}), nằm giữa, không tràn ngang`, Number(g.fit) >= minFit && (w > 500 ? Math.abs(g.left - g.right) <= 2 : true) && g.scrollW <= g.vw + 1 && (w > 500 ? g.width >= 430 * minFit - 2 : true), JSON.stringify(g))
+    const ez = Math.max(1, Math.min(3, Math.floor(Math.min(w / 1440, h / 900) * 20) / 20))
+    check(w > 500 ? `${w}×${h}: trang chủ của con dùng bố cục máy tính (phóng to ${ez} lần theo màn), nằm giữa, không tràn ngang`
+      : `${w}×${h}: điện thoại — một cột như cũ, không tràn ngang`,
+      (w > 500 ? g.desk && Number(g.zoom) === ez && Math.abs(g.left - g.right) <= 2 : !g.desk && Number(g.fit) === 1) && g.scrollW <= g.vw + 1, JSON.stringify(g))
     await K.page.click('.kh-cta'); await K.page.waitForSelector('.screen.cr')
     const g2 = await geo(K)
-    check(`${w}×${h}: màn Bắt đầu ôn cũng nằm giữa, không tràn ngang`, (w > 500 ? Math.abs(g2.left - g2.right) <= 2 : true) && g2.scrollW <= g2.vw + 1, JSON.stringify(g2))
-    // đang ở đầu trang: thanh "Bắt đầu" dính đáy cửa sổ (luôn thấy)
-    const bar = () => K.page.evaluate(() => { const b = document.querySelector('.cr-sticky').getBoundingClientRect(); const ph = document.querySelector('.phone').getBoundingClientRect(); return { top: b.top, bottom: b.bottom, vh: window.innerHeight, phoneBottom: ph.bottom, left: b.left - ph.left, right: ph.right - b.right } })
+    check(`${w}×${h}: màn Bắt đầu ôn cũng nằm giữa, không tràn ngang` + (w > 500 ? ' (hai cột: Cách 1 | Cách 2)' : ''), Math.abs(g2.left - g2.right) <= 2 && g2.scrollW <= g2.vw + 1
+      && (w > 500 ? (await K.page.locator('.dk-cr-left .cr-hero').count()) === 1 && (await K.page.locator('.dk-cr-right .cr-self').count()) === 1 : true), JSON.stringify(g2))
+    // khung chứa thanh "Bắt đầu": cột Cách 2 (máy tính) / khung điện thoại
+    const bar = () => K.page.evaluate(() => { const b = document.querySelector('.cr-sticky').getBoundingClientRect(); const ph = (document.querySelector('.dk-cr-right') || document.querySelector('.phone')).getBoundingClientRect(); return { top: b.top, bottom: b.bottom, vh: window.innerHeight, phoneBottom: ph.bottom, left: b.left - ph.left, right: ph.right - b.right } })
     const b1 = await bar()
-    check(`${w}×${h}: đầu trang — thanh "Bắt đầu" thấy ngay ở đáy cửa sổ, thẳng mép khung`, Math.abs(b1.bottom - b1.vh) <= 2 && Math.abs(b1.left) <= 2 && Math.abs(b1.right) <= 2, JSON.stringify(b1))
+    check(`${w}×${h}: đầu trang — thanh "Bắt đầu" thấy ngay (trong cửa sổ, sát đáy hoặc ngay sau nội dung), thẳng mép khung`, b1.top >= 0 && b1.bottom <= b1.vh + 1 && b1.bottom >= b1.vh - (w > 500 ? 40 : 2) && Math.abs(b1.left) <= 2 && Math.abs(b1.right) <= 2, JSON.stringify(b1))
     // cuộn hết trang: thanh nằm sát ngay dưới nội dung, cuối khung (không còn khoảng trống lớn giữa nội dung và nút)
     await K.page.click('.cr-adv-toggle')
     await K.page.evaluate(() => window.scrollTo(0, document.scrollingElement.scrollHeight))

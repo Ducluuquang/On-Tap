@@ -19,7 +19,9 @@ export default function SpellingApp({ child, onExit, onSession }) {
     window.scrollTo(0, 0)
     const measure = () => {
       const el = ref.current
-      if (el) setTop(Math.round(el.getBoundingClientRect().top + window.scrollY))
+      // bản máy tính (21/11/2026): khung nằm trong .dk đang phóng to --dk-z -> đổi vị trí ra đơn vị trước khi phóng to
+      const z = el && el.closest('.dk') ? Number(getComputedStyle(document.documentElement).getPropertyValue('--dk-z')) || 1 : 1
+      if (el) setTop(Math.round((el.getBoundingClientRect().top + window.scrollY) / z))
     }
     measure()
     window.addEventListener('resize', measure)

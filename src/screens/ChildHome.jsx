@@ -15,7 +15,9 @@ const SLOGAN_HINT = 'Mục tiêu hay khẩu hiệu học tập của con'
 //  📚 Môn học của con: mỗi môn một màu kèm "N cần ôn"; chạm vào môn là vào màn Bắt đầu ôn của môn đó.
 // Trò chơi từ vựng: KHÔNG đặt thẻ riêng ở trang chủ (chốt 12/10/2026) — vào qua "Bắt đầu ôn" → Tiếng Anh.
 // Nút "Đổi người học" chỉ còn ở thanh trên cùng (không lặp lại trong khung).
-export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSlogan, onReview, onReviewSubject, onCapture, onReport, onFeedback }) {
+// BẢN MÁY TÍNH (đợt 2, 21/11/2026, màn ≥ 1024 px — desk): cùng các vùng màu như trên, xếp thành lưới rộng: lời chào + khẩu hiệu ở trên;
+// trái "Việc chính hôm nay" (to nhất, nút vàng), phải chuỗi ngày + quà và Việc khác; dưới cùng các môn học (4 cột).
+export default function ChildHome({ mem = [], stats, child, slogan = '', desk = false, onSetSlogan, onReview, onReviewSubject, onCapture, onReport, onFeedback }) {
   const [editing, setEditing] = useState(false)
   const [fbUnread, setFbUnread] = useState(0)   // góp ý có câu trả lời mới (chấm đỏ)
   useEffect(() => { if (onFeedback) fetchUnread(viewerOf('child', child)).then(setFbUnread).catch(() => {}) }, [!!onFeedback]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -34,8 +36,8 @@ export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSl
     if (v !== (slogan || '') && onSetSlogan) onSetSlogan(v)
   }
 
-  return (
-    <div className="screen kh">
+  const top = (
+    <>
       <header className="kh-top">
         <Brand />
         {child && (
@@ -46,6 +48,10 @@ export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSl
         )}
       </header>
 
+    </>
+  )
+  const greet = (
+    <>
       {/* Lời chào + khẩu hiệu học tập (con tự ghi, bấm để sửa) */}
       <section className="hello kh-greet">
         <h1>Chào {child?.name || 'con'}! 👋</h1>
@@ -72,6 +78,10 @@ export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSl
         )}
       </section>
 
+    </>
+  )
+  const today = (
+    <>
       {/* ⭐ VÙNG 1 — việc chính hôm nay */}
       <div className="kh-zone">⭐ Việc chính hôm nay</div>
       <section className="kh-today">
@@ -94,9 +104,17 @@ export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSl
         </div>
       </section>
 
+    </>
+  )
+  const reward = (
+    <>
       {/* 🔥 VÙNG 2 — chuỗi ngày + phần thưởng (mốc 7, 15, 30 ngày, rồi cứ 30 ngày một lần) */}
       <RewardTrack stats={stats} variant="kid" />
 
+    </>
+  )
+  const other = (
+    <>
       {/* 🧩 VÙNG 3 — việc khác */}
       <div className="kh-zone">🧩 Việc khác</div>
       <div className="kh-two">
@@ -117,6 +135,10 @@ export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSl
         <button className="kh-fb" onClick={onFeedback}>💬 Góp ý / báo lỗi cho Ôn Tập{fbUnread ? <i className="dot" aria-label="có trả lời mới" /> : null}</button>
       )}
 
+    </>
+  )
+  const subjectsBlock = (
+    <>
       {/* 📚 VÙNG 4 — môn học của con */}
       <div className="kh-zone">📚 Môn học của con</div>
       <div className="sj-grid">
@@ -127,6 +149,36 @@ export default function ChildHome({ mem = [], stats, child, slogan = '', onSetSl
         ))}
       </div>
       <p className="kh-note">Chạm vào một môn để vào ôn môn đó. Môn nào chưa có bài thì bấm “Thêm bài học”.</p>
+    </>
+  )
+  if (desk) {
+    return (
+      <div className="screen kh dk-kh">
+        <div className="dk-kh-hi">
+          {greet}
+          {child && (
+            <span className="kh-kid dk-kh-kid">
+              <span className="kh-av" aria-hidden="true">{iconFor(child)}</span>
+              <b>{child.name}</b>{child.grade ? <small>· {child.grade}</small> : null}
+            </span>
+          )}
+        </div>
+        <div className="dk-kh-grid">
+          <div className="dk-kh-main">{today}</div>
+          <div className="dk-kh-side">{reward}{other}</div>
+        </div>
+        {subjectsBlock}
+      </div>
+    )
+  }
+  return (
+    <div className="screen kh">
+      {top}
+      {greet}
+      {today}
+      {reward}
+      {other}
+      {subjectsBlock}
     </div>
   )
 }
