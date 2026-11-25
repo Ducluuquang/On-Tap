@@ -14,6 +14,7 @@ import { newChange, putChange, pendingOf } from "./_changes.mjs";
 export { adminPhones };
 import { BK, KINDS, KIND_ORDER, pack, unpack, assemblePages, readIndex, gradeNum } from "./_books/core.mjs";
 import { pickModel, thinkingFor } from "./aiCore.mjs";
+import { newCtx, recordCost } from "./_aicost.mjs";
 
 const API = "https://api.anthropic.com/v1/messages/batches";
 const H = (key) => ({ "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" });
@@ -129,7 +130,10 @@ async function pollBook(key, meta) {
     } catch { /* lần sau thử lại */ }
   }
   if (!Object.keys(results).length) return { meta, job };
-  return withLock(meta.id, async () => {
+  // Chi phí AI (25/11/2026): token của các nửa trang vừa đọc xong (Message Batches = nửa giá), loại "books".
+  // Chỉ tính batch còn trong job (máy khác chưa xử lý) để không cộng trùng khi hai máy cùng hỏi tiến độ.
+  const ctx = newCtx("books");
+  const out = await withLock(meta.id, async () => {
     let m = await getMeta(meta.id);
     if (!m) return { meta: { ...meta, status: "deleted" }, job: null };   // vừa bị xoá: không tạo lại
     job = (await getJob(meta.id)) || job;
@@ -143,6 +147,7 @@ async function pollBook(key, meta) {
         seen.add(c);
         delete job.sent[c];
         const res = row.result || {};
+        if (res.type === "succeeded" && res.message && res.message.usage) ctx.add(res.message.model || "", res.message.usage, { batch: true });
         if (res.type === "succeeded" && res.message) {
           const text = (res.message.content || []).filter((x) => x && x.type === "text").map((x) => x.text || "").join("").trim().slice(0, 40000);
           const cut = res.message.stop_reason === "max_tokens";
@@ -177,6 +182,8 @@ async function pollBook(key, meta) {
     await redis(cmds);
     return { meta: m, job };
   });
+  await recordCost(ctx, {}, { noPhone: true });
+  return out;
 }
 
 export default async function handler(req, res) {

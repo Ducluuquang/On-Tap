@@ -18,7 +18,7 @@ import { loadStats, saveStats, addSeconds, addSession, setGoalMin, resetStats } 
 import { loadSettings, saveSettings } from './lib/settings.js'
 import { canon, localMatch } from './lib/answerMatch.js'
 import { dotNumbers } from './lib/num.js'
-import { loadRecent, pushRecent, resetRecent } from './lib/recent.js'
+import { loadRecent, pushRecent, resetRecent, recentBankIds } from './lib/recent.js'
 import { resetSpelling, cleanupOldVocabGames } from './lib/spelling.js'
 import { useDesk } from './lib/desk.js'
 import logoRow from './assets/logo-row.png'
@@ -68,6 +68,21 @@ function GenErrorScreen({ onRetry, onHome }) {
         <p>Mạng hơi chậm hoặc đang bận. Con bấm “Thử lại” nhé — thường lần sau là được.</p>
         <button className="cta" onClick={onRetry}>🔄 Thử lại</button>
         <button className="cta small ghost" onClick={onHome}>Về trang chủ</button>
+      </div>
+    </div>
+  )
+}
+
+// Hết lượt soạn chủ đề MỚI hôm nay (Chi phí AI 25/11/2026): màn nhẹ nhàng thay cho màn "Thử lại".
+// n = số chủ đề mới mỗi ngày (cài đặt của Ôn Tập); không rõ (trần tiền ngày) -> lời chung.
+function LimitScreen({ n, onBack }) {
+  return (
+    <div className="screen center" data-testid="limit-screen">
+      <div className="reading">
+        <div className="gen-fail-ic">🌙</div>
+        <h2>{n ? `Hôm nay con đã ôn đủ ${n} chủ đề mới rồi!` : 'Hôm nay con đã ôn nhiều chủ đề mới rồi!'}</h2>
+        <p>Con ôn lại các chủ đề đã học nhé, mai ONTAP soạn tiếp.</p>
+        <button className="cta" onClick={onBack}>Về Bắt đầu ôn</button>
       </div>
     </div>
   )
@@ -161,7 +176,7 @@ function normalizeQs(qs, recent = null) {
     const order = shuffled([0, 1, 2, 3])
     const options = order.map((j) => dotNumbers(rawOpts[j]))
     const answer = order.indexOf(idx)
-    out.push({ concept: q.concept || 'Ôn tập', q: dotNumbers(q.q), options, answer, explain: dotNumbers(q.explain || ''), hint: '', _k: key })
+    out.push({ concept: q.concept || 'Ôn tập', q: dotNumbers(q.q), options, answer, explain: dotNumbers(q.explain || ''), hint: '', _k: key, ...(q.id ? { _id: String(q.id) } : {}) })
   }
   return orderByFresh(out, recent)
 }
@@ -178,7 +193,7 @@ function normalizeOpen(qs, recent = null) {
     const key = canon(q.q)
     if (!key || seenQ.has(key)) continue
     seenQ.add(key)
-    out.push({ concept: q.concept || 'Ôn tập', q: dotNumbers(q.q), answer: dotNumbers(String(q.answer).trim()), explain: dotNumbers(q.explain || ''), hint: '', _k: key })
+    out.push({ concept: q.concept || 'Ôn tập', q: dotNumbers(q.q), answer: dotNumbers(String(q.answer).trim()), explain: dotNumbers(q.explain || ''), hint: '', _k: key, ...(q.id ? { _id: String(q.id) } : {}) })
   }
   return orderByFresh(out, recent)
 }
@@ -299,6 +314,7 @@ export default function App() {
   const [reviewQuestions, setReviewQuestions] = useState(null)
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState(false) // soạn bài thất bại -> hiện nút "Thử lại"
+  const [genLimited, setGenLimited] = useState(null) // hết lượt soạn mới hôm nay -> { n } (màn nhẹ nhàng)
   const [notApplic, setNotApplic] = useState(false) // kiểu bài không áp dụng cho môn hiện tại
   const [noBasis, setNoBasis] = useState(false) // chưa có bài học/chủ đề -> không ra đề
   // Thời gian con CHỜ app soạn/nạp bài (giây) — sẽ được cộng vào thời gian học của buổi ôn.
@@ -704,6 +720,7 @@ export default function App() {
     setReviewMode(m)
     setReviewQuestions(null)
     setGenError(false)
+    setGenLimited(null)
     setNotApplic(false)
     setNoBasis(false)
     setGenerating(true)
@@ -765,25 +782,33 @@ export default function App() {
     const recent = new Set(loadRecent()) // câu đã gặp gần đây -> ưu tiên câu mới
     const norm = (arr) => (isTyped ? normalizeOpen(arr, recent) : normalizeQs(arr, recent))
     let qs = []
+    let limited = null
     try {
+      // NGÂN HÀNG CÂU HỎI (25/11/2026): máy chủ lấy câu con CHƯA GẶP trong ngân hàng của từng khái niệm, thiếu mới nhờ ONTAP
+      // soạn (một lần) và trả dư 3 câu để lọc. Gọi MỘT lần với số câu thật; chỉ gọi thêm một lần nếu máy chủ trả thiếu mà
+      // không phải do giới hạn lượt soạn mới. LỚP THẬT của con (09/11/2026); không rõ lớp thì '4-5' như cũ.
+      const payload = { subject, grade: activeChild?.grade || '4-5', topic, concepts: conceptsForAI, count, format: fmt, master, enLang }
+      const seenIds = recentBankIds()
       let raw = []
       let list = []
-      // Soạn bài bằng model CHÍNH XÁC (không dùng fast) — độ tin cậy là ưu tiên số 1.
-      // Nhanh nhờ generateQuestions chạy nhiều đợt nhỏ SONG SONG. Tối đa 4 lượt để gom đủ câu
-      // KHÁC NHAU (KHÔNG lặp lại). Thiếu thì thà ít câu chứ KHÔNG nhân bản câu -> hết trùng.
-      for (let round = 0; round < 4 && list.length < count; round++) {
-        const ask = round === 0 ? count + 3 : (count - list.length) + 3
-        // generateQuestions đã tự bắt lỗi nên không ném ra ngoài.
-        // LỚP THẬT của con (09/11/2026): trước đây gửi cứng '4-5' -> đề luôn ở mức tiểu học. Không rõ lớp thì '4-5' như cũ.
-        const batch = await generateQuestions({ subject, grade: activeChild?.grade || '4-5', topic, concepts: conceptsForAI, count: ask, format: fmt, master, enLang })
-        // KHÔNG dừng khi một lượt rỗng (mạng chập chờn) — thử tiếp lượt sau để đủ số câu đã chọn.
-        if (batch && batch.length) {
-          raw = raw.concat(batch)
-          list = norm(raw) // chuẩn hoá + khử trùng trên TOÀN BỘ các lượt đã gộp
-        }
+      for (let round = 0; round < 2 && list.length < count; round++) {
+        const got = await generateQuestions(payload, { childId: activeChild?.id || '', recent: [...raw.map((q) => q.id).filter(Boolean), ...seenIds].slice(0, 400) })
+        raw = raw.concat(got.questions)
+        list = norm(raw) // chuẩn hoá + khử trùng trên TOÀN BỘ các lượt đã gộp
+        if (got.limited) { if (!list.length) limited = { n: got.genLimit || 0 }; break }
       }
       qs = list.slice(0, count)
-    } catch { qs = [] }
+    } catch (e) {
+      qs = []
+      if (e && e.code === 'limit') limited = { n: 0 } // vượt trần tiền AI của ngày
+    }
+    // Hết lượt soạn mới mà ngân hàng không có câu nào cho chủ đề này -> màn nhẹ nhàng (KHÔNG dựng câu tạm bằng buildReview).
+    if (limited && !qs.length) {
+      loadSecondsRef.current = 0
+      setGenLimited(limited)
+      setGenerating(false)
+      return
+    }
     if (!qs.length) qs = buildReview(mem, count, { openOnly: isTyped, conceptNames: concepts })
     // Không soạn được câu nào -> hiện màn hình "Thử lại" thân thiện (không đứng hình, không báo lỗi cụt).
     if (!qs.length) {
@@ -797,8 +822,9 @@ export default function App() {
     // Nhãn chung khi câu hỏi không rõ thuộc khái niệm nào: buổi ôn TỪ VỰNG -> "Từ vựng", còn lại "Ôn tập".
     const generic = concepts.length && concepts.every((n) => n === 'Từ vựng' || isVocabItem({ name: n })) ? 'Từ vựng' : 'Ôn tập'
     qs = remapConcept(qs, mem, concepts, generic, subject)
-    // Ghi nhớ các câu đã dùng để lần sau không lặp lại y hệt.
-    pushRecent(qs.map((q) => q._k).filter(Boolean))
+    // Ghi nhớ các câu đã dùng để lần sau không lặp lại y hệt: câu ngân hàng ghi id (máy chủ dùng để lấy câu con chưa gặp),
+    // câu không có id giữ cách cũ (dạng chuẩn hoá của câu).
+    pushRecent(qs.map((q) => q._id || q._k).filter(Boolean))
     // KHÔNG nhân bản câu để "cho đủ" nữa — thà ít câu chứ tuyệt đối không để TRÙNG câu hỏi.
     // "Tìm lỗi sai": dựng phần "một bạn trả lời sai" (giữ nguyên đáp án đúng đã có).
     if (m === 'finderror') qs = toFindError(qs)
@@ -874,6 +900,7 @@ export default function App() {
   const genOrScreen = (node) => {
     if (noBasis) return <NoBasisScreen onCapture={() => { setNoBasis(false); setView('capture') }} onBack={() => { setNoBasis(false); setView('custom') }} />
     if (notApplic) return <NotApplicScreen onBack={() => { setNotApplic(false); setView('custom') }} />
+    if (genLimited) return <LimitScreen n={genLimited.n} onBack={() => { setGenLimited(null); setView('custom') }} />
     if (genError) return <GenErrorScreen onRetry={retryReview} onHome={goHomeFromError} />
     return (generating || !reviewQuestions) ? <GeneratingScreen /> : node
   }

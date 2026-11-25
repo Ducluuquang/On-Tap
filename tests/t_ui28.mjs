@@ -47,6 +47,8 @@ async function kid({ id = 'kidH', name = 'Alex', icon = '🦊', grade = 'Lớp 7
     localStorage.setItem('ontap.account.v1', JSON.stringify(ACC)); localStorage.setItem('ontap.session.v1', '1'); localStorage.setItem('ontap.activechild.v1', id)
     localStorage.setItem('ontap.memory.v2::' + id, JSON.stringify(mem)); localStorage.setItem('ontap.stats.v2::' + id, JSON.stringify(stats))
   }, { ACC, id, mem, stats })
+  // 25/11/2026: máy thử này không đăng nhập máy chủ -> /api/ai trả 401 NGAY; giữ thời gian chờ như AI thật (1,5 giây) để thấy màn "Đang chuẩn bị"
+  await ctx.route('**/api/ai', async (r) => { await new Promise((ok) => setTimeout(ok, 1500)); await r.continue().catch(() => {}) })
   const page = await ctx.newPage()
   const errs = [], ai = []
   page.on('request', (r) => { if (r.url().includes('/api/ai') && r.method() === 'POST') { try { ai.push(JSON.parse(r.postData() || '{}')) } catch { ai.push({}) } } })

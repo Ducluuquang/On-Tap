@@ -8,7 +8,7 @@
 //  3  Chọn người học: thẻ cùng một hàng, PIN -> vào học (màn của con vẫn phóng to).
 //  4  Phụ huynh: thanh trên một hàng, 4 ô số liệu khớp trang của con, 7 cột + bấm cột đổi nhận xét, bản đồ kiến thức theo môn,
 //     hộp PIN phủ cả cửa sổ, "Con" về cột phóng to, Cài đặt + Góp ý trong thẻ giữa rồi quay lại.
-//  5  Quản trị: cột trái (super 8 mục, admin 6 mục), huy hiệu đúng số, Tổng quan "Việc cần xử lý" -> "Trả lời" mở đúng phiếu,
+//  5  Quản trị: cột trái (super 9 mục — thêm 💸 Chi phí AI 25/11/2026, admin 6 mục), huy hiệu đúng số, Tổng quan "Việc cần xử lý" -> "Trả lời" mở đúng phiếu,
 //     trả lời được; Thư viện (bảng, tìm, lọc Lớp / Môn); Người dùng (bảng, mở danh sách con); 390 px giữ menu ngang.
 //  6  Mọi cỡ màn (1024, 1280, 1366, 1440, 1920 + 390): không cuộn ngang, không lỗi trang; ảnh tests/out/desk_*.png (1440 px).
 import fs from 'node:fs'
@@ -295,8 +295,8 @@ const tab = async (d, label) => { await d.page.click(`.adm-tab:has-text("${label
   await D.page.waitForSelector('.dk-aside .adm-me')
   const side = await D.page.evaluate(() => { const a = document.querySelector('.dk-aside'); const r = a.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), pos: getComputedStyle(a).position,
     tabs: [...a.querySelectorAll('.adm-tab')].map((t) => t.textContent), me: a.querySelector('.adm-me').innerText, sup: !!a.querySelector('.dk-nav .dk-aside-t') } })
-  check('cột trái 268 px cao bằng màn hình (dính khi cuộn): logo, 8 mục, nhóm "Chỉ super admin", đáy ghi tên + "Super admin" + Đăng xuất',
-    side.w === 268 && side.h === 900 && side.pos === 'sticky' && side.tabs.join('|') === '📊 Tổng quan|📚 Thư viện sách|👪 Người dùng|💬 Góp ý|💰 Định giá|✅ Duyệt & nhật ký|👥 Quản trị viên|⚙️ Cài đặt' && side.sup && /Super admin/.test(side.me) && /Đăng xuất/.test(side.me), JSON.stringify(side))
+  check('cột trái 268 px cao bằng màn hình (dính khi cuộn): logo, 9 mục, nhóm "Chỉ super admin", đáy ghi tên + "Super admin" + Đăng xuất',
+    side.w === 268 && side.h === 900 && side.pos === 'sticky' && side.tabs.join('|') === '📊 Tổng quan|📚 Thư viện sách|👪 Người dùng|💬 Góp ý|💰 Định giá|✅ Duyệt & nhật ký|👥 Quản trị viên|💸 Chi phí AI|⚙️ Cài đặt' && side.sup && /Super admin/.test(side.me) && /Đăng xuất/.test(side.me), JSON.stringify(side))
   const bd = await adm('badges')
   const badge = async () => D.page.evaluate(() => Object.fromEntries([...document.querySelectorAll('.adm-tab[data-badge]')].map((t) => [t.textContent, t.dataset.badge + '|' + getComputedStyle(t, '::after').content])))
   const b1 = await until(async () => { const b = await badge(); return b['💬 Góp ý'] && b['✅ Duyệt & nhật ký'] ? b : null })
@@ -400,7 +400,7 @@ for (const [w, h] of [[1024, 768], [1280, 800], [1366, 768], [1440, 900], [1920,
   await p.click('.reg-plan .chip:has-text("2 học sinh")'); await ok('đăng ký')
   const A = await device('a' + w, { width: w, height: h })
   await adminIn(A, SUPER, PASS); await sleep(600)
-  for (const t of ['Tổng quan', 'Góp ý', 'Thư viện sách', 'Người dùng', 'Định giá', 'Duyệt & nhật ký', 'Quản trị viên', 'Cài đặt']) {
+  for (const t of ['Tổng quan', 'Góp ý', 'Thư viện sách', 'Người dùng', 'Định giá', 'Duyệt & nhật ký', 'Quản trị viên', 'Chi phí AI', 'Cài đặt']) {
     await A.page.click(`.adm-tab:has-text("${t}")`); await sleep(700)
     if (!(await noHScroll(A.page))) bad.push('quản trị/' + t)
   }
@@ -408,7 +408,7 @@ for (const [w, h] of [[1024, 768], [1280, 800], [1366, 768], [1440, 900], [1920,
     const g = await A.page.evaluate(() => ({ side: Math.round(document.querySelector('.dk-aside').getBoundingClientRect().width) }))
     if (g.side !== 232) bad.push('cột trái 1024px = ' + g.side)
   }
-  check(`${w}×${h}: không cuộn ngang (đăng nhập, đăng ký, chọn người học, phụ huynh, 8 mục quản trị)`, bad.length === 0, bad.join(', '))
+  check(`${w}×${h}: không cuộn ngang (đăng nhập, đăng ký, chọn người học, phụ huynh, 9 mục quản trị)`, bad.length === 0, bad.join(', '))
   await A.ctx.close(); await D.ctx.close()
 }
 

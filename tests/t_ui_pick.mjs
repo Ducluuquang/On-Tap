@@ -32,18 +32,23 @@ const watchErrs = (page, errs) => {
   page.on('console', (m) => { if (m.type() === 'error' && !/favicon|fonts\.g|status of 4\d\d/.test(m.text())) errs.push('console: ' + m.text()) })
 }
 
+// Chi phí AI (25/11/2026): ONTAP trong Vở Spelling cần chìa khoá đăng nhập Ôn Tập -> máy thử giữ chìa khoá của một tài khoản thử thật
+// (tài khoản trên máy là bản giả, số khác nên app không đồng bộ với tài khoản này; chỉ để /api/spelling nhận).
+const AI_TOKEN = (await (await fetch(BASE + '/api/account', { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.41.7.9' },
+  body: JSON.stringify({ action: 'register', phone: '0991' + String(Date.now()).slice(-6), pass: '12345678', parentName: 'Thử', plan: 1, pin: '1', children: [{ id: 'kP' + RUN, name: 'Hoa', pin: '1', icon: '🌸', grade: 'Lớp 7' }] }) })).json()).token || ''
 // con đã đăng nhập, mở thẳng Ôn Tập; spelling=true: vào luôn Vở Spelling (khung trong Ôn Tập)
 async function kid({ id, name = 'Hoa', icon = '🌸', grade = 'Lớp 7', width = 390, height = 844, spelling = true, mem = null } = {}) {
   id = id + RUN
   const ACC = { username: '09' + id, password: '1', phone: '09' + id, parentPass: '1', plan: 1, pin: '3', children: [{ id, name, pin: '', icon, grade }] }
   const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2 }); ctxs.push(ctx)
   await useRealFonts(ctx)
-  await ctx.addInitScript(({ ACC, id, mem }) => {
+  await ctx.addInitScript(({ ACC, id, mem, tok }) => {
     if (window.top !== window) return
     if (sessionStorage.getItem('s')) return; sessionStorage.setItem('s', '1'); localStorage.clear()
     localStorage.setItem('ontap.account.v1', JSON.stringify(ACC)); localStorage.setItem('ontap.session.v1', '1'); localStorage.setItem('ontap.activechild.v1', id)
+    if (tok) localStorage.setItem('ontap.acctoken.v1', tok)
     if (mem) localStorage.setItem('ontap.memory.v2::' + id, JSON.stringify(mem))
-  }, { ACC, id, mem })
+  }, { ACC, id, mem, tok: AI_TOKEN })
   const page = await ctx.newPage()
   const errs = []
   watchErrs(page, errs)

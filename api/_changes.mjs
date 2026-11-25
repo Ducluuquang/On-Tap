@@ -5,7 +5,8 @@
 import crypto from "node:crypto";
 import { redis, parse } from "./_store.mjs";
 
-export const CHG_TYPES = { prices: "Đổi bảng giá", book_publish: "Đưa sách mới vào dùng", book_delete: "Xoá sách", staff_add: "Thêm admin", staff_remove: "Bỏ admin", settings: "Đổi cài đặt" };
+export const CHG_TYPES = { prices: "Đổi bảng giá", book_publish: "Đưa sách mới vào dùng", book_delete: "Xoá sách", staff_add: "Thêm admin", staff_remove: "Bỏ admin", settings: "Đổi cài đặt",
+  ai_cfg: "Đổi cài đặt chi phí AI", ai_bank_del: "Xoá ngân hàng câu hỏi" };
 export const okChgId = (id) => /^c[0-9a-f]{12}$/.test(String(id || ""));
 export async function getChange(id) { return okChgId(id) ? parse((await redis([["GET", "chg:" + id]]))[0]) : null; }
 export async function putChange(c) {

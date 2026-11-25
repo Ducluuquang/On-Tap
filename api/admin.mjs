@@ -15,6 +15,13 @@
 //       fb_status {id, status, lesson} -> đổi trạng thái + ghi "Bài học / cách xử lý" (để AI chăm sóc khách hàng học sau này)
 //       fb_export             -> TOÀN BỘ nhật ký góp ý (JSON) để AI đọc và học
 //       kb                    -> "Hiểu biết hệ thống" cho chăm sóc khách hàng (api/_support/he-thong.md)
+//  CHI PHÍ AI (anh duyệt 25/11/2026, chỉ super admin):
+//       ai_stats              -> 30 ngày (tiền, lời gọi, lượt soạn mới, câu từ ngân hàng / soạn mới, theo loại việc, token theo model),
+//                                10 tài khoản tốn nhất tháng, tổng kết "Thử model"
+//       ai_cfg_get · ai_cfg_set {models, genLimit, capVnd, rate} -> cài đặt cfg:ai (ghi nhật ký thay đổi)
+//       ai_bank_list {q, subject, grade} · ai_bank_get {key} · ai_bank_del {key} -> ngân hàng câu hỏi (xoá có ghi nhật ký)
+//       ai_try {subject, grade, topic, concepts, format, count} -> soạn CÙNG LÚC bằng Sonnet và Haiku (không lưu ngân hàng, không tính trần)
+//       ai_try_save {subject, grade, topic, rows:[{tier, model, n, wrong, usd}]} -> ghi đánh giá vào ai:try:log (200 lần gần nhất)
 // Doanh thu: chưa có cổng thanh toán thật nên chưa có số liệu (trang quản trị ghi rõ).
 import fs from "node:fs";
 import { redis, redisEnv, send, readBody, parse } from "./_store.mjs";
@@ -25,13 +32,35 @@ import { deleteBook, markBook, previewBook } from "./books.mjs";
 import { hashPass } from "./account.mjs";
 import { tokenFor } from "./_acctkey.mjs";
 import { FK, KINDS, STATUS, okId, cleanText, getThread, putThread, pubThread } from "./_fb.mjs";
+import { getAiCfg, setAiCfg, costMicro, newCtx, recordCost, lastDays, vnMonth, spendOf, MODEL_GROUPS } from "./_aicost.mjs";
+import { bankList, bankGet, bankDel, validQ } from "./_qbank.mjs";
+import { generateQuestions, subjKey } from "./aiCore.mjs";
+import { bookContext } from "./_books/core.mjs";
+import { cleanGen } from "./ai.mjs";
 
 const PLAN_IDS = ["1", "2", "3", "4", "5"];
 const PRICE_MAX = 100000000;
 const PAGE = 30;
 const DAY = 86400000;
 
-const SUPER_ONLY = new Set(["chg_approve", "chg_reject", "staff_list", "staff_add", "staff_remove", "settings_set"]);
+const SUPER_ONLY = new Set(["chg_approve", "chg_reject", "staff_list", "staff_add", "staff_remove", "settings_set",
+  "ai_stats", "ai_cfg_get", "ai_cfg_set", "ai_bank_list", "ai_bank_get", "ai_bank_del", "ai_try", "ai_try_save"]);
+const hashObj = (r) => { const o = {}; for (let i = 0; i + 1 < (r || []).length; i += 2) o[r[i]] = r[i + 1]; return o; };
+const SUBJ_GROUP = { toan: "Toán", "tieng-viet": "Tiếng Việt", "tieng-anh": "Tiếng Anh", "ngu-van": "Ngữ văn", default: "Môn khác" };
+// Bảng tổng kết "Thử model": môn × model -> tổng câu, câu sai, tỷ lệ sai, tiền trung bình cho 10 câu (micro-USD)
+async function trySummary() {
+  const [raw] = await redis([["LRANGE", "ai:try:log", "0", "199"]]);
+  const log = (raw || []).map(parse).filter(Boolean);
+  const g = {};
+  for (const x of log) {
+    const k = (SUBJ_GROUP[subjKey(x.subject)] || "Môn khác") + "|" + x.tier;
+    const r = g[k] || (g[k] = { group: k.split("|")[0], tier: x.tier, runs: 0, n: 0, wrong: 0, usd: 0 });
+    r.runs++; r.n += Number(x.n) || 0; r.wrong += Number(x.wrong) || 0; r.usd += Number(x.usd) || 0;
+  }
+  const rows = Object.values(g).map((r) => ({ ...r, wrongPct: r.n ? Math.round((1000 * r.wrong) / r.n) / 10 : 0, usd10: r.n ? Math.round((r.usd / r.n) * 10) : 0 }))
+    .sort((a, b) => (a.group < b.group ? -1 : a.group > b.group ? 1 : a.tier < b.tier ? 1 : -1));
+  return { rows, log: log.slice(0, 30) };
+}
 async function setPrices(plans, by) {
   await redis([["SET", "cfg:prices", JSON.stringify({ currency: "VND", plans, updated: Date.now(), by })]]);
 }
@@ -158,11 +187,13 @@ export default async function handler(req, res) {
         const page = phones.slice(offset, offset + PAGE);
         if (!page.length) return send(res, 200, { ok: true, total: phones.length, offset, users: [] });
         const [accs, seens] = await redis([["MGET", ...page.map((p) => "acct:u:" + p)], ["MGET", ...page.map((p) => "acct:seen:" + p)]]);
-        const users = page.map((p, j) => { const a = parse(accs[j]); return a && a.sys !== "admin" ? pubUser(a, seens[j]) : null; }).filter(Boolean);
+        // Chi phí AI (25/11/2026): super admin thấy thêm cột "Tiền AI 30 ngày" (micro-USD; trang quản trị đổi ra đồng)
+        const spend = role === "super" ? await spendOf(page, 30).catch(() => ({})) : null;
+        const users = page.map((p, j) => { const a = parse(accs[j]); return a && a.sys !== "admin" ? { ...pubUser(a, seens[j]), ...(spend ? { ai30: spend[p] || 0 } : {}) } : null; }).filter(Boolean);
         // tài khoản đã bị xoá khỏi kho nhưng còn trong danh mục -> bỏ khỏi danh mục
         const gone = page.filter((p, j) => !accs[j]);
         if (gone.length) await redis([["ZREM", "acct:idx", ...gone]]);
-        return send(res, 200, { ok: true, total: phones.length - gone.length, offset, users });
+        return send(res, 200, { ok: true, total: phones.length - gone.length, offset, users, ...(spend ? { rate: (await getAiCfg()).rate } : {}) });
       }
       case "prices_set": {
         const cur = await getPrices();
@@ -345,6 +376,91 @@ export default async function handler(req, res) {
         let text = "";
         try { text = fs.readFileSync(new URL("./_support/he-thong.md", import.meta.url), "utf8"); } catch { text = ""; }
         return send(res, 200, { ok: !!text, text });
+      }
+      // ---- Chi phí AI (chỉ super admin) ----
+      case "ai_stats": {
+        const cfg = await getAiCfg({ fresh: true });
+        const days = lastDays(30), month = vnMonth();
+        const rows = await redis([...days.map((d) => ["HGETALL", "ai:d:" + d]), ["ZREVRANGE", "ai:m:" + month, "0", "9", "WITHSCORES"]]);
+        const out = days.map((day, i) => {
+          const h = hashObj(rows[i]), kinds = {}, models = {};
+          for (const [f, v] of Object.entries(h)) {
+            const n = Number(v) || 0, [a, b] = [f.slice(0, f.indexOf(":")), f.slice(f.indexOf(":") + 1)];
+            if (a === "usd" && b) (kinds[b] = kinds[b] || { usd: 0, n: 0 }).usd = n;
+            else if (a === "n" && b) (kinds[b] = kinds[b] || { usd: 0, n: 0 }).n = n;
+            else if ((a === "in" || a === "out") && b) (models[b] = models[b] || { in: 0, out: 0 })[a] = n;
+          }
+          return { day, usd: Number(h.usd) || 0, calls: Number(h.calls) || 0, gen_runs: Number(h.gen_runs) || 0, bank_q: Number(h.bank_q) || 0, new_q: Number(h.new_q) || 0, kinds, models };
+        });
+        const z = rows[days.length] || [];
+        const topPhones = [];
+        for (let i = 0; i + 1 < z.length; i += 2) topPhones.push({ phone: z[i], usd: Math.round(Number(z[i + 1]) || 0) });
+        if (topPhones.length) {
+          const [accs] = await redis([["MGET", ...topPhones.map((t) => "acct:u:" + t.phone)]]);
+          topPhones.forEach((t, i) => { const a = parse(accs[i]); t.name = (a && a.parentName) || ""; t.kids = a ? (a.children || []).length : 0; });
+        }
+        return send(res, 200, { ok: true, rate: cfg.rate, month, days: out, top: topPhones, tries: await trySummary() });
+      }
+      case "ai_cfg_get":
+        return send(res, 200, { ok: true, cfg: await getAiCfg({ fresh: true }), groups: MODEL_GROUPS });
+      case "ai_cfg_set": {
+        const cur = await getAiCfg({ fresh: true });
+        const next = { ...cur, models: { ...cur.models }, updated: Date.now(), by: u.phone };
+        if (b.models && typeof b.models === "object") for (const g of MODEL_GROUPS) if (b.models[g] === "haiku" || b.models[g] === "sonnet") next.models[g] = b.models[g];
+        for (const k of ["genLimit", "capVnd", "rate"]) if (b[k] != null) {
+          const n = Math.round(Number(b[k]));
+          if (!Number.isFinite(n) || n < 0 || (k === "rate" && (n < 1000 || n > 100000)) || n > 10000000) return send(res, 200, { ok: false, error: "bad_value", field: k });
+          next[k] = n;
+        }
+        const saved = await setAiCfg(next);
+        const pick = (c) => ({ models: c.models, genLimit: c.genLimit, capVnd: c.capVnd, rate: c.rate });
+        await putChange(newChange({ type: "ai_cfg", ...who, title: "Chi phí AI: model, giới hạn, trần tiền, tỷ giá", before: pick(cur), after: pick(saved), status: "applied" }));
+        return send(res, 200, { ok: true, cfg: saved });
+      }
+      case "ai_bank_list":
+        return send(res, 200, { ok: true, ...(await bankList({ q: String(b.q || "").slice(0, 100), subject: String(b.subject || "").slice(0, 60), grade: String(b.grade || "").slice(0, 20) })) });
+      case "ai_bank_get": {
+        const d = await bankGet(String(b.key || ""));
+        return send(res, 200, d ? { ok: true, ...d } : { ok: false, error: "not_found" });
+      }
+      case "ai_bank_del": {
+        const d = await bankGet(String(b.key || ""));
+        if (!d) return send(res, 200, { ok: false, error: "not_found" });
+        await bankDel(d.key);
+        await putChange(newChange({ type: "ai_bank_del", ...who, title: `Xoá ngân hàng câu: ${d.meta.concept || d.key} (${d.meta.subject || ""} ${d.meta.grade || ""})`.replace(/\s+/g, " ").trim(),
+          before: { key: d.key, concept: d.meta.concept || "", questions: d.items.length }, ref: d.key, status: "applied" }));
+        return send(res, 200, { ok: true });
+      }
+      case "ai_try": {
+        const key = process.env.ANTHROPIC_API_KEY;
+        if (!key) return send(res, 200, { ok: false, error: "no_key" });
+        const names = String(Array.isArray(b.concepts) ? b.concepts.join(",") : b.concepts || "").split(/[,;\n]+/).map((x) => x.trim()).filter(Boolean).slice(0, 3);
+        const p = cleanGen({ subject: b.subject, grade: b.grade, topic: b.topic || names[0], concepts: names, count: b.count == null ? 10 : b.count, format: b.format });
+        if (!p.concepts.length) return send(res, 200, { ok: false, error: "no_concepts" });
+        const cfg = await getAiCfg();
+        const bookRef = await bookContext({ subject: p.subject, grade: p.grade, topic: p.topic, concepts: p.concepts });
+        const run = async (tier) => {
+          const ctx = newCtx("try"), t0 = Date.now();
+          let qs = [], error = "";
+          try { qs = await generateQuestions(key, { ...p, bookRef, tier, ctx }); } catch (e) { error = "ai_error"; console.error("ai_try", tier, e && e.message); }
+          const usd = ctx.uses.reduce((s, x) => s + costMicro(x.model, x.usage), 0);
+          const tok = ctx.uses.reduce((s, x) => ({ in: s.in + (Number(x.usage.input_tokens) || 0) + (Number(x.usage.cache_creation_input_tokens) || 0) + (Number(x.usage.cache_read_input_tokens) || 0), out: s.out + (Number(x.usage.output_tokens) || 0) }), { in: 0, out: 0 });
+          await recordCost(ctx, {}, { noPhone: true });   // thử của super admin: ghi vào tổng ngày (loại "try"), KHÔNG tính trần tài khoản
+          return { tier, model: (ctx.uses[0] || {}).model || "", error, usd, vnd: Math.round((usd / 1e6) * cfg.rate), inTok: tok.in, outTok: tok.out, calls: ctx.uses.length,
+            sec: Math.round((Date.now() - t0) / 100) / 10,
+            questions: (qs || []).map((q) => { const v = validQ(q, p.format); return v ? { ...v, ok: true } : { q: String((q && q.q) || ""), options: Array.isArray(q && q.options) ? q.options.map(String) : undefined, answer: String((q && q.answer) ?? ""), explain: String((q && q.explain) || ""), ok: false }; }) };
+        };
+        const [sonnet, haiku] = await Promise.all([run("sonnet"), run("haiku")]);
+        return send(res, 200, { ok: true, input: p, book: !!bookRef, rate: cfg.rate, sonnet, haiku });
+      }
+      case "ai_try_save": {
+        const rows = (Array.isArray(b.rows) ? b.rows : []).slice(0, 2).filter((r) => r && (r.tier === "sonnet" || r.tier === "haiku"));
+        if (!rows.length) return send(res, 200, { ok: false, error: "bad_rows" });
+        const now = Date.now(), base = { at: now, subject: String(b.subject || "").slice(0, 60), grade: String(b.grade || "").slice(0, 20), topic: String(b.topic || "").slice(0, 200), by: u.phone };
+        const items = rows.map((r) => JSON.stringify({ ...base, tier: r.tier, model: String(r.model || "").slice(0, 80),
+          n: Math.max(0, Math.min(50, Math.round(Number(r.n) || 0))), wrong: Math.max(0, Math.min(50, Math.round(Number(r.wrong) || 0))), usd: Math.max(0, Math.round(Number(r.usd) || 0)) }));
+        await redis([["LPUSH", "ai:try:log", ...items], ["LTRIM", "ai:try:log", "0", "199"]]);
+        return send(res, 200, { ok: true, tries: await trySummary() });
       }
       default:
         return send(res, 400, { ok: false, error: "bad_action" });

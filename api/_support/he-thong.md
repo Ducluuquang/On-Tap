@@ -21,6 +21,15 @@ bài học đã ghi để không xử lý sai một lỗi đã gặp. Cập nh�
   trò chơi. Phụ huynh có thể tắt trắc nghiệm (khi đó con chỉ tự điền).
 - Câu hỏi do ONTAP soạn theo đúng lớp của con, bám bài con đã học; với môn có sách trong thư viện chung, ONTAP tham khảo sách giáo khoa
   đúng lớp + môn (con không thấy nguyên văn sách). Lớp 6–12 môn văn là "Ngữ văn".
+- NGÂN HÀNG CÂU HỎI (25/11/2026): câu ONTAP soạn được lưu theo từng chủ đề; lần ôn sau cùng chủ đề, câu hiện NGAY và là câu con CHƯA gặp
+  (các bạn cùng lớp, cùng môn, cùng chủ đề dùng chung). Chỉ khi hết câu mới ONTAP mới soạn thêm (chờ vài giây).
+- GIỚI HẠN CHỦ ĐỀ MỚI MỖI NGÀY: mỗi con mỗi ngày (giờ Việt Nam) được ONTAP soạn MỚI tối đa vài lần (mặc định 5; Ôn Tập đặt). Ôn lại chủ đề đã
+  có câu thì không tính và không giới hạn. Hết lượt: app hiện "Hôm nay con đã ôn đủ … chủ đề mới rồi! Con ôn lại các chủ đề đã học nhé,
+  mai ONTAP soạn tiếp." — đây KHÔNG phải lỗi; sang ngày mới tự có lượt mới. Ngoài ra mỗi tài khoản có trần chi phí AI mỗi ngày để an toàn
+  (theo số con); hiếm khi chạm tới — khi chạm, app báo tương tự, Vở Spelling dùng câu ví dụ đã lưu và ghi "Hôm nay ONTAP nghỉ, mai đặt
+  câu mới nhé". Không tự hứa tăng giới hạn; phụ huynh cần thêm thì chuyển người.
+- ONTAP (soạn câu, đọc bài, Vở Spelling) cần đăng nhập tài khoản và có mạng. Chưa đăng nhập / mất mạng: con vẫn ôn bằng câu tạm trên máy,
+  Vở Spelling vẫn "Gõ từ" để chơi.
 - Tiếng Anh có "Vở Spelling" (11 trò từ vựng), Thi đấu với bạn bè, Scrabble (luật nhà: một lượt đặt được nhiều từ ở nhiều chỗ,
   mỗi từ phải có nghĩa và chạm chữ đã có; lượt đầu qua ô ★). Người chơi máy là "Bạn ONTAP …" 🤖, luôn kém con một chút.
 

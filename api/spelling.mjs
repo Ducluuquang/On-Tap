@@ -4,8 +4,14 @@
 // Ôn Tập con không đăng nhập riêng. Khoá ANTHROPIC_API_KEY nằm ở máy chủ, trình duyệt không bao giờ thấy.
 // GET  /api/spelling -> { ok, ai }  (trang kiểm tra máy chủ có khoá AI chưa)
 // POST /api/spelling -> trả lời của AI, gửi dần từng đoạn chữ (mỗi dòng một JSON)
+//   Chi phí AI (25/11/2026): CHỈ chạy khi có chìa khoá đăng nhập Ôn Tập (Authorization: Bearer …; thiếu / sai -> 401 { error: "login" });
+//   vượt trần tiền ngày của tài khoản -> 429 { error: "limit" }; đếm token thật trong luồng (message_start: token vào,
+//   message_delta: token ra) rồi ghi tiền vào kho (api/_aicost.mjs, loại "spelling"); model theo cài đặt cfg:ai (spelling).
 // (LEVELS, promptTopic, API_URL, DEFAULT_MODEL cũng được api/arena.mjs — phần Thi đấu — dùng chung.)
 "use strict";
+import { userOf } from "./_admin.mjs";
+import { newCtx, recordCost, getAiCfg, overCap } from "./_aicost.mjs";
+import { pickModel } from "./aiCore.mjs";
 /* ---------- Prompts (shared by the page and the server) ---------- */
 /* Levels: Vietnam's school stages, then the CEFR / IELTS bands, up to SAT/GRE.
    The school stages follow the 2018 curriculum targets (end of primary A1, lower secondary A2, upper secondary B1).
@@ -234,8 +240,8 @@ function mapError(e) {
   return [502, "upstream"];
 }
 
-async function callClaude(content, maxTokens, signal) {
-  const models = [...new Set([process.env.ANTHROPIC_MODEL, DEFAULT_MODEL].map(x => String(x || "").trim()).filter(Boolean))];
+async function callClaude(content, maxTokens, signal, first = "") {
+  const models = [...new Set([first, process.env.ANTHROPIC_MODEL, DEFAULT_MODEL].map(x => String(x || "").trim()).filter(Boolean))];
   let last = null;
   for (const model of models) {
     const r = await fetch(API_URL, {
@@ -248,7 +254,7 @@ async function callClaude(content, maxTokens, signal) {
       },
       body: JSON.stringify({ model, max_tokens: maxTokens, stream: true, messages: [{ role: "user", content }] }),
     });
-    if (r.ok) return { r };
+    if (r.ok) return { r, model };
     let j = null;
     try { j = await r.json(); } catch {}
     last = { status: r.status, type: j && j.error && j.error.type, message: (j && j.error && j.error.message) || "" };
@@ -268,14 +274,22 @@ export default async function handler(req, res) {
     const big = e && e.code === "too_large";
     return send(res, big ? 413 : 400, { error: big ? "too_large" : "bad_request" });
   }
+  let u;
+  try { u = await userOf(req); } catch (e) { console.error("spelling login check", e && (e.code || e.message)); return send(res, 503, { error: "store" }); }
+  if (!u) return send(res, 401, { error: "login" });
   const built = buildRequest(body);
   if (built.error) return send(res, 400, { error: built.error });
+  try { if (await overCap(u.phone, u.acc)) return send(res, 429, { error: "limit" }); } catch (e) { console.error("spelling cap check", e && (e.code || e.message)); }
+  // Model theo cài đặt (Chi phí AI): "haiku" = Tiết kiệm -> model haiku mới nhất có trong tài khoản; "sonnet" (mặc định) giữ như cũ.
+  let first = "";
+  try { if ((await getAiCfg()).models.spelling === "haiku") first = await pickModel(process.env.ANTHROPIC_API_KEY, { tier: "haiku" }); } catch {}
+  const ctx = newCtx("spelling", u.phone);
 
   const ctl = new AbortController();
   res.on("close", () => { if (!res.writableFinished) ctl.abort(); });
 
   let up;
-  try { up = await callClaude(built.content, built.maxTokens, ctl.signal); } catch (e) {
+  try { up = await callClaude(built.content, built.maxTokens, ctl.signal, first); } catch (e) {
     if (ctl.signal.aborted) return;
     console.error("Anthropic request failed:", e && e.message);
     return send(res, 502, { error: "upstream" });
@@ -293,7 +307,9 @@ export default async function handler(req, res) {
 
   const reader = up.r.body.getReader();
   const dec = new TextDecoder();
-  let buf = "", stop = "";
+  let buf = "", stop = "", model = up.model;
+  const usage = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
+  const addUsage = (x) => { if (!x) return; for (const k of Object.keys(usage)) if (Number(x[k]) > 0) usage[k] = k === "output_tokens" ? Math.max(usage[k], Number(x[k])) : Number(x[k]); };
   const meta = o => res.write("\n" + JSON.stringify(o) + "\n");
   try {
     for (;;) {
@@ -308,7 +324,8 @@ export default async function handler(req, res) {
         let ev;
         try { ev = JSON.parse(line.slice(5)); } catch { continue; }
         if (ev.type === "content_block_delta" && ev.delta && ev.delta.type === "text_delta" && ev.delta.text) res.write(ev.delta.text);
-        else if (ev.type === "message_delta" && ev.delta && ev.delta.stop_reason) stop = ev.delta.stop_reason;
+        else if (ev.type === "message_start" && ev.message) { addUsage(ev.message.usage); if (ev.message.model) model = ev.message.model; }
+        else if (ev.type === "message_delta") { addUsage(ev.usage); if (ev.delta && ev.delta.stop_reason) stop = ev.delta.stop_reason; }
         else if (ev.type === "error") meta({ __error: mapError({ type: ev.error && ev.error.type, message: ev.error && ev.error.message })[1] });
       }
     }
@@ -317,4 +334,5 @@ export default async function handler(req, res) {
     if (!ctl.signal.aborted) { console.error("Stream interrupted:", e && e.message); try { meta({ __error: "upstream" }); } catch {} }
   }
   res.end();
+  if (usage.input_tokens || usage.output_tokens) { ctx.add(model, usage); await recordCost(ctx); }
 }

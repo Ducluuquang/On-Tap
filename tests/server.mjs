@@ -11,6 +11,11 @@
 //    fail:[...], cut:[...], hold:true|false}). fail/cut: "<tên sách>|p3h1" -> lần đọc kế tiếp của nửa trang đó lỗi / bị cắt.
 //  - /api/ai soạn câu hỏi (MOCK=1): trả câu hỏi giả; lời nhắc gửi AI ghi lại ở /__mock/ai (gen: 30 lời nhắc gần nhất).
 //    Danh sách model giả: sonnet-5-5 (không nhận thinking "disabled", như thật), sonnet-5, opus-5-5, haiku-5-5.
+//  - CHI PHÍ AI (25/11/2026): AI giả trả "usage" (số token) như thật, cho cả lời gọi thường và luồng (stream) của Vở Spelling.
+//    /__mock/ai/usage?in=1000&out=500&cw=0&cr=0 đặt số token; /__mock/ai/bad/<n>: mỗi lần soạn câu có n câu SAI quy cách
+//    (lựa chọn trùng, đáp án không nằm trong lựa chọn); /__mock/ai: msgs = số lời gọi /v1/messages, gen = lời nhắc soạn câu (kèm model).
+//    /__mock/day/<YYYY-MM-DD> | off: đặt "hôm nay" giả (giờ Việt Nam) để thử sang ngày mới.
+//    /api/spelling (MOCK=1) nay chạy hàm THẬT api/spelling.mjs (đăng nhập, trần tiền, đếm token) với luồng AI giả.
 //  - Gửi email (mã "Quên mật khẩu", api/_mail.mjs): KHÔNG gửi thật — MAIL_MOCK_FILE=tests/out/mail-<cổng>.jsonl (mỗi thư một dòng JSON).
 //    MAIL=0: như máy chủ chưa cài gửi email (không có MAIL_USER / MAIL_APP_PASSWORD) -> "mail_off".
 // Khoá AI chỉ lấy từ biến môi trường, không ghi vào file.
@@ -41,7 +46,47 @@ const FRUITS = [['apple', 'quả táo', '🍎'], ['banana', 'quả chuối', '�
 // MOCK=1: AI tạo bộ từ cho ván thi đấu cũng là AI giả (trả về nhanh, không tốn tiền).
 // AI giả làm đúng lời dặn: tạo đúng N từ, KHÔNG lặp lại các từ trong danh sách "do not repeat any of them".
 // Từ lấy trong từ điển Scrabble (từ thông dụng 4–8 chữ). /__mock/ai: số lần gọi + lời dặn gần nhất; fail/on|off; delay/<ms>.
-const MOCKAI = { calls: [], fail: false, delay: 300, gen: [], cskh: [] }
+const MOCKAI = { calls: [], fail: false, delay: 300, gen: [], cskh: [], judge: [], spell: [], other: [], err: '', msgs: 0, bad: 0, usage: { input_tokens: 1000, output_tokens: 500, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } }
+const usageNow = () => ({ ...MOCKAI.usage })
+// Luồng (stream) giả của Anthropic: message_start (token vào) -> các đoạn chữ -> message_delta (token ra)
+function sseResponse(lines, model) {
+  const enc = new TextEncoder(), U = usageNow()
+  const stream = new ReadableStream({ async start(ctl) {
+    const ev = (o) => ctl.enqueue(enc.encode('event: ' + o.type + '\ndata: ' + JSON.stringify(o) + '\n\n'))
+    ev({ type: 'message_start', message: { id: 'msg_mock', type: 'message', role: 'assistant', model, content: [], usage: { input_tokens: U.input_tokens, output_tokens: 1, cache_creation_input_tokens: U.cache_creation_input_tokens, cache_read_input_tokens: U.cache_read_input_tokens } } })
+    for (const l of lines) { ev({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: JSON.stringify(l) + '\n' } }); await new Promise((r) => setTimeout(r, 15)) }
+    ev({ type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: U.output_tokens } })
+    ev({ type: 'message_stop' })
+    ctl.close()
+  } })
+  return new Response(stream, { status: 200, headers: { 'content-type': 'text/event-stream' } })
+}
+// Vở Spelling (api/spelling.mjs THẬT, lời nhắc thật) -> các dòng JSON giả theo đúng loại việc trong lời nhắc
+async function spellingLines(text) {
+  const items = (re) => (text.split('Items:\n')[1] || '').split('\n').map((l) => re.exec(l)).filter(Boolean)
+  if (/fill-in-the-blank/.test(text)) return items(/^\d+\. (.+?)(?:  \(meaning: .*\))?$/).map((m) => ({ w: m[1], ex: `Every morning I eat one ${m[1]} for breakfast.` }))
+  if (/typed this English spelling list/.test(text)) return [{ name: 'Bộ từ mới' }, ...items(/^\d+\. (.+?)(?: \| (.*))?$/).map((m) => ({ orig: m[1], w: m[1], vi: m[2] || 'nghĩa của ' + m[1], ex: `This is a ${m[1]}.`, e: '⭐' }))]
+  if (/"formal or informal\?" game/.test(text)) {
+    const count = Number((/Write (\d+) pairs/.exec(text) || [])[1] || 8)
+    const have = new Set(((/so do not use any of them again: ([^\n]*)/.exec(text) || [])[1] || '').split(', ').map((x) => x.trim().toLowerCase()).filter(Boolean))
+    MOCKAI.calls.push({ mode: 'register', avoid: have.size, t: Date.now() })
+    const out = []
+    for (let i = 1; i <= 400 && out.length < count; i++) {
+      const inf = 'casual' + String.fromCharCode(97 + (i % 26)) + String.fromCharCode(97 + Math.floor(i / 26) % 26), fml = 'formal' + inf.slice(6)
+      if (have.has(inf) || have.has(fml)) continue
+      out.push({ inf, fml, vi: 'nghĩa ' + inf.slice(6), exi: `Hey, ${inf} works.`, exf: `The ${fml} is appropriate.` })
+    }
+    return out
+  }
+  if (/List (exactly|up to) (\d+)/.test(text)) {
+    const count = Number(/List (?:exactly|up to) (\d+)/.exec(text)[1])
+    const have = new Set(((/do not repeat any of them: ([^\n]*)/.exec(text) || [])[1] || '').split(', ').map((x) => x.trim().toLowerCase()).filter(Boolean))
+    const out = [{ name: 'Fruits' }]
+    for (const [w, vi, e] of FRUITS) { if (out.length > count) break; if (have.has(w)) continue; out.push({ w, vi, ex: `I like to eat a ${w}.`, e }) }
+    return out
+  }
+  return [{ name: 'Ảnh vở' }, ...FRUITS.slice(0, 3).map(([w, vi, e]) => ({ w, vi, ex: `I like to eat a ${w}.`, e }))]
+}
 // Message Batches giả (đọc chữ sách)
 const OCR = { batches: [], status: {}, books: {}, fail: new Set(), cut: new Set(), hold: false, canceled: [], seq: 0 }
 const jres = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json' } })
@@ -108,15 +153,24 @@ if (MOCK) {
         if (OCR.fail.has(k)) { OCR.fail.delete(k); return { custom_id: it.cid, result: { type: 'errored', error: { type: 'error', error: { type: 'overloaded_error', message: 'mock' } } } } }
         const text = ocrText(it.title, it.page, it.half)
         if (OCR.cut.has(k)) { OCR.cut.delete(k); return { custom_id: it.cid, result: { type: 'succeeded', message: { content: [{ type: 'text', text: text.slice(0, 12) }], stop_reason: 'max_tokens' } } } }
-        return { custom_id: it.cid, result: { type: 'succeeded', message: { content: [{ type: 'text', text }], stop_reason: 'end_turn' } } }
+        return { custom_id: it.cid, result: { type: 'succeeded', message: { model: it.model, content: [{ type: 'text', text }], stop_reason: 'end_turn', usage: usageNow() } } }
       })
       return new Response(lines.map((l) => JSON.stringify(l)).join('\n') + '\n', { status: 200, headers: { 'content-type': 'application/binary' } })
     }
     if (u.startsWith('https://api.anthropic.com/')) {
       const body = JSON.parse(opts.body)
+      MOCKAI.msgs++
       // như model thật: sonnet-5-5 không nhận thinking "disabled"
       if (body.model === 'claude-sonnet-5-5' && body.thinking && body.thinking.type === 'disabled') return jres({ type: 'error', error: { type: 'invalid_request_error', message: 'thinking.type "disabled" is not supported for this model' } }, 400)
       const allText = (body.messages[0].content || []).map ? [].concat(body.messages[0].content).map((c) => (typeof c === 'string' ? c : c.text || '')).join('\n') : String(body.messages[0].content)
+      // /__mock/ai/err/<loại lỗi>: mọi lời gọi trả lỗi của "máy chủ AI" kèm thông báo bí mật (phép thử: app không được lộ thông báo gốc)
+      if (MOCKAI.err) return jres({ type: 'error', error: { type: MOCKAI.err, message: 'SECRET-UPSTREAM-DETAIL credit org-12345' } }, MOCKAI.err === 'overloaded_error' ? 529 : MOCKAI.err === 'invalid_request_error' ? 400 : 500)
+      if (body.stream) { MOCKAI.spell.push({ model: body.model, prompt: allText.slice(0, 300), t: Date.now() }); if (MOCKAI.spell.length > 30) MOCKAI.spell.shift(); return sseResponse(await spellingLines(allText), body.model) }   // Vở Spelling (luồng)
+      // chấm câu tự gõ / đọc bài / chấm bài (api/aiCore.mjs): trả lời giả đúng định dạng, ghi lại lời nhắc + model
+      const other = (kind, out) => { MOCKAI.other.push({ kind, model: body.model, prompt: allText, t: Date.now() }); if (MOCKAI.other.length > 30) MOCKAI.other.shift(); return jres({ model: body.model, content: [{ type: 'text', text: JSON.stringify(out) }], stop_reason: 'end_turn', usage: usageNow() }) }
+      if (allText.includes('Câu trả lời của học sinh có ĐÚNG')) { MOCKAI.judge.push({ model: body.model, prompt: allText, t: Date.now() }); if (MOCKAI.judge.length > 30) MOCKAI.judge.shift(); return other('judge', { correct: true, note: 'Đúng rồi.' }) }
+      if (allText.includes('"concepts":[{"name":""')) return other('extract', { subject: 'Toán', grade: 'Lớp 4', topic: 'Phân số', concepts: [{ name: 'Rút gọn phân số', details: ['6/8'], difficulty: 'Cơ bản', importance: 'Quan trọng' }] })
+      if (allText.includes('"baiLam"')) return other('grade', { subject: 'Toán', topic: 'Phân số', baiLam: [] })
       if (allText.includes('CHĂM SÓC KHÁCH HÀNG ÔN TẬP')) {
         // ONTAP chăm sóc khách hàng (api/_cskh.mjs): trả lời theo tin nhắn mới nhất của KHÁCH.
         //  "[ai-hong]" -> AI lỗi · "GẤP" / "mất dữ liệu" -> chuyển người, gấp · "đề nghị" / "kiến nghị" -> chuyển người · còn lại: tự trả lời
@@ -126,7 +180,7 @@ if (MOCK) {
         if (last.includes('[ai-hong]')) return jres({ type: 'error', error: { type: 'api_error', message: 'mock cskh failure' } }, 500)
         const urgent = /GẤP|mất dữ liệu/i.test(last), esc = urgent || /đề nghị|kiến nghị/i.test(last)
         const reply = esc ? 'ONTAP đã ghi nhận và chuyển cho đội ngũ Ôn Tập, sẽ trả lời anh/chị sớm nhất.' : 'Chào bạn! ONTAP hướng dẫn: vào "Bắt đầu ôn", chọn môn rồi bấm "Ôn ngay" nhé.'
-        return jres({ content: [{ type: 'text', text: JSON.stringify({ reply, escalate: esc, urgent, summary: esc ? 'Khách cần người xử lý: ' + last.slice(7, 60) : '' }) }], stop_reason: 'end_turn' })
+        return jres({ model: body.model, content: [{ type: 'text', text: JSON.stringify({ reply, escalate: esc, urgent, summary: esc ? 'Khách cần người xử lý: ' + last.slice(7, 60) : '' }) }], stop_reason: 'end_turn', usage: usageNow() })
       }
       if (allText.includes('{"questions":[')) {
         // soạn câu hỏi (api/aiCore.mjs): ghi lại lời nhắc, trả câu giả
@@ -134,10 +188,16 @@ if (MOCK) {
         await new Promise((r) => setTimeout(r, 1500))   // như AI thật: soạn câu mất vài giây (app hiện "Đang chuẩn bị…")
         MOCKAI.gen.push({ model: body.model, thinking: body.thinking || null, prompt: allText, t: Date.now() }); if (MOCKAI.gen.length > 30) MOCKAI.gen.shift()
         const open = allText.includes('"answer":"","explain":""}]}') && !allText.includes('"options"')
+        // "concept" của câu giả: lần lượt từng khái niệm trong lời nhắc (như AI thật ghi tên chủ đề lớn)
+        const names = ((/Các khái niệm: (.*)\.\n/.exec(allText) || [])[1] || '').split(' | ').map((x) => x.replace(/ \(gồm: .*$/, '').trim()).filter(Boolean)
         const qs = Array.from({ length: n }, (_, i) => open
-          ? { concept: '', q: `Câu hỏi giả ${i + 1} (${Math.random().toString(36).slice(2, 6)})`, answer: 'đáp án', explain: 'Giải thích giả.' }
-          : { concept: '', q: `Câu hỏi giả ${i + 1} (${Math.random().toString(36).slice(2, 6)})`, options: ['Đúng', 'Sai một', 'Sai hai', 'Sai ba'], answer: 'Đúng', explain: 'Giải thích giả.' })
-        return jres({ content: [{ type: 'text', text: JSON.stringify({ questions: qs }) }], stop_reason: 'end_turn' })
+          ? { concept: names[i % (names.length || 1)] || '', q: `Câu hỏi giả ${i + 1} (${Math.random().toString(36).slice(2, 6)})`, answer: 'đáp án', explain: 'Giải thích giả.' }
+          : { concept: names[i % (names.length || 1)] || '', q: `Câu hỏi giả ${i + 1} (${Math.random().toString(36).slice(2, 6)})`, options: ['Đúng', 'Sai một', 'Sai hai', 'Sai ba'], answer: 'Đúng', explain: 'Giải thích giả.' })
+        // câu SAI quy cách (thử ngân hàng chỉ lưu câu đúng quy cách): lựa chọn trùng nhau / đáp án không nằm trong lựa chọn
+        for (let i = 0; i < Math.min(MOCKAI.bad, qs.length); i++) qs[qs.length - 1 - i] = i % 2
+          ? { concept: qs[0].concept, q: `Câu SAI quy cách ${i} (${Math.random().toString(36).slice(2, 6)})`, options: ['A', 'B', 'C', 'D'], answer: open ? '' : 'E', explain: 'x' }
+          : { concept: qs[0].concept, q: `Câu SAI quy cách ${i} (${Math.random().toString(36).slice(2, 6)})`, options: ['A', 'A', 'B', 'C'], answer: open ? '' : 'A', explain: 'x' }
+        return jres({ model: body.model, content: [{ type: 'text', text: JSON.stringify({ questions: qs }) }], stop_reason: 'end_turn', usage: usageNow() })
       }
       const prompt = String(body.messages[0].content)
       const count = Number((prompt.match(/List exactly (\d+)/) || [])[1] || 25)
@@ -161,7 +221,7 @@ if (MOCK) {
         }
       }
       const text = ['{"name":"Fruits"}', ...words.map((o) => JSON.stringify(o))].join('\n')
-      return new Response(JSON.stringify({ content: [{ type: 'text', text }], stop_reason: 'end_turn' }), { status: 200, headers: { 'content-type': 'application/json' } })
+      return new Response(JSON.stringify({ model: body.model, content: [{ type: 'text', text }], stop_reason: 'end_turn', usage: usageNow() }), { status: 200, headers: { 'content-type': 'application/json' } })
     }
     return realFetch(url, opts)
   }
@@ -184,41 +244,25 @@ function vercelify(req, res, raw) {
   Object.defineProperty(req, 'body', { value: body, configurable: true })
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-async function mockSpelling(req, res, raw) {
-  if (req.method === 'GET') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ ok: true, ai: true })) }
-  const b = JSON.parse(raw || '{}')
-  res.statusCode = 200; res.setHeader('content-type', 'text/plain; charset=utf-8')
-  const line = async (o) => { res.write(JSON.stringify(o) + '\n'); await sleep(15) }
-  if (b.mode === 'topic') {
-    await line({ name: 'Fruits' })
-    const have = new Set((b.avoid || []).map((x) => String(x).toLowerCase()))
-    let n = 0
-    for (const [w, vi, e] of FRUITS) { if (n >= (b.count || 10)) break; if (have.has(w)) continue; await line({ w, vi, ex: `I like to eat a ${w}.`, e }); n++ }
-  } else if (b.mode === 'enrich') {
-    await line({ name: 'Bộ từ mới' })
-    for (const it of b.items || []) await line({ orig: it.w, w: it.w, vi: it.vi || 'nghĩa của ' + it.w, ex: `This is a ${it.w}.`, e: '⭐' })
-  } else if (b.mode === 'context') {
-    for (const it of b.items || []) await line({ w: it.w, ex: `Every morning I eat one ${it.w} for breakfast.` })
-  } else if (b.mode === 'register') {
-    MOCKAI.calls.push({ mode: 'register', avoid: (b.avoid || []).length, t: Date.now() })
-    const have = new Set((b.avoid || []).map((x) => String(x).toLowerCase()))
-    let n = 0
-    for (let i = 1; i <= 400 && n < (b.count || 8); i++) {
-      const inf = 'casual' + String.fromCharCode(97 + (i % 26)) + String.fromCharCode(97 + Math.floor(i / 26) % 26), fml = 'formal' + inf.slice(6)
-      if (have.has(inf) || have.has(fml)) continue
-      await line({ inf, fml, vi: 'nghĩa ' + inf.slice(6), exi: `Hey, ${inf} works.`, exf: `The ${fml} is appropriate.` }); n++
-    }
-  } else { res.statusCode = 400; return res.end(JSON.stringify({ error: 'bad_request' })) }
-  res.end()
-}
-
 const server = http.createServer((req, res) => {
   const url = req.url.split('?')[0]
+  if (url.startsWith('/__mock/day/')) {
+    const d = url.slice('/__mock/day/'.length)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) process.env.AI_FAKE_DAY = d; else delete process.env.AI_FAKE_DAY
+    res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ day: process.env.AI_FAKE_DAY || null }))
+  }
   if (url.startsWith('/__mock/ai')) {
-    const m = url.match(/^\/__mock\/ai(?:\/(reset|fail|delay)\/?(\w+)?)?$/)
-    if (m && m[1] === 'reset') { MOCKAI.calls = []; MOCKAI.fail = false; MOCKAI.delay = 300; MOCKAI.gen = []; MOCKAI.cskh = [] }
+    const m = url.match(/^\/__mock\/ai(?:\/(reset|fail|delay|bad|usage|err)\/?(\w+)?)?$/)
+    if (m && m[1] === 'reset') { MOCKAI.calls = []; MOCKAI.fail = false; MOCKAI.delay = 300; MOCKAI.gen = []; MOCKAI.cskh = []; MOCKAI.msgs = 0; MOCKAI.bad = 0; MOCKAI.judge = []; MOCKAI.spell = []; MOCKAI.other = []; MOCKAI.err = ''; MOCKAI.usage = { input_tokens: 1000, output_tokens: 500, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } }
     if (m && m[1] === 'fail') MOCKAI.fail = m[2] === 'on'
     if (m && m[1] === 'delay') MOCKAI.delay = Number(m[2]) || 0
+    if (m && m[1] === 'bad') MOCKAI.bad = Number(m[2]) || 0
+    if (m && m[1] === 'err') MOCKAI.err = m[2] && m[2] !== 'off' ? m[2] : ''
+    if (m && m[1] === 'usage') {
+      const q = new URLSearchParams(req.url.split('?')[1] || '')
+      const v = (k, d) => (q.has(k) ? Math.max(0, Number(q.get(k)) || 0) : d)
+      MOCKAI.usage = { input_tokens: v('in', 1000), output_tokens: v('out', 500), cache_creation_input_tokens: v('cw', 0), cache_read_input_tokens: v('cr', 0) }
+    }
     res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify(MOCKAI))
   }
   if (url === '/__mock/ocr') {
@@ -245,7 +289,7 @@ const server = http.createServer((req, res) => {
     req.on('end', async () => {
       try {
         if (url === '/api/ai') { vercelify(req, res, raw); await aiHandler(req, res) }
-        else if (url === '/api/spelling') { if (MOCK) await mockSpelling(req, res, raw); else { vercelify(req, res, raw); await spellingHandler(req, res) } }
+        else if (url === '/api/spelling') { vercelify(req, res, raw); await spellingHandler(req, res) }
         else if (url === '/api/ics') { icsHandler(req, res) }
         else if (url === '/api/arena') { vercelify(req, res, raw); await arenaHandler(req, res) }
         else if (url === '/api/account') { vercelify(req, res, raw); await accountHandler(req, res) }

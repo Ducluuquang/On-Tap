@@ -29,7 +29,7 @@ MOCK=1 ARENA=0 PORT=4193 node "$T/server.mjs" > "$OUT/s4193.log" 2>&1 & PIDS+=($
 MOCK=1 MAIL=0 PORT=4194 ARENA_SB_TURN_MS=7000 ARENA_SB_AWAY_MS=5000 node "$T/server.mjs" > "$OUT/s4194.log" 2>&1 & PIDS+=($!)
 sleep 3
 
-SUITES=${*:-"t_acct_merge t_sync_merge t_api_account t_api_data t_ui_account t_ui_data t_engine t_engine_many t_engine_multi t_api_arena t_api_limit t_api_scrabble t_api_more t_api_multi t_ui26 t_ui24 t_arena_regress t_solo_games t_leave_race t_ui_more t_ui_multi t_ui28 t_ui_pick t_books_core t_api_books t_ui_books t_books_gen t_api_admin t_ui_admin t_api_roles t_ui_roles t_ui_desk"}
+SUITES=${*:-"t_acct_merge t_sync_merge t_api_account t_api_data t_ui_account t_ui_data t_engine t_engine_many t_engine_multi t_api_arena t_api_limit t_api_scrabble t_api_more t_api_multi t_ui26 t_ui24 t_arena_regress t_solo_games t_leave_race t_ui_more t_ui_multi t_ui28 t_ui_pick t_books_core t_api_books t_ui_books t_books_gen t_api_admin t_ui_admin t_api_roles t_ui_roles t_ui_desk t_api_ai t_ai_bank t_ai_limit t_ai_cost t_ai_model t_ui_aicost"}
 pass=0; fail=0
 for t in $SUITES; do
   # mỗi bộ thử tạo nhiều người chơi/tài khoản từ cùng một địa chỉ: xoá bộ đếm chống spam của kho THỬ trước mỗi bộ
@@ -37,6 +37,8 @@ for t in $SUITES; do
   redis-cli -p 6390 --scan --pattern 'acct:rl:*' | xargs -r redis-cli -p 6390 del >/dev/null
   redis-cli -p 6390 --scan --pattern 'book:*' | xargs -r redis-cli -p 6390 del >/dev/null   # thư viện sách thử: mỗi bộ bắt đầu trống
   redis-cli -p 6390 --scan --pattern 'fb:rl:*' | xargs -r redis-cli -p 6390 del >/dev/null  # đếm số góp ý / ngày
+  redis-cli -p 6390 --scan --pattern 'ai:c:*' | xargs -r redis-cli -p 6390 del >/dev/null   # tiền AI theo tài khoản (trần tiền ngày): mỗi bộ bắt đầu chưa tiêu
+  redis-cli -p 6390 --scan --pattern 'qb:*' | xargs -r redis-cli -p 6390 del >/dev/null     # ngân hàng câu hỏi thử: mỗi bộ bắt đầu trống (bộ cũ đọc lời nhắc soạn câu)
   printf '=== %s: ' "$t"
   if timeout 900 node "$T/$t.mjs" > "$OUT/$t.log" 2>&1 && grep -q "ALL PASS" "$OUT/$t.log"; then
     pass=$((pass+1)); tail -1 "$OUT/$t.log"

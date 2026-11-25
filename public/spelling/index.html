@@ -642,6 +642,9 @@ const ONTAP_CHILD = (() => {
 const ONTAP_INFO = (() => {   // Ôn Tập: tên, biểu tượng, lớp của con — dùng cho phần Thi đấu
   try { const q = new URLSearchParams(location.search); return { name: q.get("name") || "", icon: q.get("icon") || "", grade: q.get("grade") || "" }; } catch { return { name: "", icon: "", grade: "" }; }
 })();
+/* Ôn Tập (Chi phí AI 25/11/2026): /api/spelling chỉ chạy khi có chìa khoá đăng nhập Ôn Tập — đọc đúng chỗ src/lib/sync.js giữ
+   (localStorage "ontap.acctoken.v1"). Không có chìa khoá thì ONTAP tắt như khi máy chủ chưa có AI. */
+const ONTAP_TOKEN = () => { if (!IN_ONTAP) return ""; try { return localStorage.getItem("ontap.acctoken.v1") || ""; } catch { return ""; } };
 const KEY_DATA = IN_ONTAP ? "ontap.spelling.v1" + (ONTAP_CHILD ? "::" + ONTAP_CHILD : "") : "vs.data";
 const KEY_PREFS = IN_ONTAP ? "ontap.spellingprefs.v1" + (ONTAP_CHILD ? "::" + ONTAP_CHILD : "") : "vs.prefs";
 /* Ôn Tập: báo cho Ôn Tập (khung bên ngoài) — "exit": về Ôn Tập; "session": xong một lượt chơi
@@ -1106,6 +1109,7 @@ function artifactAsk(req, { images, signal, onText }) {
 }
 
 async function connectWebAI() {
+  if (IN_ONTAP && !ONTAP_TOKEN()) { AI.webIssue = "no_login"; return; }   // Ôn Tập: chưa đăng nhập -> ONTAP tắt
   try {
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), 8000);
@@ -1152,7 +1156,8 @@ async function webAsk(req, { images, signal, onText }) {
   let r;
   try {
     const headers = { "Content-Type": "application/json" };
-    if (ACC.token) headers.Authorization = "Bearer " + ACC.token;
+    const tok = IN_ONTAP ? ONTAP_TOKEN() : ACC.token;   // Ôn Tập: chìa khoá đăng nhập Ôn Tập
+    if (tok) headers.Authorization = "Bearer " + tok;
     r = await fetch(AI_URL, { method: "POST", headers, body: JSON.stringify(body), signal });
   } catch {
     throw { code: signal && signal.aborted ? "cancelled" : "network" };
@@ -1161,6 +1166,7 @@ async function webAsk(req, { images, signal, onText }) {
     const j = await r.json().catch(() => null);
     const code = (j && j.error) || "http_" + r.status;
     if (code === "auth" && ACC.token) sessionLost();
+    if (code === "login" && IN_ONTAP) { AI.ask = null; AI.webIssue = "no_login"; }   // Ôn Tập: chìa khoá hết hạn -> tắt ONTAP
     throw { code };
   }
   let text = "";
@@ -1200,6 +1206,8 @@ function aiErrMsg(e) {
     case "network": return "Mất kết nối mạng. Kiểm tra mạng rồi thử lại.";
     case "bad_request": return "Yêu cầu chưa hợp lệ. Kiểm tra nội dung rồi thử lại.";
     case "auth": return "Cần đăng nhập để dùng ONTAP. Đăng nhập lại nhé.";
+    case "login": return "Cần đăng nhập tài khoản Ôn Tập để dùng ONTAP. Vẫn chọn “Gõ từ” để chơi được.";   // Ôn Tập
+    case "limit": return "Hôm nay ONTAP nghỉ, mai đặt câu mới nhé. Vẫn chọn “Gõ từ” để chơi được.";   // Ôn Tập: vượt trần tiền AI của ngày
     case "cancelled": return "";
     default: return "Kết nối với ONTAP bị gián đoạn. Bấm thử lại.";
   }
@@ -1428,6 +1436,7 @@ function expandInputHtml(c) {
 }
 function aiOffNote() {
   if (!AI.checked) return '<div class="note">Đang kết nối ONTAP…</div>';
+  if (AI.webIssue === "no_login") return '<div class="note">ONTAP cần đăng nhập tài khoản Ôn Tập (có mạng). Trong lúc đó vẫn chọn “Gõ từ” để chơi được.</div>';   // Ôn Tập
   if (AI.web && AI.webIssue === "no_key") return '<div class="note">Máy chủ chưa có khóa ANTHROPIC_API_KEY. Trên Vercel, thêm khóa này trong Settings → Environment Variables rồi bấm Redeploy. Trong lúc đó vẫn chọn “Gõ từ” để chơi được.</div>';
   if (AI.web) return '<div class="note">Không kết nối được máy chủ ONTAP. Kiểm tra mạng, hoặc mở app bằng link Vercel thay vì mở file trên máy. Vẫn chọn “Gõ từ” để chơi được.</div>';
   return `<div class="note">ONTAP chưa sẵn sàng trên trang này${AI.denied ? " (chưa được cho phép)" : ""}. Vẫn có thể chọn “Gõ từ” để tạo bộ từ và chơi bình thường.</div>`;
@@ -2745,7 +2754,7 @@ GAMES.context = {
   need: "Cần từ có câu ví dụ. Bấm “Sửa” rồi “ONTAP bổ sung nghĩa, câu ví dụ”.",
   art: () => `<div class="ctx-art">Bees make sweet ${gapHtml("honey", [])}.</div>`,
   start(g) {
-    g.stage.innerHTML = `<div class="ctxwrap"><p class="ctx" id="g-ctx"></p><div class="ctx-meta" id="g-meta"></div></div>
+    g.stage.innerHTML = `<div class="ctxwrap"><p class="ctx" id="g-ctx"></p><div class="ctx-meta" id="g-meta"></div><div class="ctx-meta muted small" id="g-rest" hidden>Hôm nay ONTAP nghỉ, mai đặt câu mới nhé</div></div>
       <div class="row" id="g-tools" style="justify-content:center"></div><div id="g-clue"></div>
       ${answerHtml()}<div class="fb" id="g-fb" aria-live="polite"></div><div id="g-extra" style="width:100%"></div>`;
     const form = $("#g-form"), inp = $("#g-in");
@@ -2766,7 +2775,8 @@ GAMES.context = {
           if (x && ctxSplit(o.ex, x.w)) fresh[norm(x.w)] = String(o.ex).replace(/\s+/g, " ").trim();
           ping();
         },
-      }).catch(() => {}).then(() => { clearTimeout(cap); ai = "done"; ping(); });
+      }).catch(e => { if (e && e.code === "limit" && G === g) { const r = $("#g-rest"); if (r) r.hidden = false; } })   // Ôn Tập: vượt trần tiền AI -> dùng câu ví dụ đã lưu
+        .then(() => { clearTimeout(cap); ai = "done"; ping(); });
     }
 
     let i = 0, w = null, pieces = null, tries = 0, phase = "wait", autoT = 0;

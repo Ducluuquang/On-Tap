@@ -19,10 +19,11 @@ async function modelIds(key) {
 // Chọn model theo tên CÓ SẴN trong tài khoản (tự thích ứng khi Anthropic đổi đời model).
 // fast=true: ưu tiên model nhanh cho việc ĐỌC bài. Mặc định: model chính xác để soạn/chấm câu hỏi.
 // Fallback dùng model ĐANG CÓ (sonnet-5), KHÔNG hardcode model đã ngừng (sonnet-4-5/haiku-4-5).
-export async function pickModel(key, { fast = false } = {}) {
+// tier (Chi phí AI 25/11/2026, cài đặt "cfg:ai" của super admin): 'haiku' = Tiết kiệm, 'sonnet' = Chính xác (mặc định).
+export async function pickModel(key, { fast = false, tier = '' } = {}) {
   const ids = await modelIds(key)
   const find = (re) => ids.find((i) => re.test(i))
-  if (fast) return find(/haiku/i) || find(/sonnet/i) || find(/fable/i) || ids[0] || 'claude-sonnet-5'
+  if (fast || tier === 'haiku') return find(/haiku/i) || find(/sonnet/i) || find(/fable/i) || ids[0] || 'claude-sonnet-5'
   return find(/sonnet/i) || find(/opus/i) || find(/haiku/i) || ids[0] || 'claude-sonnet-5'
 }
 
@@ -35,6 +36,7 @@ export async function pickModel(key, { fast = false } = {}) {
 const THINKING_OPTIONS = [{ type: 'disabled' }, { type: 'between_tools' }, null]
 const thinkingOk = new Map() // model -> vị trí cách tắt thinking đã chạy được
 
+// Trả { text, usage, model }: usage = số token thật Anthropic tính (Chi phí AI, api/_aicost.mjs).
 async function askModel(key, model, content, max) {
   for (let i = thinkingOk.get(model) ?? 0; i < THINKING_OPTIONS.length; i++) {
     const body = { model, max_tokens: max, messages: [{ role: 'user', content }] }
@@ -50,7 +52,7 @@ async function askModel(key, model, content, max) {
       throw err
     }
     thinkingOk.set(model, i)
-    return (d.content || []).filter((b) => b.type === 'text').map((b) => b.text || '').join('')
+    return { text: (d.content || []).filter((b) => b.type === 'text').map((b) => b.text || '').join(''), usage: d.usage || null, model: d.model || model }
   }
   throw new Error('Không gọi được model ' + model)
 }
@@ -65,18 +67,20 @@ export async function thinkingFor(key, model) {
 }
 
 // Hỏi AI một đoạn chữ, trả chữ (ONTAP chăm sóc khách hàng — api/_cskh.mjs). Dùng model chính xác, tắt thinking như trên.
-export const askText = (key, text, max = 1500) => ask(key, [{ type: 'text', text }], max)
+export const askText = (key, text, max = 1500, ctx = null) => ask(key, [{ type: 'text', text }], max, { ctx })
 
-async function ask(key, content, max = 2500, { fast = false } = {}) {
-  const model = await pickModel(key, { fast })
+// ctx (api/_aicost.mjs → newCtx): đếm token của RIÊNG yêu cầu này (không dùng biến toàn cục — Vercel chạy nhiều yêu cầu cùng lúc).
+async function ask(key, content, max = 2500, { fast = false, tier = '', ctx = null } = {}) {
+  const model = await pickModel(key, { fast, tier })
+  const done = (r) => { if (ctx) ctx.add(r.model, r.usage); return r.text }
   try {
-    return await askModel(key, model, content, max)
+    return done(await askModel(key, model, content, max))
   } catch (e) {
     // Model vừa chọn không dùng được (bị gỡ/quá tải/lỗi lạ) -> thử MỘT model dự phòng đang có.
     const ids = await modelIds(key)
     const backup = [/sonnet/i, /opus/i, /haiku/i].map((re) => ids.find((i) => re.test(i) && i !== model)).find(Boolean)
     if (!backup) throw e
-    return askModel(key, backup, content, max)
+    return done(await askModel(key, backup, content, max))
   }
 }
 
@@ -102,7 +106,7 @@ const EXTRACT_SCHEMA = '{"subject":"","grade":"","topic":"","concepts":[{"name":
 
 // Đọc MỘT hoặc NHIỀU ảnh/file (PDF) bài học → tách khái niệm.
 // items: [{ type:'image'|'document', b64, media }]. Cũng nhận cách gọi cũ (imageB64, media).
-export async function extractConcepts(key, items, mediaLegacy = 'image/jpeg') {
+export async function extractConcepts(key, items, mediaLegacy = 'image/jpeg', { ctx = null } = {}) {
   const list = Array.isArray(items)
     ? items
     : [{ type: 'image', b64: items, media: mediaLegacy }]
@@ -120,12 +124,12 @@ ${EXTRACT_SCHEMA}
 ${BIG_TOPIC_RULE}
 ${SPECIFIC_RULE}
 Gộp trùng lặp${many ? ' (nhiều trang cùng chủ đề thì gộp làm một concept)' : ''}. "name" bằng tiếng Việt (được kèm tên tiếng Anh trong ngoặc, vd "Câu đảo ngữ (Inversion)"); "details" giữ nguyên chữ trong bài (từ/câu tiếng Anh giữ tiếng Anh). Chỉ JSON.`
-  const out = await ask(key, [...blocks, { type: 'text', text: prompt }], many ? 2200 : 1300, { fast: true })
+  const out = await ask(key, [...blocks, { type: 'text', text: prompt }], many ? 2200 : 1300, { fast: true, ctx })
   return parseJSON(out)
 }
 
 // Đọc nội dung con GÕ vào (mô tả bài học) → tách khái niệm.
-export async function extractFromText(key, text) {
+export async function extractFromText(key, text, { ctx = null } = {}) {
   const prompt =
 `Một học sinh tiểu học Việt Nam mô tả nội dung vừa học ở trường: "${text}".
 Suy ra và trả về DUY NHẤT JSON:
@@ -135,12 +139,12 @@ MÔN ("subject"): nếu nội dung có GHI TÊN MÔN (vd "Tiếng Anh 7: Thì qu
 ${BIG_TOPIC_RULE}
 ${SPECIFIC_RULE}
 Đúng với mô tả, gộp trùng lặp. "name" bằng tiếng Việt (được kèm tên tiếng Anh trong ngoặc); "details" giữ nguyên chữ con gõ (từ/câu tiếng Anh giữ tiếng Anh). Chỉ JSON.`
-  const out = await ask(key, [{ type: 'text', text: prompt }], 1300, { fast: true })
+  const out = await ask(key, [{ type: 'text', text: prompt }], 1300, { fast: true, ctx })
   return parseJSON(out)
 }
 
 // Chấm câu trả lời TỰ ĐIỀN: hiểu các cách diễn đạt/đọc khác nhau nhưng cùng nghĩa.
-export async function judgeAnswer(key, { question = '', correct = '', answer = '' }) {
+export async function judgeAnswer(key, { question = '', correct = '', answer = '' }, { tier = '', ctx = null } = {}) {
   const prompt =
 `Học sinh tiểu học Việt Nam làm bài (tự gõ đáp án, không có sẵn lựa chọn).
 Câu hỏi: "${question}"
@@ -153,7 +157,7 @@ Câu trả lời của học sinh có ĐÚNG về GIÁ TRỊ / NỘI DUNG không
 Trả về DUY NHẤT JSON: {"correct": true, "note": ""}
 "note" (tiếng Việt, ≤25 từ, lời dễ hiểu cho học sinh tiểu học): nếu ĐÚNG -> xác nhận rất ngắn; nếu SAI -> nói RÕ học sinh sai ở CHỖ NÀO và VÌ SAO (vd "Con thiếu mạo từ 'a' trước 'doctor'", "Con tính nhầm: 7 × 8 = 56, không phải 54").
 Chỉ JSON.`
-  const out = await ask(key, [{ type: 'text', text: prompt }], 400)
+  const out = await ask(key, [{ type: 'text', text: prompt }], 400, { tier, ctx })
   return parseJSON(out)
 }
 
@@ -244,7 +248,7 @@ ${ref}
 - Có thể ghi nguồn ngắn trong "explain" (vd "SGK Ngữ văn 7 tập 1, tr. 12").`
 }
 
-async function genChunk(key, { subject, grade, topic, concepts, format, fast = false, master = false, enLang = 'vi', bookRef = '' }, n, salt = '') {
+async function genChunk(key, { subject, grade, topic, concepts, format, fast = false, master = false, enLang = 'vi', bookRef = '', tier = '', ctx = null }, n, salt = '') {
   const names = concepts.map((c) => (typeof c === 'string' ? c : c.name)).join(', ')
   // Chủ đề LỚN kèm các Ý NHỎ con đã học (details: câu mẫu, từ vựng, ví dụ) -> câu hỏi bám đúng nội dung bài.
   const cleanDetails = (c) => (c && typeof c === 'object' && Array.isArray(c.details) ? c.details : [])
@@ -277,7 +281,8 @@ async function genChunk(key, { subject, grade, topic, concepts, format, fast = f
 KHÔNG ra câu cần "nhìn tranh/xem hình" hay nghe âm thanh — app chỉ hiện CHỮ.`
   const kindOpen = master ? 'câu hỏi NÂNG CAO để học sinh TỰ ĐIỀN đáp án (KHÔNG có lựa chọn sẵn)' : 'câu hỏi để học sinh TỰ ĐIỀN đáp án (KHÔNG có lựa chọn sẵn)'
   const kindChoice = master ? 'câu hỏi trắc nghiệm NÂNG CAO, KẾT HỢP nhiều khái niệm, mỗi câu 4 lựa chọn' : 'câu hỏi trắc nghiệm KHÁC NHAU cho học sinh ôn tập, mỗi câu 4 lựa chọn'
-  const prompt = salt + (open
+  // "Mã đề" ngẫu nhiên (salt) ở CUỐI lời nhắc (25/11/2026): phần đầu giống nhau giữa các đợt / các lần soạn.
+  const prompt = (open
     ? `Môn ${subject}, lớp ${grade}, chủ đề "${topic}". Các khái niệm: ${listing}.
 Tạo ${n} ${kindOpen}.${mrule}${combineRule}${bookRule(bookRef)}
 ${topicRule}${distinctRule}${detailRule}
@@ -303,10 +308,10 @@ QUY TẮC BẮT BUỘC:
 - (Toán) Bài ĐỌC SỐ: các lựa chọn sai phải đọc SAI (sai chữ số/giá trị). TUYỆT ĐỐI không tạo lựa chọn chỉ khác CÁCH ĐỌC của đáp án đúng (thêm/bớt "không trăm", "tư"="bốn", "linh"="lẻ", "nghìn"="ngàn") — vì sẽ thành 2 đáp án cùng đúng.
 ${subjRule}
 - "explain" BẮT BUỘC (tiếng Việt, ≤${bookRef ? 40 : 30} từ, lời dễ hiểu cho ${learner(grade)}): nêu VÌ SAO đáp án đúng, VÀ chỉ ra LỖI SAI của các lựa chọn còn lại (vd thiếu mạo từ "a", sai thì, chia động từ sai, tính nhầm…) — để con chọn sai hiểu mình SAI Ở ĐÂU. Phải khớp với "answer". Tự tính lại để chắc chắn "answer" đúng.
-Tiếng Việt, chính xác. Chỉ JSON.`)
+Tiếng Việt, chính xác. Chỉ JSON.`) + (salt ? '\n' + salt.trim() : '')
   // Lời giải thích dài hơn (nêu cả lỗi sai) -> nới trần token để JSON KHÔNG bị cụt.
   const max = Math.min(5200, (master ? 900 : 700) + n * (master ? 380 : 310))
-  const out = await ask(key, [{ type: 'text', text: prompt }], max, { fast })
+  const out = await ask(key, [{ type: 'text', text: prompt }], max, { fast, tier, ctx })
   return parseJSON(out).questions || []
 }
 
@@ -326,16 +331,17 @@ function dedupeByQ(list) {
 export async function generateQuestions(key, opts) {
   // fast=false (mặc định): dùng model CHÍNH XÁC để soạn bài (độ tin cậy là ưu tiên số 1).
   // Tăng tốc bằng cách chia NHỎ và chạy SONG SONG nhiều đợt — nhanh mà KHÔNG giảm chính xác.
-  const { subject = 'Toán', grade = '', topic = '', concepts = [], count = 6, format = 'choice', fast = false, master = false, enLang = 'vi', bookRef = '' } = opts
-  const base = { subject, grade, topic, concepts, format, fast, master, enLang, bookRef }
+  const { subject = 'Toán', grade = '', topic = '', concepts = [], count = 6, format = 'choice', fast = false, master = false, enLang = 'vi', bookRef = '', tier = '', ctx = null } = opts
+  const base = { subject, grade, topic, concepts, format, fast, master, enLang, bookRef, tier, ctx }
   // Mã đề NGẪU NHIÊN mỗi lần gọi -> mỗi buổi ôn ra bộ câu KHÁC nhau dù cùng nội dung.
   const vary = Math.random().toString(36).slice(2, 7)
   const freshRule = `(Mã đề ${vary}: hãy ra bộ câu hỏi MỚI và KHÁC các lần ôn trước — đổi số liệu, đổi ngữ cảnh, đổi cách hỏi; tránh trùng lặp) `
-  // Đợt nhỏ (3-4 câu) chạy song song -> mỗi đợt xong nhanh, tổng thời gian ngắn hơn nhiều so với 1 đợt lớn.
+  // Đợt nhỏ chạy song song -> mỗi đợt xong nhanh, tổng thời gian ngắn hơn nhiều so với 1 đợt lớn.
+  // Chi phí AI (25/11/2026): đợt 5 câu (trước 3–4) -> ít lời gọi hơn, đỡ gửi lại quy tắc + đoạn sách nhiều lần.
   // Môn NGÔN NGỮ (Anh/Việt) hay bị LẶP TỪ giữa các đợt song song (vd "trim" lặp 4/10 câu) vì mỗi đợt
   // không "thấy" đợt kia. -> gom thành ĐỢT LỚN để quy tắc "không lặp từ" áp cho cả loạt câu.
   const isLangGen = isLangKey(subjKey(subject))
-  const CHUNK = isLangGen ? Math.min(Math.max(count, 1), 12) : (count <= 12 ? 3 : 4)
+  const CHUNK = isLangGen ? Math.min(Math.max(count, 1), 12) : 5
   // Mỗi đợt TỰ THỬ LẠI 1 lần nếu lỗi/rỗng — mạng mobile chập chờn hay làm HỤT câu (1,2,5,7 câu).
   const genOne = async (n, salt) => {
     let r = await genChunk(key, base, n, salt).catch(() => [])
@@ -357,7 +363,7 @@ export async function generateQuestions(key, opts) {
 }
 
 // Chấm một trang bài con ĐÃ LÀM (đọc chữ viết tay, kết luận đúng/sai, gán khái niệm).
-export async function gradeHomework(key, imageB64, media = 'image/jpeg') {
+export async function gradeHomework(key, imageB64, media = 'image/jpeg', { ctx = null } = {}) {
   const prompt =
 `Đây là ảnh một trang bài tập của học sinh tiểu học Việt Nam ĐÃ LÀM (có chữ viết tay), có thể bị xoay.
 Đọc các câu học sinh đã làm; tự tính đáp án đúng; kết luận đúng/sai. Nếu chữ không rõ ghi "không đọc rõ".
@@ -368,6 +374,6 @@ Tối đa 6 mục, chọn câu con có viết. nhanXet ngắn (≤ 12 từ). Ti�
   const out = await ask(key, [
     { type: 'image', source: { type: 'base64', media_type: media, data: imageB64 } },
     { type: 'text', text: prompt },
-  ], 5000)
+  ], 5000, { ctx })
   return parseJSON(out)
 }

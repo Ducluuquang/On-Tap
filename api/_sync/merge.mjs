@@ -67,7 +67,7 @@ export function cleanDoc(d) {
     v: 1,
     resetAt: Math.max(0, num(d.resetAt)),
     mem: { items: mapOf(mem.items, okId, objOrNull, 10000), dead: deadOf(mem.dead) },
-    recent: Array.isArray(d.recent) ? [...new Set(d.recent.filter((s) => typeof s === "string" && s && s.length <= 500))].slice(0, 80) : [],
+    recent: Array.isArray(d.recent) ? [...new Set(d.recent.filter((s) => typeof s === "string" && s && s.length <= 500))].slice(0, 400) : [],   // 400 câu đã gặp (25/11/2026: gồm id câu ngân hàng)
     goal: isObj(d.goal) && num(d.goal.v) >= 1 ? { v: int(d.goal.v, 1, 600), at: Math.max(0, num(d.goal.at)) } : null,
     dev: mapOf(d.dev, okId, cleanDev, 100),
     spell: cleanSpell(d.spell),
@@ -173,10 +173,10 @@ function pickSettings(x, y) {
   if (x.at !== y.at) return x.at > y.at ? x : y;
   return stable(x) >= stable(y) ? x : y;
 }
-// Câu hỏi đã gặp gần đây (để không lặp lại): bản máy vừa gửi trước (mới hơn), rồi bản cũ; tối đa 80 câu.
+// Câu hỏi đã gặp gần đây (để không lặp lại): bản máy vừa gửi trước (mới hơn), rồi bản cũ; tối đa 400 câu (25/11/2026).
 function mergeRecent(stored, incoming) {
   if (stored.resetAt !== incoming.resetAt) return stored.resetAt > incoming.resetAt ? stored.recent : incoming.recent;
-  return [...new Set([...incoming.recent, ...stored.recent])].slice(0, 80);
+  return [...new Set([...incoming.recent, ...stored.recent])].slice(0, 400);
 }
 
 // GỘP: stored = bản đang lưu trên máy chủ, incoming = bản máy vừa gửi. Trả bản đã làm sạch + gộp.

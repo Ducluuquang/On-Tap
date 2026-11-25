@@ -3,7 +3,8 @@
 //     Ngữ văn lớp 7 -> quy tắc Ngữ văn THCS.
 //  2  Trình duyệt: "Ngữ văn" là môn riêng (trước đây là bí danh của Tiếng Việt); con lớp 6–12 thấy môn Ngữ văn.
 //  3  Máy chủ (sách giả nạp bằng Message Batches giả): đúng lớp + môn -> lời nhắc có đoạn sách + nguồn; sai lớp / môn / không rõ
-//     lớp / chủ đề không có trong sách -> như cũ. Không cần đăng nhập (mọi tài khoản dùng chung thư viện).
+//     lớp / chủ đề không có trong sách -> như cũ. Mọi tài khoản dùng chung thư viện. Từ 25/11/2026 /api/ai cần chìa khoá đăng nhập
+//     + id con (Chi phí AI): bộ thử gửi chìa khoá của tài khoản thử; tắt giới hạn lượt soạn mới khi thử; xoá ngân hàng câu trước phần 4.
 //  4  Tài khoản KHÁC quản trị, con lớp 7: app gửi lớp thật "Lớp 7" (trước đây cứng "4-5"); máy chủ dùng đoạn sách.
 // Sách ở đây là SÁCH GIẢ tự viết (kho công khai). Không gọi AI thật.
 import { pw, OUT_DIR } from './_env.mjs'
@@ -58,7 +59,7 @@ check('con lớp 7 đã có bài ghi "Tiếng Việt" -> vẫn hiện Tiếng Vi
 const ADMIN = '0912000777', PASS = '12345678', USER = '0918' + RUN, KIDN = 'kidN' + RUN
 let ra = await acct('register', { phone: ADMIN, pass: PASS, parentName: 'Quản trị', plan: 1, pin: '1', children: [{ id: 'kA' + RUN, name: 'Bé', pin: '1', icon: '🦊', grade: 'Lớp 7' }] })
 const tA = ra.ok ? ra.token : (await acct('login', { id: ADMIN, pass: PASS })).token
-await acct('register', { phone: USER, pass: PASS, parentName: 'Ba', plan: 1, pin: '3', children: [{ id: KIDN, name: 'Minh', pin: '7', icon: '🦊', grade: 'Lớp 7' }] })
+const tUser = (await acct('register', { phone: USER, pass: PASS, parentName: 'Ba', plan: 1, pin: '3', children: [{ id: KIDN, name: 'Minh', pin: '7', icon: '🦊', grade: 'Lớp 7' }] })).token
 const TITLE = 'Ngữ văn 7 tập 1'
 await ocr({ books: { [TITLE]: {
   1: ['# Bài 2. Mèo mướp và chú gà trống\nMèo mướp nằm phơi nắng bên hiên nhà, gà trống gáy vang.', 'Gà trống rủ mèo mướp đi thăm cánh đồng lúa chín vàng.\n[Trang in: 30]'],
@@ -70,16 +71,17 @@ await books('upload', { id: cb.book.id, items: [1, 2, 3].flatMap((p) => [half(p,
 const ready = (await books('poll', { id: cb.book.id }, tA)).book
 check('chuẩn bị: sách giả SGK "Ngữ văn 7 tập 1" đã đọc xong trong thư viện chung', ready && ready.status === 'ready', JSON.stringify(ready))
 
-console.log('— 3. Máy chủ soạn câu hỏi dùng sách (mọi tài khoản, không cần đăng nhập)')
+console.log('— 3. Máy chủ soạn câu hỏi dùng sách (mọi tài khoản dùng chung)')
 await fetch(BASE + '/__mock/ai/reset')
+await post(BASE, '/api/admin', { action: 'ai_cfg_set', genLimit: 0 }, tA)   // bộ thử soạn 7 lượt mới liền cho một con: bỏ giới hạn lượt soạn mới (đặt lại 5 ở cuối)
 const gen = async (payload) => {
-  const r = await post(BASE, '/api/ai', { action: 'generate', payload: { count: 3, format: 'choice', ...payload } })
+  const r = await post(BASE, '/api/ai', { action: 'generate', payload: { count: 3, format: 'choice', ...payload }, childId: KIDN }, tUser)
   const m = await (await fetch(BASE + '/__mock/ai')).json()
   return { qs: r.questions || [], prompt: (m.gen.at(-1) || {}).prompt || '' }
 }
 const g1 = await gen({ subject: 'Ngữ văn', grade: 'Lớp 7', topic: 'Từ láy', concepts: [{ name: 'Từ láy', details: ['rì rào', 'lấp lánh'] }] })
 check('con lớp 7, Ngữ văn, chủ đề "Từ láy" -> lời nhắc có ĐOẠN SÁCH đúng đoạn (SGK <tên>, tr. 31) + dặn bám sát sách, chính tả chuẩn',
-  g1.qs.length === 3 && g1.prompt.includes('ĐOẠN SÁCH THAM KHẢO') && g1.prompt.includes(`[SGK ${TITLE}, tr. 31]`) && g1.prompt.includes('Từ láy là từ được tạo bởi') && !g1.prompt.includes('Mèo mướp nằm phơi nắng'), g1.prompt.slice(0, 600))
+  g1.qs.length === 6 /* 3 câu + 3 dự phòng (ngân hàng câu, 25/11/2026) */ && g1.prompt.includes('ĐOẠN SÁCH THAM KHẢO') && g1.prompt.includes(`[SGK ${TITLE}, tr. 31]`) && g1.prompt.includes('Từ láy là từ được tạo bởi') && !g1.prompt.includes('Mèo mướp nằm phơi nắng'), g1.prompt.slice(0, 600))
 check('đoạn sách trong lời nhắc ≤ 3.500 ký tự; quy tắc Ngữ văn THCS (không ghi "tiểu học")', (() => { const a = g1.prompt.indexOf('<<<'), b = g1.prompt.indexOf('>>>'); return a > 0 && b - a <= 3510 })() && /Ngữ văn THCS/.test(g1.prompt) && !/tiểu học/.test(g1.prompt))
 check('người dùng chỉ nhận câu hỏi (không nhận nguyên văn sách)', !JSON.stringify(g1.qs).includes('Từ láy là từ được tạo bởi'))
 const g2 = await gen({ subject: 'Tiếng Việt', grade: 'Lớp 7', topic: 'Từ láy', concepts: ['Từ láy'] })
@@ -116,6 +118,8 @@ async function login(d, phone) {
   await d.page.waitForSelector('.kh-cta', { timeout: 10000 })
 }
 /* ======== 4. Tài khoản KHÁC (không phải quản trị), con lớp 7 ôn Ngữ văn qua giao diện ======== */
+// ngân hàng câu (25/11/2026): xoá câu "Từ láy" đã soạn ở phần 3 để con phần 4 phải soạn mới (thấy lời nhắc có đoạn sách)
+for (const x of (await post(BASE, '/api/admin', { action: 'ai_bank_list', q: 'Từ láy' }, tA)).list || []) await post(BASE, '/api/admin', { action: 'ai_bank_del', key: x.key }, tA)
 console.log('— 4. Tài khoản khác: con lớp 7 ôn Ngữ văn')
 const MEMN = [{ id: 'tl1', name: 'Từ láy', subject: 'Ngữ văn', topic: 'Thực hành tiếng Việt', details: ['lấp lánh', 'rì rào'], difficulty: 'Cơ bản', importance: 'Quan trọng', learnedOn: new Date().toISOString().slice(0, 10), updatedAt: Date.now(), learnedInApp: true, mastery: 40, pts: 40, hist: '10', reviews: 1, correct: 1, wrong: 1 }]
 const K = await device({ ['ontap.memory.v2::' + KIDN]: JSON.stringify(MEMN) })
@@ -141,6 +145,7 @@ await P2.screenshot({ path: `${OUT}/books_child_review.png` })
 check('không có lỗi trang / lỗi console', allErrs.length === 0, allErrs.join(' | '))
 await browser.close()
 await books('delete', { id: cb.book.id }, tA)
+await post(BASE, '/api/admin', { action: 'ai_cfg_set', genLimit: 5 }, tA)
 const fails = Object.entries(results).filter(([, v]) => v !== 'PASS')
 console.log(fails.length ? `\n${fails.length} FAIL` : `\nALL PASS (${Object.keys(results).length} kiểm tra)`)
 process.exit(fails.length ? 1 : 0)

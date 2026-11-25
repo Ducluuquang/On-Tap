@@ -28,6 +28,7 @@ import crypto from "node:crypto";
 import net from "node:net";
 import tls from "node:tls";
 import { LEVELS, promptTopic, API_URL, DEFAULT_MODEL } from "./spelling.mjs";
+import { newCtx, recordCost } from "./_aicost.mjs";
 import { BANK } from "./_arena/words.mjs";   // bộ từ dự phòng (khi AI chưa trả lời được)
 
 const GAME_IDS = ["bee", "missing", "scramble", "look", "register", "search", "memory", "rain", "wordle", "context", "sentence", "scrabble"];
@@ -315,6 +316,8 @@ async function aiWords(topic, levelId, count, avoid) {
     } catch (e) { clearTimeout(timer); console.error("arena ai:", e && e.message); return null; }
     clearTimeout(timer);
     const j = await r.json().catch(() => null);
+    // Chi phí AI (25/11/2026): ghi token thật của lời gọi tạo bộ từ thi đấu (loại "arena", không gắn tài khoản)
+    if (j && j.usage) { const ctx = newCtx("arena"); ctx.add(j.model || model, j.usage); await recordCost(ctx); }
     if (r.ok) {
       const text = ((j && j.content) || []).filter((b) => b && b.type === "text").map((b) => b.text || "").join("");
       const res = parseWords(text);

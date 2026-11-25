@@ -80,8 +80,9 @@ const wrong = await until(async () => /Sai số điện thoại/.test(await A.pa
 check('sai mật khẩu -> "Sai số điện thoại / email hoặc mật khẩu."', wrong)
 await adminLogin(A)
 await A.page.waitForSelector('.adm-tabs', { timeout: 10000 })
+await A.page.waitForFunction(() => document.querySelectorAll('.adm-tab').length >= 9, null, { timeout: 8000 }).catch(() => {})   // chờ máy chủ trả vai (whoami): mục của super admin
 const tabs = await A.page.$$eval('.adm-tab', (els) => els.map((e) => e.textContent))
-check('super admin đăng nhập -> 8 mục: Tổng quan · Thư viện sách · Người dùng · Góp ý · Định giá · Duyệt & nhật ký · Quản trị viên · Cài đặt', tabs.join('|') === '📊 Tổng quan|📚 Thư viện sách|👪 Người dùng|💬 Góp ý|💰 Định giá|✅ Duyệt & nhật ký|👥 Quản trị viên|⚙️ Cài đặt', tabs.join('|'))
+check('super admin đăng nhập -> 9 mục: Tổng quan · Thư viện sách · Người dùng · Góp ý · Định giá · Duyệt & nhật ký · Quản trị viên · Chi phí AI (25/11/2026) · Cài đặt', tabs.join('|') === '📊 Tổng quan|📚 Thư viện sách|👪 Người dùng|💬 Góp ý|💰 Định giá|✅ Duyệt & nhật ký|👥 Quản trị viên|💸 Chi phí AI|⚙️ Cài đặt', tabs.join('|'))
 await A.page.waitForSelector('[data-testid=adm-overview]', { timeout: 10000 })
 // bản máy tính (19/11/2026): nhãn các ô số liệu viết IN HOA bằng CSS -> innerText in hoa: so không phân biệt hoa thường
 const ov = (await A.page.locator('[data-testid=adm-overview]').innerText()).toLocaleLowerCase('vi')

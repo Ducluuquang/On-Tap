@@ -9,9 +9,11 @@ import logoFull from '../assets/logo-full.png'
 import { useDesk } from '../lib/desk.js'
 
 const Library = lazy(() => import('../screens/Library.jsx'))
+const AiCost = lazy(() => import('./AiCost.jsx'))   // 💸 Chi phí AI (25/11/2026, chỉ super admin)
+const aiVnd = (micro, rate) => (Math.round(((Number(micro) || 0) / 1e6) * (Number(rate) || 26000))).toLocaleString('vi-VN') + 'đ'
 // Hai cấp (18/11/2026): super admin (ADMIN_PHONES) thấy thêm "Quản trị viên" + "Cài đặt" và DUYỆT thay đổi; admin làm việc hằng ngày.
 const TABS = [['home', '📊 Tổng quan'], ['books', '📚 Thư viện sách'], ['users', '👪 Người dùng'], ['fb', '💬 Góp ý'], ['price', '💰 Định giá'],
-  ['chg', '✅ Duyệt & nhật ký'], ['staff', '👥 Quản trị viên', 'super'], ['cfg', '⚙️ Cài đặt', 'super']]
+  ['chg', '✅ Duyệt & nhật ký'], ['staff', '👥 Quản trị viên', 'super'], ['ai', '💸 Chi phí AI', 'super'], ['cfg', '⚙️ Cài đặt', 'super']]
 const ROLE = { super: 'Super admin', admin: 'Admin' }
 const CHG_ST = { pending: '⏳ Chờ duyệt', applied: '✓ Áp dụng ngay (super admin)', approved: '✓ Đã duyệt', rejected: '✗ Không duyệt' }
 const KIND = { bug: 'Báo lỗi', idea: 'Kiến nghị', other: 'Khác' }
@@ -211,7 +213,9 @@ function Users({ desk = false }) {
       {desk && d && d.ok ? <span className="adm-muted dk-count">{d.total} tài khoản{q ? ' khớp' : ''}</span> : null}
     </form>
   )
+  const ai = d && d.ok && d.users.some((u) => u.ai30 != null)   // super admin: cột "Tiền AI 30 ngày"
   if (desk) {
+    const cols = ai ? 8 : 7
     return (
       <div data-testid="adm-users">
         <PageHead title="Người dùng" desc="Tài khoản phụ huynh đã đăng ký. Bấm một hàng để xem các con." />
@@ -220,18 +224,19 @@ function Users({ desk = false }) {
           {!d ? <p className="adm-muted dk-pad">Đang tải…</p> : !d.ok ? <div className="err">{ERR[d.error] || d.error}</div> : (
             <div className="dk-tscroll">
               <table className="dk-table">
-                <thead><tr><th>Phụ huynh</th><th>Số điện thoại</th><th>Email</th><th>Tỉnh/TP</th><th>Gói</th><th>Đăng ký</th><th>Dùng gần nhất</th></tr></thead>
+                <thead><tr><th>Phụ huynh</th><th>Số điện thoại</th><th>Email</th><th>Tỉnh/TP</th><th>Gói</th><th>Đăng ký</th><th>Dùng gần nhất</th>{ai ? <th>Tiền AI 30 ngày</th> : null}</tr></thead>
                 <tbody>
                   {d.users.map((u) => (
                     <Fragment key={u.phone}>
                       <tr className={'adm-user' + (open === u.phone ? ' on' : '')} onClick={() => setOpen(open === u.phone ? null : u.phone)} aria-expanded={open === u.phone}>
                         <td><b>{u.parentName || '(chưa ghi tên)'}</b></td><td className="n">{u.phone}</td><td>{u.email || '—'}</td><td>{u.province || '—'}</td>
                         <td><span className="adm-tag">Gói {u.plan}</span></td><td className="n">{fmt(u.created)}</td><td className="n">{fmt(u.seen)}</td>
+                        {ai ? <td className="n" data-ai30={u.phone}>{aiVnd(u.ai30, d.rate)}</td> : null}
                       </tr>
-                      {open === u.phone && <tr className="dk-kidsrow"><td colSpan={7}>{kidsList(u)}</td></tr>}
+                      {open === u.phone && <tr className="dk-kidsrow"><td colSpan={cols}>{kidsList(u)}</td></tr>}
                     </Fragment>
                   ))}
-                  {!d.users.length && <tr><td colSpan={7} className="adm-muted">Không có tài khoản nào.</td></tr>}
+                  {!d.users.length && <tr><td colSpan={cols} className="adm-muted">Không có tài khoản nào.</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -253,6 +258,7 @@ function Users({ desk = false }) {
                 <div className="adm-row"><b>{u.parentName || '(chưa ghi tên)'}</b><span className="adm-tag">Gói {u.plan}</span></div>
                 <div className="adm-muted">{u.phone}{u.email ? ' · ' + u.email : ''}{u.province ? ' · ' + u.province : ''}</div>
                 <div className="adm-muted">Đăng ký {fmt(u.created)} · Dùng gần nhất {fmt(u.seen)}</div>
+                {u.ai30 != null && <div className="adm-muted" data-ai30={u.phone}>Tiền AI 30 ngày: <b>{aiVnd(u.ai30, d.rate)}</b></div>}
                 {open === u.phone && kidsList(u)}
               </li>
             ))}
@@ -690,6 +696,7 @@ export default function AdminApp() {
       {tab === 'chg' && <Changes role={role} desk={desk} onBadges={refreshBadges} />}
       {tab === 'staff' && role === 'super' && <Staff desk={desk} />}
       {tab === 'cfg' && role === 'super' && <Settings desk={desk} />}
+      {tab === 'ai' && role === 'super' && <Suspense fallback={<p className="adm-muted">Đang tải…</p>}><AiCost desk={desk} /></Suspense>}
     </>
   )
   const tabBtn = ([k, l]) => {

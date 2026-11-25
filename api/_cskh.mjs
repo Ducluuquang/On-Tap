@@ -63,9 +63,9 @@ CÁCH LÀM:
 Trả DUY NHẤT JSON: {"reply":"","escalate":false,"urgent":false,"summary":""}`;
 }
 // Trả { reply, escalate, urgent, summary } hoặc ném lỗi (khi đó phiếu chờ người xử lý như trước).
-export async function aiAnswer(key, t) {
+export async function aiAnswer(key, t, ctx = null) {
   const prompt = cskhPrompt(t, knowledge(), await lessons());
-  const out = await askText(key, prompt, 1200);
+  const out = await askText(key, prompt, 1200, ctx);
   const j = JSON.parse((String(out).match(/\{[\s\S]*\}/) || ["{}"])[0]);
   const reply = String(j.reply || "").trim().slice(0, 2000);
   if (!reply) throw new Error("empty ai reply");

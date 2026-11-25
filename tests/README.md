@@ -8,6 +8,10 @@ trong `tests/server.mjs` (`/__mock/ocr`: xem các batch + kích thước từng 
 lời nhắc soạn câu hỏi gửi AI ghi lại ở `/__mock/ai` (`gen`). Sách trong phép thử là sách GIẢ tự tạo (kho công khai).
 Thư (mã "Quên mật khẩu") KHÔNG gửi thật: máy chủ thử đặt `MAIL_MOCK_FILE` và ghi mỗi thư thành một dòng JSON vào `tests/out/mail-<cổng>.jsonl`
 (địa chỉ nhận đuôi `@fail.test` giả lập gửi lỗi). Kết quả và ảnh chụp: `tests/out/`.
+Chi phí AI (25/11/2026): `/api/ai` và `/api/spelling` cần chìa khoá đăng nhập — bộ thử gọi thẳng máy chủ gửi chìa khoá của tài khoản thử.
+AI giả trả `usage` (số token; đặt bằng `/__mock/ai/usage?in=&out=&cw=&cr=`), kể cả luồng Vở Spelling (nay chạy hàm thật `api/spelling.mjs`);
+`/__mock/ai/bad/<n>`: n câu sai quy cách mỗi lần soạn; `/__mock/ai/err/<loại>`: AI trả lỗi kèm thông báo "bí mật"; `/__mock/day/<YYYY-MM-DD>|off`:
+"hôm nay" giả (giờ Việt Nam). Mỗi bộ thử bắt đầu với ngân hàng câu (`qb:*`) trống và tiền AI theo tài khoản (`ai:c:*`) bằng 0.
 
 Cần: Node 22+, Playwright + Chromium (máy làm việc của Claude có sẵn; nơi khác: `npm i -g playwright && npx playwright install chromium`),
 `redis-server` / `redis-cli`. Không gọi AI thật, không đụng kho thật.
@@ -31,6 +35,12 @@ Cần: Node 22+, Playwright + Chromium (máy làm việc của Claude có sẵn;
 | t_ui_roles | qua giao diện: super admin thêm admin + cài email nhận báo; admin đề xuất giá → chờ duyệt → super admin duyệt → trang đăng ký đổi giá; con hỏi → ONTAP trả lời ngay; kiến nghị → chuyển người + email |
 | t_books_gen | dùng sách khi soạn câu hỏi: lời nhắc có / không có đoạn sách, cấp học theo lớp, Ngữ văn THCS, môn "Ngữ văn" riêng; tài khoản khác (không phải quản trị) con lớp 7 ôn Ngữ văn: app gửi lớp thật, máy chủ dùng đoạn sách đúng lớp + môn |
 | t_ui_desk | bản máy tính đợt 1 (màn ≥ 1024 px, phông thật, 1024 / 1280 / 1366 / 1440 / 1920 + 390 px): đăng nhập (ô đăng nhập ngay, ô trống không gọi máy chủ, Enter, quên mật khẩu bằng thư giả, kéo cửa sổ qua mốc 1024 px không mất chữ), đăng ký (lưới 2 cột, 2 khối con cạnh nhau, ô Lớp tự vẽ) → thanh toán → vào app, chọn người học + PIN (màn con vẫn phóng to), phụ huynh (thanh trên một hàng, 4 ô số liệu khớp trang con, 7 cột + bấm đổi nhận xét, bản đồ theo môn, PIN phủ cửa sổ, Cài đặt / Góp ý, "Con" về cột phóng to), quản trị (cột trái 8 / 6 mục, huy hiệu đúng số, "Việc cần xử lý" → "Trả lời" mở đúng phiếu, thư viện tìm / lọc, người dùng dạng bảng, 390 px giữ menu ngang), không cuộn ngang; màn lớn 2560 / 2880 / 3840 px phóng to theo chuẩn 1440 × 900; màn của con (đợt 2: trang chủ, Bắt đầu ôn hai cột, làm bài thẻ rộng đáp án 2 × 2, 6 trò chơi + tự điền vừa cửa sổ, báo cáo, Thêm bài học, Góp ý, Vở Spelling rộng + vừa màn); ảnh `tests/out/desk_*.png` |
+| t_api_ai | Chi phí AI, Việc 1: `/api/ai` (mọi action) và `/api/spelling` (mọi mode) không có / sai / cũ chìa khoá → 401 "login", không gọi AI; có chìa khoá → chạy; trần đầu vào (count ≤ 20, chuỗi ≤ 200, ≤ 6 ảnh, judge ≤ 500); childId sai → 400; lỗi AI trả mã ngắn, không lộ thông báo gốc |
+| t_ai_bank | ngân hàng câu hỏi: lượt 1 soạn (thiếu + 10, đợt 5 câu, mã đề ở cuối lời nhắc) và lưu theo khái niệm; lượt 2 không gọi AI, câu khác, tiền "gen" không tăng; dùng chung giữa tài khoản; khác lớp / dạng / ý nhỏ → ngân hàng khác; đủ 40 câu → câu gặp lâu nhất, đảo lựa chọn; master riêng; câu sai quy cách không lưu; nhiều khái niệm; hai máy cùng lúc; xoá ngân hàng |
+| t_ai_limit | giới hạn lượt soạn mới mỗi con mỗi ngày (limited, lấy câu ngân hàng khi có, lượt từ ngân hàng không tính, đếm riêng từng con, sang ngày mới, 0 = không giới hạn); trần tiền ngày (/api/ai + /api/spelling → "limit"; thử model không tính) |
+| t_ai_cost | bảng giá → micro-USD (Sonnet 5.5 / 5, Haiku ≤ / > 100.000 token, cache, batch nửa giá, tên lạ); ghi kho theo ngày / tài khoản / tháng / loại việc / model: soạn câu, chấm câu, Vở Spelling (luồng), Thi đấu, ONTAP góp ý, đọc sách; `ai_stats`; cột Tiền AI 30 ngày |
+| t_ai_model | model theo môn (Haiku cho Toán, Tiếng Việt vẫn Sonnet; chấm câu, Vở Spelling); nhật ký đổi cài đặt; `ai_try` (hai danh sách, token, tiền, giây, không lưu ngân hàng); quyền (admin thường `not_super`); lưu đánh giá + bảng tổng kết |
+| t_ui_aicost | /quan-tri → 💸 Chi phí AI ở 1440 px và 390 px: tổng quan, Cài đặt (ô chọn tự vẽ), Ngân hàng câu (xem, xoá có hỏi lại), Thử model (hai cột / hai thẻ, đánh dấu Sai, lưu); cột Tiền AI 30 ngày; con ôn 2 lượt cùng chủ đề → lượt 2 không gọi AI; quá giới hạn → màn nhẹ nhàng; ảnh `tests/out/aicost_*.png` |
 | t_ui_pick | ô chọn tự vẽ chữ to thay danh sách xổ xuống của trình duyệt: Vở Spelling (Thách đấu, phòng thi, Thêm bộ từ), Ôn Tập (Đăng ký, Nội dung đã đọc được) |
 
 Đối chứng bản cũ (khi sửa lỗi): build bản cũ vào thư mục khác, chạy `DIST=<thư mục dist cũ> MOCK=1 PORT=4195 node tests/server.mjs`,

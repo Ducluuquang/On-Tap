@@ -88,7 +88,9 @@ await books('upload', { id: cb.book.id, items: [{ page: 1, half: 1, b64: jpeg(11
 const rb = (await books('poll', { id: cb.book.id }, tA)).book
 check('admin nạp sách -> đọc xong nhưng "chờ duyệt" (approved:false)', rb.status === 'ready' && rb.approved === false, JSON.stringify(rb))
 await fetch(BASE + '/__mock/ai/reset')
-const gen = async () => { await post('/api/ai', { action: 'generate', payload: { subject: 'Lịch sử', grade: 'Lớp 9', topic: 'Phong trào giả tưởng ' + RUN, concepts: ['Phong trào giả tưởng ' + RUN], count: 3 } }); await new Promise((r) => setTimeout(r, 600)); return ((await (await fetch(BASE + '/__mock/ai')).json()).gen.at(-1) || {}).prompt || '' }
+// Chi phí AI (25/11/2026): /api/ai cần chìa khoá + id con; mỗi lần thử một "ý nhỏ" khác để không lấy câu có sẵn trong ngân hàng câu
+let genN = 0
+const gen = async () => { await post('/api/ai', { action: 'generate', payload: { subject: 'Lịch sử', grade: 'Lớp 9', topic: 'Phong trào giả tưởng ' + RUN, concepts: [{ name: 'Phong trào giả tưởng ' + RUN, details: ['lần thử ' + (++genN)] }], count: 3 }, childId: 'k' + USER.slice(-6) }, tU); await new Promise((r) => setTimeout(r, 600)); return ((await (await fetch(BASE + '/__mock/ai')).json()).gen.at(-1) || {}).prompt || '' }
 const g0 = await gen()
 check('sách chưa duyệt -> ONTAP KHÔNG dùng khi soạn câu', g0 && !g0.includes('ĐOẠN SÁCH'), g0.slice(0, 120))
 const cl = await adm('chg_list', {}, tS)

@@ -1,18 +1,38 @@
 // Cầu nối từ trình duyệt tới backend AI (/api/ai). Trình duyệt KHÔNG giữ khóa API.
 // Nút "bài mẫu" dùng AI giả lập để xem thử khi chưa có ảnh / chưa deploy.
 
+// Chi phí AI (25/11/2026): /api/ai chỉ chạy khi có chìa khoá đăng nhập (gửi như src/lib/feedback.js); lỗi trả MÃ NGẮN.
 import { extractFromCapture } from './mockAI.js'
+import { getToken } from './sync.js'
 
+const MSG = {
+  login: 'Cần đăng nhập tài khoản Ôn Tập (có mạng) để ONTAP làm việc.',
+  limit: 'Hôm nay ONTAP đã làm việc nhiều rồi, mai mình làm tiếp nhé.',
+  too_many: 'Mỗi lần tối đa 6 ảnh/file. Anh chia thành nhiều lần nhé.',
+  too_large: 'Ảnh hoặc file quá lớn. Anh thử ảnh nhỏ hơn nhé.',
+  overloaded: 'ONTAP đang quá tải. Đợi một lát rồi thử lại.',
+  rate_limited: 'ONTAP đang nhận quá nhiều yêu cầu. Đợi một phút rồi thử lại.',
+  no_credit: 'Tài khoản AI của Ôn Tập tạm hết lượt. Anh báo đội ngũ Ôn Tập giúp nhé.',
+  no_key: 'Máy chủ chưa sẵn sàng (cần đưa app lên mạng để dùng ảnh thật).',
+}
 async function callApi(body) {
-  const r = await fetch('/api/ai', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  })
+  const token = getToken()
+  let r
+  try {
+    r = await fetch('/api/ai', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(token ? { authorization: 'Bearer ' + token } : {}) },
+      body: JSON.stringify(body),
+    })
+  } catch {
+    const e = new Error('Mất kết nối mạng. Kiểm tra mạng rồi thử lại.'); e.code = 'network'; throw e
+  }
   if (!r.ok) {
-    let msg = 'Máy chủ chưa sẵn sàng (cần đưa app lên mạng để dùng ảnh thật).'
-    try { msg = (await r.json()).error || msg } catch { /* noop */ }
-    throw new Error(msg)
+    let code = ''
+    try { code = String((await r.json()).error || '') } catch { /* noop */ }
+    const e = new Error(MSG[code] || 'ONTAP chưa làm được việc này (' + (code || 'lỗi ' + r.status) + '). Thử lại sau nhé.')
+    e.code = code || 'http_' + r.status
+    throw e
   }
   return r.json()
 }
@@ -79,7 +99,7 @@ async function fileToItem(file) {
 export async function extractFromFiles(files) {
   const arr = Array.from(files || [])
   if (!arr.length) throw new Error('Chưa chọn ảnh/file nào.')
-  if (arr.length > 8) throw new Error('Mỗi lần tối đa 8 ảnh/file. Anh chia thành nhiều lần nhé.')
+  if (arr.length > 6) throw new Error('Mỗi lần tối đa 6 ảnh/file. Anh chia thành nhiều lần nhé.')
   const items = []
   for (const f of arr) items.push(await fileToItem(f)) // xử lý tuần tự cho nhẹ máy
   return callApi({ action: 'extract', items })
@@ -93,9 +113,11 @@ export async function extractFromText(text) {
   return callApi({ action: 'extract_text', text })
 }
 
-export async function generateQuestions(payload) {
-  const d = await callApi({ action: 'generate', payload })
-  return d.questions
+// Soạn câu ôn (NGÂN HÀNG CÂU HỎI, 25/11/2026): childId = con đang học, recent = id câu con đã gặp gần đây.
+// Trả { questions, source: { bank, fresh }, limited } (limited: hôm nay con đã hết lượt soạn mới).
+export async function generateQuestions(payload, { childId = '', recent = [] } = {}) {
+  const d = await callApi({ action: 'generate', payload, childId, recent })
+  return { questions: Array.isArray(d.questions) ? d.questions : [], source: d.source || null, limited: !!d.limited, genLimit: Number(d.genLimit) || 0 }
 }
 
 // Nhờ AI chấm câu tự điền (hiểu các cách đọc/diễn đạt khác nhau nhưng cùng nghĩa).

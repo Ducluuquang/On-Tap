@@ -17,16 +17,21 @@ const only = process.argv[2] || 'all'
 const RUN = Date.now().toString(36).slice(-4)
 const mock = async (p = '') => (await fetch(MOCK + p)).json()
 
+// Chi phí AI (25/11/2026): ONTAP trong Vở Spelling (cả Thi đấu "Trang trọng hay thân mật") cần chìa khoá đăng nhập Ôn Tập ->
+// máy thử giữ chìa khoá của một tài khoản thử thật (tài khoản trên máy là bản giả, số khác nên app không đồng bộ với tài khoản này).
+const AI_TOKEN = (await (await fetch(BASE + '/api/account', { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.43.7.9' },
+  body: JSON.stringify({ action: 'register', phone: '0993' + String(Date.now()).slice(-6), pass: '12345678', parentName: 'Thử', plan: 1, pin: '1', children: [{ id: 'kR' + RUN, name: 'An', pin: '1', icon: '🦊', grade: 'Lớp 5' }] }) })).json()).token || ''
 async function kid({ id, name, icon, grade }) {
   id = id + RUN
   const ACC = { username: '09' + id, password: '1', phone: '09' + id, parentPass: '1', plan: 1, pin: '3', children: [{ id, name, pin: '', icon, grade }] }
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 })
   await useRealFonts(ctx)
-  await ctx.addInitScript(({ ACC, id }) => {
+  await ctx.addInitScript(({ ACC, id, tok }) => {
     if (window.top !== window) return
     if (sessionStorage.getItem('s')) return; sessionStorage.setItem('s', '1'); localStorage.clear()
     localStorage.setItem('ontap.account.v1', JSON.stringify(ACC)); localStorage.setItem('ontap.session.v1', '1'); localStorage.setItem('ontap.activechild.v1', id)
-  }, { ACC, id })
+    if (tok) localStorage.setItem('ontap.acctoken.v1', tok)
+  }, { ACC, id, tok: AI_TOKEN })
   const page = await ctx.newPage()
   const errs = []
   page.on('pageerror', (e) => errs.push('pageerror: ' + e.message))

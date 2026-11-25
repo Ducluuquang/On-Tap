@@ -9,6 +9,7 @@ import { redis, redisEnv, send, readBody } from "./_store.mjs";
 import { userOf } from "./_admin.mjs";
 import { aiAnswer, alertAdmins } from "./_cskh.mjs";
 import { getSupportCfg } from "./_changes.mjs";
+import { newCtx, recordCost } from "./_aicost.mjs";
 import { FK, KINDS, okId, newId, cleanText, cleanImg, getThread, putThread, pubThread, meta, SEND_DAY_MAX } from "./_fb.mjs";
 
 const BODY_MAX = 700000;
@@ -29,7 +30,9 @@ async function autoReply(t, req) {
   const cfg = await getSupportCfg();
   if (!key || !cfg.aiOn) return t;
   let a;
-  try { a = await aiAnswer(key, t); } catch (e) { console.error("cskh ai", e && e.message); return t; }
+  // Chi phí AI (25/11/2026): token của ONTAP trả lời góp ý cộng vào loại "cskh" (không tính vào tài khoản của khách)
+  const ctx = newCtx("cskh");
+  try { a = await aiAnswer(key, t, ctx); } catch (e) { console.error("cskh ai", e && e.message); return t; } finally { await recordCost(ctx, {}, { noPhone: true }); }
   const now = Date.now(), was = !!t.escalated, wasUrgent = !!t.urgent;
   t.msgs.push({ by: "ai", who: "ONTAP", text: a.reply, at: now });
   t.updated = now;
