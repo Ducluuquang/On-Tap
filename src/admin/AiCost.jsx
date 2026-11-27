@@ -444,8 +444,11 @@ function Try({ desk }) {
   )
 }
 
+// tab đang mở: giữ khi khung trang dựng lại (đổi cỡ cửa sổ qua mốc bản máy tính), mở mục lần đầu là "Báo cáo ngày"
+let lastSub = 'report'
 export default function AiCost({ desk = false }) {
-  const [sub, setSub] = useState('report')
+  const [sub, setSub0] = useState(lastSub)
+  const setSub = (k) => { lastSub = k; setSub0(k) }
   return (
     <div data-testid="adm-aicost" className="aic">
       <Head desk={desk} />
