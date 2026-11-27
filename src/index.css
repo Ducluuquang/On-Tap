@@ -1723,3 +1723,25 @@ select.auth-in{appearance:auto;cursor:pointer}
 .dk .aic .adm-h{margin:0 0 8px;font-size:17px}
 .dk .aic-note{margin-top:-8px !important}
 .aic .adm-card.wide .adm-h{margin:0 0 4px}
+
+/* 📅 Báo cáo ngày (27/11/2026) — tab đầu của 💸 Chi phí AI (src/admin/AiCost.jsx → Report) */
+.rp{display:flex;flex-direction:column;gap:12px;min-width:0}
+.rp-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.rp-pick{flex:1 1 220px;max-width:340px;min-width:0}
+.rp-sum{margin:0;font-size:1.08rem;font-weight:800;color:var(--ink);line-height:1.45}
+.rp-mail{margin:0;font-size:.86rem}
+.rp-mail.warn{color:var(--weak-tx);font-weight:700}
+.rp-list{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:.95rem;line-height:1.45}
+.rp-tr{display:block;font-size:.74rem;font-weight:700}
+.rp-tr.up{color:var(--mastered-tx)}
+.rp-tr.down{color:var(--weak-tx)}
+.rp-tr.eq{color:var(--muted)}
+.rp-kids{white-space:normal;min-width:110px}
+.rp-on{display:flex;gap:10px;align-items:flex-start;font-weight:600;color:var(--ink-soft);cursor:pointer}
+.rp-on input{width:20px;height:20px;flex:none;margin-top:1px}
+.rp-kpis.adm-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.dk .rp-kpis{grid-template-columns:repeat(6,minmax(0,1fr))}
+.dk .rp-kpis .dk-kpi .v{font-size:26px}
+.rp .adm-card.wide b{font-size:inherit}
+.rp-cmp td:first-child{white-space:nowrap;font-weight:700}
+.rp-ftable td:first-child b{display:block}

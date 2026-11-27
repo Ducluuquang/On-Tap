@@ -1,12 +1,14 @@
 // CHI PHÍ AI (anh duyệt 25/11/2026) — mục "💸 Chi phí AI" của /quan-tri, CHỈ super admin.
 // Bốn phần: Tổng quan (tiền AI thật theo ngày / loại việc / model / tài khoản), Cài đặt (model theo môn, giới hạn lượt soạn mới,
 // trần tiền mỗi ngày, tỷ giá), Ngân hàng câu (xem / xoá câu ONTAP đã soạn), Thử model (Sonnet và Haiku soạn cùng đầu vào).
+// Báo cáo ngày (anh yêu cầu 27/11/2026, tab đầu tiên): học + câu hỏi + tiền AI của một ngày, so với hôm qua / 7 ngày, từng gia đình;
+// email mỗi tối (bật / tắt + "Gửi thử ngay" ở Cài đặt). Máy chủ: report_get, report_send (api/_report.mjs).
 // Máy chủ: api/admin.mjs (ai_stats, ai_cfg_get/set, ai_bank_list/get/del, ai_try, ai_try_save). Ô chọn dùng SelectPicker (không <select>).
 import { useEffect, useState } from 'react'
 import { adminCall } from '../lib/adminApi.js'
 import { SelectPicker } from '../components.jsx'
 
-const SUBS = [['stats', '📈 Tổng quan'], ['cfg', '⚙️ Cài đặt'], ['bank', '🏦 Ngân hàng câu'], ['try', '🧪 Thử model']]
+const SUBS = [['report', '📅 Báo cáo ngày'], ['stats', '📈 Tổng quan'], ['cfg', '⚙️ Cài đặt'], ['bank', '🏦 Ngân hàng câu'], ['try', '🧪 Thử model']]
 const KIND_L = { gen: 'Soạn câu ôn', extract: 'Đọc bài (ảnh / chữ)', grade: 'Chấm bài', judge: 'Chấm câu tự gõ', spelling: 'Vở Spelling', arena: 'Thi đấu', cskh: 'ONTAP trả lời góp ý', books: 'Đọc sách (thư viện)', try: 'Thử model' }
 const GROUP_L = { toan: 'Toán', 'tieng-viet': 'Tiếng Việt', 'tieng-anh': 'Tiếng Anh', 'ngu-van': 'Ngữ văn', default: 'Các môn khác', spelling: 'Vở Spelling', judge: 'Chấm câu tự gõ' }
 const TIER_OPTS = [{ value: 'sonnet', label: 'Chính xác (Sonnet)' }, { value: 'haiku', label: 'Tiết kiệm (Haiku)' }]
@@ -27,6 +29,133 @@ function Head({ desk, children }) {
     <div className="dk-ph">
       <div><h1>Chi phí AI</h1><p>Tiền AI thật (theo số token Anthropic tính), ngân hàng câu hỏi, giới hạn và thử model. Chỉ super admin.</p></div>
       {children ? <div className="dk-acts">{children}</div> : null}
+    </div>
+  )
+}
+
+/* ---------- 📅 Báo cáo ngày ---------- */
+const dmyy = (d) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : '')
+const shiftDay = (d, k) => new Date(Date.parse(d + 'T12:00:00Z') + k * 86400000).toISOString().slice(0, 10)
+const WD = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
+const nf = (n) => (Math.round((Number(n) || 0) * 10) / 10).toLocaleString('vi-VN')
+const usd2 = (micro) => { const u = (Number(micro) || 0) / 1e6; return u > 0 && u < 0.005 ? '<0,01 USD' : u.toFixed(2).replace('.', ',') + ' USD' }
+const pctOf = (a, b) => (b ? Math.round((100 * a) / b) : 0)
+const MAIL_WHY = {
+  no_email: 'Chưa gửi thư được: chưa có email quản trị — vào /quan-tri → ⚙️ Cài đặt để nhập email nhận thư.',
+  mail_off: 'Chưa gửi thư được: máy chủ chưa cài Gmail gửi thư của app (MAIL_USER, MAIL_APP_PASSWORD trên Vercel).',
+  off: 'Email báo cáo ngày đang TẮT (bật lại ở ⚙️ Cài đặt của mục này).',
+}
+export const SEND_MSG = (r) => (r.ok && r.sent ? `Đã gửi thư báo cáo tới ${r.sent} email ✓` : r.skipped ? 'Lỗi: ' + (MAIL_WHY[r.skipped] || r.skipped) : 'Lỗi: gửi thư không được (' + (r.error || 'lỗi') + ').')
+function Trend({ cur, base, money, rate }) {
+  const a = money ? vndOf(cur, rate) : cur, b = money ? vndOf(base, rate) : base
+  const d = Math.round((a - b) * 10) / 10
+  if (!d) return <span className="rp-tr eq">= bằng</span>
+  const p = b ? Math.round((100 * Math.abs(d)) / b) : null
+  const tail = p == null ? '' : d > 0 && p >= 1000 ? ` (gấp ${nf(a / b)} lần)` : ` (${p}%)`
+  return <span className={'rp-tr ' + (d > 0 ? 'up' : 'down')}>{d > 0 ? '▲ tăng ' : '▼ giảm '}{money ? dong(Math.abs(d)) : nf(Math.abs(d))}{tail}</span>
+}
+function Report({ desk }) {
+  const [day, setDay] = useState('')
+  const [r, setR] = useState(null)
+  const [msg, setMsg] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [today, setToday] = useState('')
+  useEffect(() => { setR(null); adminCall('report_get', day ? { day } : {}).then((x) => { setR(x); if (x.ok && !today) setToday(x.today) }) }, [day]) // eslint-disable-line react-hooks/exhaustive-deps
+  async function sendNow() { setBusy(true); setMsg(''); const x = await adminCall('report_send'); setBusy(false); setMsg(SEND_MSG(x)) }
+  const opts = today ? Array.from({ length: 30 }, (_, i) => { const d = shiftDay(today, -i); const w = WD[new Date(d + 'T12:00:00Z').getUTCDay()]; return { value: d, label: (i === 0 ? 'Hôm nay · ' : i === 1 ? 'Hôm qua · ' : w + ' · ') + dmyy(d) } }) : []
+  const picker = opts.length ? <SelectPicker btnClass="auth-in" value={r && r.ok ? r.day : day || today} options={opts} onChange={setDay} ariaLabel="Chọn ngày" /> : null
+  const bar = (
+    <div className="rp-bar">
+      <div className="rp-pick" data-testid="rp-day">{picker}</div>
+      <button className="ghost small" data-testid="rp-send" onClick={sendNow} disabled={busy}>{busy ? 'Đang gửi…' : '📧 Gửi thử ngay'}</button>
+    </div>
+  )
+  if (!r) return <div className="rp">{bar}<p className="adm-muted">Đang tải…</p></div>
+  if (!r.ok) return <div className="rp">{bar}<div className="err">Lỗi: {r.error}</div></div>
+  const rate = r.rate, s = r.study, q = r.q, a = r.ai, c = r.cmp
+  const when = r.day === r.today ? 'Hôm nay' : 'Ngày ' + dmyy(r.day)
+  const card = (cls, children, testid) => <section className={(desk ? 'dk-card dk-box ' : 'adm-card wide ') + cls} data-testid={testid}>{children}</section>
+  const kpis = [['families', 'Gia đình', s.families], ['kids', 'Con đã học', s.kids], ['sessions', 'Lượt ôn', s.sessions], ['reviewed', 'Câu đã làm', s.reviewed], ['pct', 'Đúng', s.pct + '%'], ['min', 'Thời gian', s.min + ' phút']]
+  const mailWhy = MAIL_WHY[r.mail.reason]
+  const last = r.mail.last
+  const CMP = [['kids', 'Con đã học'], ['reviewed', 'Câu đã làm'], ['min', 'Phút học'], ['pct', 'Đúng (%)'], ['sessions', 'Lượt ôn'], ['asked', 'Câu đưa cho con'], ['usd', 'Tiền AI']]
+  return (
+    <div className="rp" data-testid="rp">
+      {bar}
+      {msg && <div className={/Lỗi/.test(msg) ? 'err' : 'ok-msg'} data-testid="rp-msg">{msg}</div>}
+      <p className="rp-sum" data-testid="rp-summary">{when} {s.kids} con học {s.min} phút, làm {nf(s.reviewed)} câu (đúng {s.pct}%). ONTAP tốn {dong(vndOf(a.usd, rate))} ({usd2(a.usd)}).</p>
+      <p className={'adm-muted rp-mail' + (mailWhy ? ' warn' : '')} data-testid="rp-mail">
+        {mailWhy || `📧 Thư báo cáo tự gửi mỗi tối khoảng 21–22 giờ tới ${r.mail.emails} email quản trị.`}
+        {last ? ` Lần gửi gần nhất: ${fmt(last.at)}${last.test ? ' (gửi thử)' : ''} — ${last.sent ? 'đã gửi ' + last.sent + ' thư' : 'lỗi'}.` : ''}
+      </p>
+      <div className={desk ? 'dk-kpis rp-kpis' : 'adm-grid rp-kpis'}>
+        {kpis.map(([k, l, v]) => (
+          <div key={k} className={desk ? 'dk-card dk-kpi' : 'adm-card'} data-testid="rp-kpi" data-k={k}>
+            {desk ? <><span className="k">{l}</span><span className="v">{typeof v === 'number' ? nf(v) : v}</span></> : <><span>{l}</span><b>{typeof v === 'number' ? nf(v) : v}</b></>}
+          </div>
+        ))}
+      </div>
+      <div className={desk ? 'aic-cols' : 'adm-main'}>
+        <div className={desk ? 'aic-side' : 'adm-main'}>
+          {card('rp-subj', <>
+            <h3 className="adm-h">Học theo môn</h3>
+            {!s.bySubject.length ? <p className="adm-muted">Ngày này chưa con nào học.</p> : (
+              <div className="dk-tscroll"><table className="adm-table aic-table" data-testid="rp-subj"><thead><tr><th>Môn</th><th>Câu</th><th>Đúng</th><th>Phút</th><th>Con</th></tr></thead><tbody>
+                {s.bySubject.map((t) => <tr key={t.subject} data-subj={t.subject}><td>{t.subject}</td><td className="n">{nf(t.reviewed)}</td><td className="n">{t.pct}%</td><td className="n">{t.min}</td><td className="n">{t.kids}</td></tr>)}
+              </tbody></table></div>
+            )}
+          </>)}
+          {card('rp-cmpcard', <>
+            <h3 className="adm-h">So với hôm qua và trung bình 7 ngày trước</h3>
+            <div className="dk-tscroll"><table className="adm-table aic-table rp-cmp" data-testid="rp-cmp"><thead><tr><th></th><th>{r.day === r.today ? 'Hôm nay' : dmy(r.day)}</th><th>Hôm qua</th><th>TB 7 ngày</th></tr></thead><tbody>
+              {CMP.map(([k, l]) => (
+                <tr key={k} data-k={k}><td>{l}</td>
+                  <td className="n">{k === 'usd' ? dong(vndOf(c.cur[k], rate)) : nf(c.cur[k])}</td>
+                  <td className="n">{k === 'usd' ? dong(vndOf(c.yday[k], rate)) : nf(c.yday[k])}<Trend cur={c.cur[k]} base={c.yday[k]} money={k === 'usd'} rate={rate} /></td>
+                  <td className="n">{k === 'usd' ? dong(vndOf(c.avg7[k], rate)) : nf(c.avg7[k])}<Trend cur={c.cur[k]} base={c.avg7[k]} money={k === 'usd'} rate={rate} /></td>
+                </tr>
+              ))}
+            </tbody></table></div>
+          </>)}
+        </div>
+        <div className={desk ? 'aic-side' : 'adm-main'}>
+          {card('rp-qcard', <>
+            <h3 className="adm-h">Câu hỏi</h3>
+            <ul className="rp-list" data-testid="rp-q">
+              <li>Câu đưa cho con: <b>{nf(q.asked)}</b> = từ ngân hàng <b>{nf(q.bank_used)}</b> ({pctOf(q.bank_used, q.asked)}%) + mới soạn <b>{nf(q.fresh_used)}</b> ({pctOf(q.fresh_used, q.asked)}%)</li>
+              <li>ONTAP soạn mới <b>{nf(q.new_q)}</b> câu ({nf(q.spare)} câu để dành cho lần sau)</li>
+              <li>Ngân hàng hiện có <b>{nf(q.bankNow.questions)}</b> câu, <b>{nf(q.bankNow.concepts)}</b> khái niệm</li>
+            </ul>
+          </>)}
+          {card('rp-aicard', <>
+            <h3 className="adm-h">AI (ONTAP)</h3>
+            <ul className="rp-list" data-testid="rp-ai">
+              <li>Tiền: <b>{dong(vndOf(a.usd, rate))}</b> ({usd2(a.usd)}) · {nf(a.calls)} lời gọi</li>
+              <li>Token: vào <b>{tok(a.in)}</b>, ra <b>{tok(a.out)}</b></li>
+              <li>Trung bình: {dong(vndOf(a.perSession, rate))} / lượt ôn · {dong(vndOf(a.perKid, rate))} / con</li>
+            </ul>
+            {a.kinds.length ? <table className="adm-table aic-table" data-testid="rp-kinds"><tbody>
+              {a.kinds.map((k) => <tr key={k.kind} data-kind={k.kind}><td>{KIND_L[k.kind] || k.kind}</td><td className="n">{dong(vndOf(k.usd, rate))}</td><td className="n">{k.n} lời gọi</td></tr>)}
+            </tbody></table> : null}
+          </>)}
+        </div>
+      </div>
+      {card('rp-fams', <>
+        <h3 className="adm-h">Từng gia đình ({r.families.length})</h3>
+        {!r.families.length ? <p className="adm-muted">Chưa có gia đình nào học.</p> : (
+          <div className="dk-tscroll"><table className="adm-table aic-table rp-ftable" data-testid="rp-fam"><thead><tr><th>Phụ huynh</th><th>Các con đã học</th><th>Câu</th><th>Phút</th><th>Lượt ôn</th><th>Ngân hàng / mới</th><th>Tiền</th></tr></thead><tbody>
+            {r.families.map((f) => (
+              <tr key={f.phone + f.name} data-phone={f.phone}>
+                <td><b>{f.name || '(chưa ghi tên)'}</b><small>{f.phone}</small></td>
+                <td className="rp-kids">{f.kids.map((k) => k.name).join(', ') || '—'}</td>
+                <td className="n">{nf(f.reviewed)}</td><td className="n">{Math.round(f.sec / 60)}</td><td className="n">{f.sessions}</td>
+                <td className="n">{f.bank_used} / {f.fresh_used}</td><td className="n">{dong(vndOf(f.usd, rate))}</td>
+              </tr>
+            ))}
+          </tbody></table></div>
+        )}
+      </>)}
+      <p className="adm-muted aic-note">Ngày theo giờ Việt Nam. Câu đã làm / phút lấy từ nhật ký học của từng con (gộp các máy); số liệu câu hỏi bắt đầu đếm từ 27/11/2026.</p>
     </div>
   )
 }
@@ -108,7 +237,7 @@ function Cfg({ desk }) {
   if (!c) return msg ? <div className="err">{msg}</div> : <p className="adm-muted">Đang tải…</p>
   const num = (k, v) => setC({ ...c, [k]: String(v).replace(/\D+/g, '') })
   async function save() {
-    const r = await adminCall('ai_cfg_set', { models: c.models, genLimit: c.genLimit, capVnd: c.capVnd, rate: c.rate })
+    const r = await adminCall('ai_cfg_set', { models: c.models, genLimit: c.genLimit, capVnd: c.capVnd, rate: c.rate, reportOn: c.reportOn })
     if (r.ok) { setC(r.cfg); setMsg('Đã lưu ✓ Áp dụng cho lượt ôn kế tiếp (máy chủ nhớ cài đặt tối đa 1 phút).') } else setMsg(r.error === 'bad_value' ? 'Lỗi: số chưa hợp lệ (' + r.field + ').' : 'Lỗi: ' + r.error)
   }
   return (
@@ -130,6 +259,12 @@ function Cfg({ desk }) {
       <input id="aic-cap" className="auth-in" inputMode="numeric" value={c.capVnd} onChange={(e) => num('capVnd', e.target.value)} />
       <label className="auth-lbl" htmlFor="aic-rate">Tỷ giá (đồng / USD)</label>
       <input id="aic-rate" className="auth-in" inputMode="numeric" value={c.rate} onChange={(e) => num('rate', e.target.value)} />
+      <b>📅 Email báo cáo ngày</b>
+      <label className="rp-on" data-testid="aic-report-on">
+        <input type="checkbox" checked={c.reportOn !== false} onChange={(e) => setC({ ...c, reportOn: e.target.checked })} />
+        <span>Tự gửi email báo cáo mỗi tối (gửi khoảng 21–22 giờ, giờ Việt Nam) tới email quản trị ở ⚙️ Cài đặt</span>
+      </label>
+      <button type="button" className="ghost small" data-testid="aic-report-send" onClick={async () => { setMsg('Đang gửi…'); setMsg(SEND_MSG(await adminCall('report_send'))) }}>📧 Gửi thử ngay</button>
       <button className="cta small" onClick={save}>Lưu cài đặt</button>
       {msg && <div className={/Lỗi/.test(msg) ? 'err' : 'ok-msg'}>{msg}</div>}
       {c.updated ? <p className="adm-muted">Sửa lần cuối {fmt(c.updated)}</p> : null}
@@ -309,14 +444,18 @@ function Try({ desk }) {
   )
 }
 
+// tab đang mở: giữ khi khung trang dựng lại (đổi cỡ cửa sổ qua mốc bản máy tính), mở mục lần đầu là "Báo cáo ngày"
+let lastSub = 'report'
 export default function AiCost({ desk = false }) {
-  const [sub, setSub] = useState('stats')
+  const [sub, setSub0] = useState(lastSub)
+  const setSub = (k) => { lastSub = k; setSub0(k) }
   return (
     <div data-testid="adm-aicost" className="aic">
       <Head desk={desk} />
       <div className="chips adm-chips aic-subs">
         {SUBS.map(([k, l]) => <button key={k} type="button" className={'chip' + (sub === k ? ' on' : '')} onClick={() => setSub(k)} aria-pressed={sub === k}>{l}</button>)}
       </div>
+      {sub === 'report' && <Report desk={desk} />}
       {sub === 'stats' && <Stats desk={desk} />}
       {sub === 'cfg' && <Cfg desk={desk} />}
       {sub === 'bank' && <Bank desk={desk} />}

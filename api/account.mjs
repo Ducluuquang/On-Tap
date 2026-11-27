@@ -23,6 +23,7 @@ import crypto from "node:crypto";
 import zlib from "node:zlib";
 import { redis, redisEnv, send, readBody, clean, parse, clientIp } from "./_store.mjs";
 import { cleanDoc, mergeDocs, stable, okId } from "./_sync/merge.mjs";
+import { vnDay } from "./_aicost.mjs";
 import { mailReady, sendMail } from "./_mail.mjs";
 import { okPhone, signKey, tokenFor, readToken } from "./_acctkey.mjs";
 
@@ -55,7 +56,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export const UNLOCK = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
 // Dữ liệu học lưu nén gzip (đỡ tốn chỗ + băng thông kho); "gz:" ở đầu để sau này đổi cách lưu vẫn đọc được bản cũ.
 const pack = (doc) => "gz:" + zlib.gzipSync(Buffer.from(JSON.stringify(doc), "utf8")).toString("base64");
-function unpack(raw) {
+export function unpack(raw) {
   if (!raw) return null;
   try { return String(raw).startsWith("gz:") ? JSON.parse(zlib.gunzipSync(Buffer.from(String(raw).slice(3), "base64")).toString("utf8")) : JSON.parse(raw); }
   catch { return null; }
@@ -376,7 +377,9 @@ export default async function handler(req, res) {
           let rev = Number(rv) || 0;
           if (!cur || !rev || mStr !== stable(cleanDoc(cur))) {
             rev += 1;
-            await redis([["SET", dk, pack(merged)], ["SET", rk, String(rev)]]);
+            // báo cáo ngày (27/11/2026): dữ liệu học có thay đổi -> tài khoản vào rp:a:<ngày> (cùng lần gửi kho)
+            const rpa = "rp:a:" + vnDay();
+            await redis([["SET", dk, pack(merged)], ["SET", rk, String(rev)], ...(child === "_settings" ? [] : [["SADD", rpa, acc.phone], ["EXPIRE", rpa, String(40 * 86400)]])]);
           }
           return send(res, 200, mStr === inStr ? { ok: true, rev, same: true } : { ok: true, rev, doc: merged });
         } finally {
