@@ -15,6 +15,7 @@
 //    /__mock/ai/usage?in=1000&out=500&cw=0&cr=0 đặt số token; /__mock/ai/bad/<n>: mỗi lần soạn câu có n câu SAI quy cách
 //    (lựa chọn trùng, đáp án không nằm trong lựa chọn); /__mock/ai: msgs = số lời gọi /v1/messages, gen = lời nhắc soạn câu (kèm model).
 //    /__mock/day/<YYYY-MM-DD> | off: đặt "hôm nay" giả (giờ Việt Nam) để thử sang ngày mới.
+//    /__mock/hour/<giờ> | off: giờ Việt Nam giả; /__mock/cron/<chuỗi> | off: biến CRON_SECRET giả (báo cáo ngày, 27/11/2026).
 //    /api/spelling (MOCK=1) nay chạy hàm THẬT api/spelling.mjs (đăng nhập, trần tiền, đếm token) với luồng AI giả.
 //  - Gửi email (mã "Quên mật khẩu", api/_mail.mjs): KHÔNG gửi thật — MAIL_MOCK_FILE=tests/out/mail-<cổng>.jsonl (mỗi thư một dòng JSON).
 //    MAIL=0: như máy chủ chưa cài gửi email (không có MAIL_USER / MAIL_APP_PASSWORD) -> "mail_off".
@@ -250,6 +251,17 @@ const server = http.createServer((req, res) => {
     const d = url.slice('/__mock/day/'.length)
     if (/^\d{4}-\d{2}-\d{2}$/.test(d)) process.env.AI_FAKE_DAY = d; else delete process.env.AI_FAKE_DAY
     res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ day: process.env.AI_FAKE_DAY || null }))
+  }
+  // Báo cáo ngày (27/11/2026): /__mock/hour/<0–23>|off = giờ Việt Nam giả; /__mock/cron/<chuỗi>|off = biến CRON_SECRET giả
+  if (url.startsWith('/__mock/hour/')) {
+    const h = url.slice('/__mock/hour/'.length)
+    if (/^\d{1,2}$/.test(h)) process.env.AI_FAKE_HOUR = h; else delete process.env.AI_FAKE_HOUR
+    res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ hour: process.env.AI_FAKE_HOUR || null }))
+  }
+  if (url.startsWith('/__mock/cron/')) {
+    const c = url.slice('/__mock/cron/'.length)
+    if (c && c !== 'off') process.env.CRON_SECRET = c; else delete process.env.CRON_SECRET
+    res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ cron: !!process.env.CRON_SECRET }))
   }
   if (url.startsWith('/__mock/ai')) {
     const m = url.match(/^\/__mock\/ai(?:\/(reset|fail|delay|bad|usage|err)\/?(\w+)?)?$/)

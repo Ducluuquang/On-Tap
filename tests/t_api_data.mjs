@@ -91,7 +91,8 @@ const sGet = (await (await fetch(SHIM + '/stats')).json()).commands
 await fetch(SHIM + '/stats/reset', { method: 'POST' })
 await call('data', { child: KA, doc: devDoc('dA', 360) }, T)
 const sPut = (await (await fetch(SHIM + '/stats')).json()).commands
-check(`số lệnh kho: hỏi bản mới (không đổi) ${sGet} lệnh; gửi bản có thay đổi ${sPut} lệnh`, sGet <= 3 && sPut <= 9, `${sGet} ${sPut}`)
+check(`số lệnh kho: hỏi bản mới (không đổi) ${sGet} lệnh; gửi bản có thay đổi ${sPut} lệnh`, sGet <= 3 && sPut <= 11,   // +2 lệnh từ 27/11/2026: SADD + EXPIRE rp:a:<ngày> (báo cáo ngày)
+  `${sGet} ${sPut}`)
 
 const fails = Object.entries(res).filter(([, v]) => !v)
 console.log(fails.length ? `FAILED ${fails.length}/${Object.keys(res).length}: ` + fails.map(([n]) => n).join(' | ') : `ALL PASS ✓ (${Object.keys(res).length} checks)`)

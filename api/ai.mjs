@@ -5,6 +5,7 @@
 //  - Trần đầu vào: generate count ≤ 20, mỗi chuỗi (chủ đề, tên khái niệm, ý nhỏ) ≤ 200 ký tự; extract ≤ 6 ảnh / tệp; judge mỗi chuỗi ≤ 500.
 //  - Đếm token thật của mọi lời gọi AI, ghi tiền vào kho (api/_aicost.mjs); vượt trần tiền ngày của tài khoản -> 429 { error: "limit" }.
 //  - generate: NGÂN HÀNG CÂU HỎI theo khái niệm + giới hạn lượt soạn mới mỗi con mỗi ngày (api/_qbank.mjs).
+//  - Báo cáo ngày (27/11/2026): mỗi lượt generate cộng sessions / asked / bank_used / fresh_used vào ai:d + rp:u, tài khoản vào rp:a.
 //  - Lỗi trả mã ngắn (không trả nguyên thông báo của máy chủ AI); chi tiết ghi console.error.
 import { extractConcepts, extractFromText, generateQuestions, gradeHomework, judgeAnswer, subjKey } from './aiCore.mjs'
 import { bookContext } from './_books/core.mjs'
@@ -89,7 +90,9 @@ export default async function handler(req, res) {
       }
       const r = await bankGenerate(p, { recent, gen, gate: () => genAllowed(u.phone, childId, cfg.genLimit) })
       if (r.genRun) await countGenRun(u.phone, childId).catch(() => {})
-      extra = { bank_q: r.source.bank, new_q: r.newQ, gen_runs: r.genRun ? 1 : 0 }
+      // báo cáo ngày (27/11/2026): câu đưa cho con = app xin p.count câu (máy chủ trả dư 3): phần từ ngân hàng trước, rồi phần mới soạn
+      const bankUsed = Math.min(r.source.bank, p.count), freshUsed = Math.min(r.source.fresh, p.count - bankUsed)
+      extra = { bank_q: r.source.bank, new_q: r.newQ, gen_runs: r.genRun ? 1 : 0, sessions: 1, asked: p.count, bank_used: bankUsed, fresh_used: freshUsed }
       return send(res, 200, { questions: r.questions, source: r.source, limited: r.limited, ...(r.limited ? { genLimit: cfg.genLimit } : {}) })
     }
     if (action === 'grade') {

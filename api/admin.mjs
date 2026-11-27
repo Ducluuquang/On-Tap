@@ -22,6 +22,13 @@
 //       ai_bank_list {q, subject, grade} · ai_bank_get {key} · ai_bank_del {key} -> ngân hàng câu hỏi (xoá có ghi nhật ký)
 //       ai_try {subject, grade, topic, concepts, format, count} -> soạn CÙNG LÚC bằng Sonnet và Haiku (không lưu ngân hàng, không tính trần)
 //       ai_try_save {subject, grade, topic, rows:[{tier, model, n, wrong, usd}]} -> ghi đánh giá vào ai:try:log (200 lần gần nhất)
+//  BÁO CÁO NGÀY (anh yêu cầu 27/11/2026, api/_report.mjs; chỉ super admin):
+//       report_get {day}      -> học (gia đình, con, lượt ôn, câu, đúng %, phút, theo môn), câu hỏi (ngân hàng / mới soạn), AI (token, tiền,
+//                                loại việc), so với hôm qua + trung bình 7 ngày, bảng từng gia đình (số điện thoại che); day trong 30 ngày
+//       report_send           -> gửi thử thư báo cáo hôm nay ngay tới email quản trị (không tính lần gửi mỗi tối)
+//  GET  /api/admin?job=report -> Vercel cron mỗi tối (vercel.json "crons": 14:00 UTC = 21:00 giờ VN, Hobby có thể lệch tới 59 phút).
+//       Có biến CRON_SECRET -> bắt buộc "Authorization: Bearer <CRON_SECRET>" (sai 401); chưa có biến -> chỉ chạy từ 20:00 giờ VN.
+//       Mỗi ngày tối đa một thư (rp:sent:<ngày>).
 // Doanh thu: chưa có cổng thanh toán thật nên chưa có số liệu (trang quản trị ghi rõ).
 import fs from "node:fs";
 import { redis, redisEnv, send, readBody, parse } from "./_store.mjs";
@@ -32,11 +39,12 @@ import { deleteBook, markBook, previewBook } from "./books.mjs";
 import { hashPass } from "./account.mjs";
 import { tokenFor } from "./_acctkey.mjs";
 import { FK, KINDS, STATUS, okId, cleanText, getThread, putThread, pubThread } from "./_fb.mjs";
-import { getAiCfg, setAiCfg, costMicro, newCtx, recordCost, lastDays, vnMonth, spendOf, MODEL_GROUPS } from "./_aicost.mjs";
+import { getAiCfg, setAiCfg, costMicro, newCtx, recordCost, lastDays, vnMonth, vnDay, vnHour, spendOf, MODEL_GROUPS } from "./_aicost.mjs";
 import { bankList, bankGet, bankDel, validQ } from "./_qbank.mjs";
 import { generateQuestions, subjKey } from "./aiCore.mjs";
 import { bookContext } from "./_books/core.mjs";
 import { cleanGen } from "./ai.mjs";
+import { buildReport, sendReport, okDay } from "./_report.mjs";
 
 const PLAN_IDS = ["1", "2", "3", "4", "5"];
 const PRICE_MAX = 100000000;
@@ -44,7 +52,8 @@ const PAGE = 30;
 const DAY = 86400000;
 
 const SUPER_ONLY = new Set(["chg_approve", "chg_reject", "staff_list", "staff_add", "staff_remove", "settings_set",
-  "ai_stats", "ai_cfg_get", "ai_cfg_set", "ai_bank_list", "ai_bank_get", "ai_bank_del", "ai_try", "ai_try_save"]);
+  "ai_stats", "ai_cfg_get", "ai_cfg_set", "ai_bank_list", "ai_bank_get", "ai_bank_del", "ai_try", "ai_try_save",
+  "report_get", "report_send"]);
 const hashObj = (r) => { const o = {}; for (let i = 0; i + 1 < (r || []).length; i += 2) o[r[i]] = r[i + 1]; return o; };
 const SUBJ_GROUP = { toan: "Toán", "tieng-viet": "Tiếng Việt", "tieng-anh": "Tiếng Anh", "ngu-van": "Ngữ văn", default: "Môn khác" };
 // Bảng tổng kết "Thử model": môn × model -> tổng câu, câu sai, tỷ lệ sai, tiền trung bình cho 10 câu (micro-USD)
@@ -103,6 +112,24 @@ const summary = (t) => ({ id: t.id, kind: t.kind, status: t.status, created: t.c
   first: (t.msgs[0] && t.msgs[0].text || "").slice(0, 160), n: t.msgs.length, last: (t.msgs[t.msgs.length - 1] || {}).by || "user",
   escalated: !!t.escalated, urgent: !!t.urgent, aiSummary: t.aiSummary || "" });
 
+// địa chỉ trang (cho đường dẫn /quan-tri trong thư)
+const baseOf = (req) => {
+  const h = (req && req.headers) || {};
+  const host = String(h["x-forwarded-host"] || h.host || "").split(",")[0].trim();
+  const proto = String(h["x-forwarded-proto"] || "https").split(",")[0].trim();
+  return /^[a-z0-9.:-]+$/i.test(host) ? proto + "://" + host : "https://on-tap-three.vercel.app";
+};
+// Vercel cron: GET /api/admin?job=report (báo cáo ngày mỗi tối)
+async function reportJob(req, res) {
+  const secret = String(process.env.CRON_SECRET || "");
+  if (secret) {
+    const auth = String((req.headers && req.headers.authorization) || "");
+    if (!sameStr(auth, "Bearer " + secret)) return send(res, 401, { ok: false, error: "unauthorized" });
+  } else if (vnHour() < 20) return send(res, 403, { ok: false, error: "too_early" });
+  const r = await sendReport({ day: vnDay(), base: baseOf(req) });
+  return send(res, 200, r);
+}
+
 const sameStr = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
 async function setup(req, res, b) {
   const want = String(process.env.ADMIN_SETUP_CODE || "");
@@ -129,7 +156,11 @@ async function setup(req, res, b) {
 export default async function handler(req, res) {
   if (!redisEnv()) return send(res, 200, { ok: false, error: "no_store" });
   try {
-    if (req.method === "GET") return send(res, 200, { ok: true, prices: await getPrices() });
+    if (req.method === "GET") {
+      const q = new URL(req.url || "/", "http://x").searchParams;
+      if ((req.query && req.query.job) === "report" || q.get("job") === "report") return reportJob(req, res);
+      return send(res, 200, { ok: true, prices: await getPrices() });
+    }
     if (req.method !== "POST") return send(res, 405, { ok: false, error: "method" });
     let b;
     try { b = await readBody(req, 200000); } catch { return send(res, 400, { ok: false, error: "bad_json" }); }
@@ -401,6 +432,15 @@ export default async function handler(req, res) {
         }
         return send(res, 200, { ok: true, rate: cfg.rate, month, days: out, top: topPhones, tries: await trySummary() });
       }
+      // ---- Báo cáo ngày (chỉ super admin) ----
+      case "report_get": {
+        const today = vnDay();
+        const day = b.day == null || b.day === "" ? today : String(b.day);
+        if (!okDay(day) || day > today || Date.parse(today) - Date.parse(day) > 29 * DAY) return send(res, 200, { ok: false, error: "bad_day" });
+        return send(res, 200, { ok: true, ...(await buildReport(day)) });
+      }
+      case "report_send":
+        return send(res, 200, await sendReport({ day: vnDay(), base: baseOf(req), test: true }));
       case "ai_cfg_get":
         return send(res, 200, { ok: true, cfg: await getAiCfg({ fresh: true }), groups: MODEL_GROUPS });
       case "ai_cfg_set": {
@@ -412,9 +452,10 @@ export default async function handler(req, res) {
           if (!Number.isFinite(n) || n < 0 || (k === "rate" && (n < 1000 || n > 100000)) || n > 10000000) return send(res, 200, { ok: false, error: "bad_value", field: k });
           next[k] = n;
         }
+        if (b.reportOn != null) next.reportOn = !!b.reportOn;
         const saved = await setAiCfg(next);
-        const pick = (c) => ({ models: c.models, genLimit: c.genLimit, capVnd: c.capVnd, rate: c.rate });
-        await putChange(newChange({ type: "ai_cfg", ...who, title: "Chi phí AI: model, giới hạn, trần tiền, tỷ giá", before: pick(cur), after: pick(saved), status: "applied" }));
+        const pick = (c) => ({ models: c.models, genLimit: c.genLimit, capVnd: c.capVnd, rate: c.rate, reportOn: c.reportOn });
+        await putChange(newChange({ type: "ai_cfg", ...who, title: "Chi phí AI: model, giới hạn, trần tiền, tỷ giá, email báo cáo ngày", before: pick(cur), after: pick(saved), status: "applied" }));
         return send(res, 200, { ok: true, cfg: saved });
       }
       case "ai_bank_list":

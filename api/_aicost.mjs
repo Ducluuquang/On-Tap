@@ -10,6 +10,11 @@
 //   ai:d:<YYYY-MM-DD>     HASH  usd, calls · usd:<loại việc>, n:<loại việc> · in:<model>, out:<model> · bank_q, new_q, gen_runs (EXPIRE 120 ngày)
 //   ai:m:<YYYY-MM>        ZSET  số điện thoại -> micro-USD trong tháng (EXPIRE 70 ngày)
 //   ai:g:<YYYY-MM-DD>:<số điện thoại>:<id con>  số lượt PHẢI SOẠN MỚI của con trong ngày (Việc 3; EXPIRE 2 ngày)
+// BÁO CÁO NGÀY (anh yêu cầu 27/11/2026, api/_report.mjs) — ghi trong CÙNG lần gửi kho của recordCost:
+//   ai:d:<ngày> thêm sessions (lượt ôn = lượt generate), asked (câu app xin), bank_used / fresh_used (câu đưa cho con lấy từ
+//              ngân hàng / mới soạn); new_q vẫn là số câu ONTAP soạn mới (gồm cả câu để dành cho lần sau).
+//   rp:u:<ngày>:<số điện thoại>  HASH  sessions, asked, bank_used, fresh_used, new_q, usd (micro-USD), in, out (token) (EXPIRE 40 ngày)
+//   rp:a:<ngày>  SET  số điện thoại có học trong ngày (generate ở đây + hành động "data" của /api/account) (EXPIRE 40 ngày)
 import { redis, parse } from "./_store.mjs";
 
 const SONNET55 = { in: 2, out: 10, cw: 2.5, cr: 0.10 };
@@ -49,6 +54,12 @@ export function vnDay(t = Date.now()) {
   }
   return new Date(t + 7 * 3600000).toISOString().slice(0, 10);
 }
+// Giờ trong ngày theo giờ Việt Nam (0–23). Phép thử đặt giờ giả qua AI_FAKE_HOUR (/__mock/hour/<giờ>).
+export function vnHour(t = Date.now()) {
+  const fake = process.env.AI_FAKE_HOUR;
+  if (fake != null && /^\d{1,2}$/.test(fake)) return Number(fake);
+  return new Date(t + 7 * 3600000).getUTCHours();
+}
 export const vnMonth = (t = Date.now()) => vnDay(t).slice(0, 7);
 // n ngày gần nhất (hôm nay đầu tiên)
 export const lastDays = (n) => Array.from({ length: n }, (_, i) => vnDay(Date.now() - i * 86400000));
@@ -63,29 +74,42 @@ export function newCtx(kind, phone = "") {
 }
 const fieldSafe = (s) => String(s || "unknown").replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 60);
 
-// Ghi chi phí của một yêu cầu vào kho: MỘT lần gửi. extra: { bank_q, new_q, gen_runs }. noPhone: không cộng vào tài khoản.
-// Lỗi kho -> chỉ ghi console (không làm hỏng việc chính).
+// Ghi chi phí của một yêu cầu vào kho: MỘT lần gửi. extra: { bank_q, new_q, gen_runs, sessions, asked, bank_used, fresh_used }.
+// noPhone: không cộng vào tài khoản. Lỗi kho -> chỉ ghi console (không làm hỏng việc chính).
+const DAY_EXTRA = ["bank_q", "new_q", "gen_runs", "sessions", "asked", "bank_used", "fresh_used"];
+const USER_EXTRA = ["sessions", "asked", "bank_used", "fresh_used", "new_q"];
 export async function recordCost(ctx, extra = {}, { noPhone = false } = {}) {
   const uses = (ctx && ctx.uses) || [];
   const hasExtra = Object.values(extra).some((v) => num(v));
   if (!uses.length && !hasExtra) return 0;
   const day = vnDay(), month = vnMonth(), dk = "ai:d:" + day;
   const cmds = [];
-  let total = 0;
+  let total = 0, tin = 0, tout = 0;
   for (const x of uses) {
     const c = costMicro(x.model, x.usage, { batch: x.batch });
     total += c;
     const m = fieldSafe(x.model);
+    const i = num(x.usage.input_tokens) + num(x.usage.cache_creation_input_tokens) + num(x.usage.cache_read_input_tokens), o = num(x.usage.output_tokens);
+    tin += i; tout += o;
     cmds.push(["HINCRBY", dk, "usd", c], ["HINCRBY", dk, "calls", 1], ["HINCRBY", dk, "usd:" + x.kind, c], ["HINCRBY", dk, "n:" + x.kind, 1],
-      ["HINCRBY", dk, "in:" + m, num(x.usage.input_tokens) + num(x.usage.cache_creation_input_tokens) + num(x.usage.cache_read_input_tokens)],
-      ["HINCRBY", dk, "out:" + m, num(x.usage.output_tokens)]);
+      ["HINCRBY", dk, "in:" + m, i], ["HINCRBY", dk, "out:" + m, o]);
   }
-  for (const k of ["bank_q", "new_q", "gen_runs"]) if (num(extra[k])) cmds.push(["HINCRBY", dk, k, Math.round(num(extra[k]))]);
+  for (const k of DAY_EXTRA) if (num(extra[k])) cmds.push(["HINCRBY", dk, k, Math.round(num(extra[k]))]);
   cmds.push(["EXPIRE", dk, String(120 * 86400)]);
   const phone = !noPhone && ctx && ctx.phone;
   if (phone && total > 0) {
     cmds.push(["HINCRBY", "ai:c:" + phone, day, total], ["EXPIRE", "ai:c:" + phone, String(40 * 86400)],
       ["ZINCRBY", "ai:m:" + month, total, phone], ["EXPIRE", "ai:m:" + month, String(70 * 86400)]);
+  }
+  // báo cáo ngày: số liệu theo tài khoản + tài khoản có học hôm nay (lượt ôn)
+  if (phone) {
+    const uk = `rp:u:${day}:${phone}`, uc = [];
+    for (const k of USER_EXTRA) if (num(extra[k])) uc.push(["HINCRBY", uk, k, Math.round(num(extra[k]))]);
+    if (total > 0) uc.push(["HINCRBY", uk, "usd", total]);
+    if (tin) uc.push(["HINCRBY", uk, "in", tin]);
+    if (tout) uc.push(["HINCRBY", uk, "out", tout]);
+    if (uc.length) cmds.push(...uc, ["EXPIRE", uk, String(40 * 86400)]);
+    if (num(extra.sessions)) cmds.push(["SADD", "rp:a:" + day, phone], ["EXPIRE", "rp:a:" + day, String(40 * 86400)]);
   }
   try { await redis(cmds); } catch (e) { console.error("ai cost store", e && (e.code || e.message)); }
   return total;
@@ -94,7 +118,7 @@ export async function recordCost(ctx, extra = {}, { noPhone = false } = {}) {
 /* ---------- Cài đặt cfg:ai (super admin) ---------- */
 // Nhóm môn soạn câu (theo subjKey) + Vở Spelling + chấm câu tự gõ: "sonnet" (Chính xác) | "haiku" (Tiết kiệm). Mặc định TẤT CẢ Sonnet.
 export const MODEL_GROUPS = ["toan", "tieng-viet", "tieng-anh", "ngu-van", "default", "spelling", "judge"];
-export const AI_DEFAULTS = { models: Object.fromEntries(MODEL_GROUPS.map((g) => [g, "sonnet"])), genLimit: 5, capVnd: 10000, rate: 26000 };
+export const AI_DEFAULTS = { models: Object.fromEntries(MODEL_GROUPS.map((g) => [g, "sonnet"])), genLimit: 5, capVnd: 10000, rate: 26000, reportOn: true };
 export function cleanAiCfg(c) {
   const x = c && typeof c === "object" ? c : {};
   const models = {};
@@ -105,6 +129,7 @@ export function cleanAiCfg(c) {
     genLimit: int(x.genLimit, AI_DEFAULTS.genLimit, 0, 1000),        // lượt soạn mới mỗi con mỗi ngày; 0 = không giới hạn
     capVnd: int(x.capVnd, AI_DEFAULTS.capVnd, 0, 10000000),          // trần tiền mỗi con mỗi ngày (đồng); 0 = không có trần
     rate: int(x.rate, AI_DEFAULTS.rate, 1000, 100000),               // tỷ giá đồng / USD
+    reportOn: x.reportOn !== false,                                  // email báo cáo ngày mỗi tối (27/11/2026; mặc định BẬT)
     updated: Number(x.updated) || 0, by: String(x.by || ""),
   };
 }

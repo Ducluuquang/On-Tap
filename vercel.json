@@ -37,5 +37,11 @@
       "source": "/quan-tri/",
       "destination": "/index.html"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/admin?job=report",
+      "schedule": "0 14 * * *"
+    }
   ]
 }
